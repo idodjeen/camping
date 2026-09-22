@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+/*
+ * Tailwind v4 is CSS-first: there is no tailwind.config.js. Design tokens are
+ * declared here with @theme and become utilities automatically
+ * (--color-night-900 -> bg-night-900, text-night-900, border-night-900, ...).
+ */
+@theme {
+  --font-sans: var(--font-heebo), ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* Ground */
+  --color-night-950: #06060c;
+  --color-night-900: #0a0a14;
+  --color-night-800: #11111f;
+  --color-night-700: #1a1a2e;
+  --color-night-600: #26263f;
+
+  /* Brand: purple -> blue -> teal */
+  --color-brand-300: #c4b5fd;
+  --color-brand-400: #a78bfa;
+  --color-brand-500: #8b5cf6;
+  --color-brand-600: #7c3aed;
+  --color-ocean-400: #60a5fa;
+  --color-ocean-500: #3b82f6;
+  --color-aqua-300: #5eead4;
+  --color-aqua-400: #2dd4bf;
+  --color-aqua-500: #14b8a6;
+
+  --radius-glass: 1.25rem;
+}
+
+/* The app is dark-only by design, but keeping the class-based variant means a
+   light theme could be added later without rewriting every utility. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background-color: var(--color-night-950);
+  color: #e7e7f2;
+  /* Soft brand glows behind everything, fixed so they don't scroll away. */
+  background-image:
+    radial-gradient(60rem 40rem at 85% -10%, color-mix(in oklab, var(--color-brand-600) 22%, transparent), transparent 70%),
+    radial-gradient(50rem 35rem at 10% 5%, color-mix(in oklab, var(--color-ocean-500) 16%, transparent), transparent 70%),
+    radial-gradient(45rem 35rem at 50% 105%, color-mix(in oklab, var(--color-aqua-500) 14%, transparent), transparent 70%);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  /* Stops iOS Safari from tinting the whole UI on rubber-band overscroll. */
+  overscroll-behavior-y: none;
+}
+
+@utility glass {
+  background: color-mix(in oklab, var(--color-night-800) 62%, transparent);
+  backdrop-filter: blur(18px) saturate(1.3);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  box-shadow:
+    0 1px 0 0 rgb(255 255 255 / 0.05) inset,
+    0 10px 40px -12px rgb(0 0 0 / 0.6);
+}
+
+@utility glow-brand {
+  box-shadow: 0 0 0 1px rgb(139 92 246 / 0.25), 0 12px 40px -12px rgb(139 92 246 / 0.55);
+}
+
+/* Every interactive control must clear the 44px Apple/Android tap target. */
+@utility tap {
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+}
+
+/* Bottom nav and page bottoms must clear the iPhone home indicator. */
+@utility pb-safe {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--pb-safe-extra, 0px));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
