@@ -1,7 +1,6 @@
 import { count, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
-import { signOut } from "@/auth";
 import { UserAvatar } from "@/components/user-avatar";
 import { db } from "@/db";
 import { gearItems, meals, shoppingItems, trip, users } from "@/db/schema";
@@ -69,27 +68,12 @@ export default async function HomePage() {
       </section>
 
       <section className="glass mt-5 rounded-glass p-5">
-        <p className="text-sm font-semibold text-white/80">שלב 1 הושלם ✅</p>
+        <p className="text-sm font-semibold text-white/80">שלב 2 הושלם ✅</p>
         <p className="mt-2 text-sm leading-relaxed text-white/50">
-          התחברות, הרשאות ונתוני הבסיס עובדים. בשלב הבא נוסיף את מסכי הציוד, הקניות,
-          הארוחות והרשימה האישית.
+          מסכי הציוד, הקניות, הארוחות והרשימה האישית פעילים. בשלב הבא: ספירה לאחור,
+          תחזית מזג אוויר, ניווט ואונבורדינג.
         </p>
       </section>
-
-      <form
-        className="mt-8"
-        action={async () => {
-          "use server";
-          await signOut({ redirectTo: "/login" });
-        }}
-      >
-        <button
-          type="submit"
-          className="tap w-full rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white/70 transition active:scale-[0.98]"
-        >
-          התנתקות
-        </button>
-      </form>
     </main>
   );
 }
