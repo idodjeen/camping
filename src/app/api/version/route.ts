@@ -33,6 +33,14 @@ export async function GET() {
     // Shape checks only — no values. Catches a client ID pasted into the
     // secret field, or an allowlist that parses to zero usable entries.
     google_id_looks_right: process.env.AUTH_GOOGLE_ID?.endsWith(".apps.googleusercontent.com") ?? false,
+    // Client IDs are public (they appear in the OAuth URL), so showing the
+    // shape is safe and tells us truncation from stray quotes/whitespace.
+    google_id_length: process.env.AUTH_GOOGLE_ID?.length ?? 0,
+    google_id_head: process.env.AUTH_GOOGLE_ID?.slice(0, 14) ?? null,
+    google_id_tail: process.env.AUTH_GOOGLE_ID?.slice(-32) ?? null,
+    google_id_has_whitespace: /\s/.test(process.env.AUTH_GOOGLE_ID ?? ""),
+    google_id_has_quotes: /["']/.test(process.env.AUTH_GOOGLE_ID ?? ""),
+    google_secret_length: process.env.AUTH_GOOGLE_SECRET?.length ?? 0,
     google_secret_looks_right: process.env.AUTH_GOOGLE_SECRET?.startsWith("GOCSPX-") ?? false,
     allowed_users_parsed: allowed
       .split(",")
