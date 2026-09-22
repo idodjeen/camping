@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, Minus, Plus, Sparkles, X } from "lucide-react";
+import { Check, Loader2, Minus, Plus, Sparkles, X } from "lucide-react";
 import { useState } from "react";
 import useSWR from "swr";
 
@@ -122,7 +122,115 @@ export default function GearPage() {
           </section>
         ))}
       </div>
+
+      <AddGearItem
+        categories={data?.categories.map((c) => ({ id: c.id, name: c.name })) ?? []}
+        onAdded={() => mutate()}
+      />
     </>
+  );
+}
+
+/** Any member can add something the list is missing. */
+function AddGearItem({
+  categories,
+  onAdded,
+}: {
+  categories: { id: number; name: string }[];
+  onAdded: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [categoryId, setCategoryId] = useState<number | "">("");
+  const [qty, setQty] = useState(1);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim() || !categoryId) return;
+    setBusy(true);
+    try {
+      await send("/api/gear", "POST", { name: name.trim(), categoryId, qtyNeeded: qty });
+      setName("");
+      setQty(1);
+      setOpen(false);
+      onAdded();
+      toast("נוסף לרשימה", "ok");
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : "לא הצלחנו להוסיף");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="tap mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-white/15 px-5 text-sm font-semibold text-white/45 transition active:scale-[0.98]"
+      >
+        <Plus className="size-4" />
+        להוסיף פריט חסר
+      </button>
+    );
+  }
+
+  return (
+    <motion.form
+      onSubmit={submit}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="glass mt-6 space-y-3 rounded-2xl p-4"
+    >
+      <input
+        autoFocus
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="מה חסר?"
+        maxLength={80}
+        className="tap w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm outline-none placeholder:text-white/25 focus:border-brand-400/40"
+      />
+      <div className="flex gap-2">
+        <select
+          value={categoryId}
+          onChange={(e) => setCategoryId(Number(e.target.value))}
+          className="tap min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-brand-400/40"
+        >
+          <option value="">קטגוריה…</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id} className="bg-night-800">
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <input
+          type="number"
+          min={1}
+          max={99}
+          value={qty}
+          onChange={(e) => setQty(Number(e.target.value))}
+          aria-label="כמות"
+          className="tap w-16 rounded-xl border border-white/10 bg-white/5 px-3 text-center text-sm outline-none focus:border-brand-400/40"
+        />
+      </div>
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={busy || !name.trim() || !categoryId}
+          className="tap flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-500/25 text-sm font-semibold text-brand-100 transition active:scale-95 disabled:opacity-30"
+        >
+          {busy ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+          להוסיף
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="tap rounded-xl px-4 text-sm text-white/45"
+        >
+          ביטול
+        </button>
+      </div>
+    </motion.form>
   );
 }
 
