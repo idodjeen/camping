@@ -36,6 +36,7 @@ export function AvatarStack({ entries, size = 30 }: { entries: StackEntry[]; siz
               slug={e.slug}
               avatarUrl={e.avatarUrl}
               size={size}
+              expandable
               title={e.qty > 1 ? `${e.name} · ${e.qty}` : e.name}
             />
             {e.qty > 1 && (

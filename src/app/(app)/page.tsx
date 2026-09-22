@@ -26,7 +26,7 @@ export default async function HomePage() {
   return (
     <main className="mx-auto min-h-dvh w-full max-w-md px-5 pb-12 pt-8">
       <header className="flex items-center gap-3">
-        <UserAvatar name={me.name} slug={me.slug} avatarUrl={me.avatarUrl} size={44} />
+        <UserAvatar name={me.name} slug={me.slug} avatarUrl={me.avatarUrl} size={44} expandable />
         <div className="min-w-0 flex-1">
           <p className="text-sm text-white/50">שלום,</p>
           <p className="truncate text-lg font-bold">{me.name}</p>

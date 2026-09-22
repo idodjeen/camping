@@ -144,6 +144,7 @@ export default function MePage() {
           slug={data.user.slug}
           avatarUrl={data.user.avatarUrl}
           size={52}
+          expandable
         />
         <div className="min-w-0 flex-1">
           <p className="truncate text-xl font-bold">{data.user.name}</p>

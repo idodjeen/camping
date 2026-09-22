@@ -134,6 +134,7 @@ export default function ShoppingPage() {
                         slug={item.boughtBy.slug}
                         avatarUrl={item.boughtBy.avatarUrl}
                         size={26}
+                        expandable
                         title={`נקנה על ידי ${item.boughtBy.name}`}
                       />
                     )}
