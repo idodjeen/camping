@@ -1,11 +1,12 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, Loader2, LogOut, Plus, Trash2 } from "lucide-react";
+import { BookOpen, Check, Loader2, LogOut, Plus, Trash2 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { useState } from "react";
 import useSWR from "swr";
 
+import { Onboarding } from "@/components/onboarding";
 import { PageTitle, SkeletonList } from "@/components/skeletons";
 import { toast } from "@/components/toast";
 import { UserAvatar } from "@/components/user-avatar";
@@ -37,6 +38,7 @@ export default function MePage() {
   const { data, isLoading, mutate } = useSWR<Payload>("/api/me", fetcher, swrConfig);
   const [draft, setDraft] = useState("");
   const [adding, setAdding] = useState(false);
+  const [guide, setGuide] = useState(false);
 
   const optimistic = (patch: (p: Payload) => Payload) => (data ? patch(data) : undefined);
 
@@ -250,6 +252,16 @@ export default function MePage() {
           </AnimatePresence>
         </div>
       </section>
+
+      <button
+        onClick={() => setGuide(true)}
+        className="tap mb-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 text-sm font-semibold text-white/60 transition active:scale-[0.98]"
+      >
+        <BookOpen className="size-4" />
+        המדריך הקצר
+      </button>
+
+      <Onboarding open={guide} onDone={() => setGuide(false)} />
 
       <button
         onClick={() => signOut({ callbackUrl: "/login" })}

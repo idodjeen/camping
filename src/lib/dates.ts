@@ -19,6 +19,31 @@ export function daysUntil(date: string, from: string = todayInIsrael()): number 
   return Math.round(ms / 86_400_000);
 }
 
+/** "YYYY-MM-DDTHH:mm" in Israel — sortable, and comparable as a plain string. */
+export function nowInIsrael(): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+  const get = (t: string) => parts.find((p) => p.type === t)!.value;
+  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
+}
+
+/**
+ * Meals have a slot, not a time. These anchors turn "שישי צהריים" into
+ * something comparable with the clock so the dashboard can pick the next one.
+ */
+export const SLOT_HOUR: Record<string, string> = {
+  breakfast: "08:00",
+  lunch: "13:00",
+  dinner: "19:00",
+};
+
 const HEBREW_WEEKDAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
 /** "חמישי 1.10" */

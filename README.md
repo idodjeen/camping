@@ -6,6 +6,18 @@ personal packing list.
 
 Built entirely on free tiers: Vercel Hobby + Neon Postgres + Open-Meteo.
 
+## What's in the app
+
+| Screen | What it does |
+|---|---|
+| **בית** | Live countdown, 3-day forecast, Waze/Maps buttons, progress rings, next meal, what's still unclaimed |
+| **ציוד** | Claim gear by category, take part of a quantity, release it, add missing items |
+| **ארוחות** | Day-by-day timeline with each meal's ingredients and their bought status |
+| **קניות** | Checklist by category; only עידו and ניר can tick items |
+| **שלי** | Your claims with packed checkboxes, plus a private personal list |
+
+First login shows four swipeable onboarding cards; they can be replayed from שלי.
+
 ---
 
 ## Stack
