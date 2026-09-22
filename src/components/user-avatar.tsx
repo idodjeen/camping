@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { gradientFor, initialFor } from "@/lib/gradient";
 import { cn } from "@/lib/utils";
@@ -29,6 +29,17 @@ export function UserAvatar({
   title?: string;
 }) {
   const [failed, setFailed] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  // onError alone is not enough. The <img> is server-rendered, so a 404 can
+  // fire and finish before React hydrates — the handler is attached too late
+  // and the broken-image icon stays on screen. Re-check on mount: an image
+  // that has finished loading with zero natural width has failed.
+  useEffect(() => {
+    const img = imgRef.current;
+    if (img?.complete && img.naturalWidth === 0) setFailed(true);
+  }, []);
+
   const showImage = Boolean(avatarUrl) && !failed;
 
   return (
@@ -43,6 +54,7 @@ export function UserAvatar({
     >
       {showImage ? (
         <img
+          ref={imgRef}
           src={avatarUrl!}
           alt={name}
           width={size}
