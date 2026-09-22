@@ -1,3 +1,5 @@
+import { headers } from "next/headers";
+
 export const dynamic = "force-dynamic";
 
 /**
@@ -8,7 +10,12 @@ export const dynamic = "force-dynamic";
  * it is safe on a public deployment. Without this, "is the fix deployed?" and
  * "did that env var arrive?" can only be guessed at from the outside.
  */
-export function GET() {
+export async function GET() {
+  // Touching headers() guarantees this runs per-request. Without it the route
+  // could be evaluated during the build, where Config vars are present but
+  // Secret ones are not - which would make the report lie about the runtime.
+  await headers();
+
   const allowed = process.env.ALLOWED_USERS ?? "";
 
   return Response.json({
