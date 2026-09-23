@@ -50,8 +50,10 @@ export function UserAvatar({
   }, []);
 
   const showImage = Boolean(avatarUrl) && !failed;
-  // Only a real photo is worth expanding; a gradient initial has nothing to show.
-  const canExpand = expandable && showImage;
+  // Every avatar is tappable, photo or not. Gating this on showImage meant that
+  // until someone uploaded a picture their avatar silently did nothing, which
+  // reads as a broken app rather than a missing file.
+  const canExpand = expandable;
 
   const inner = showImage ? (
     <img
@@ -102,8 +104,9 @@ export function UserAvatar({
       <Lightbox
         open={open}
         onClose={() => setOpen(false)}
-        src={avatarUrl!}
+        src={showImage ? avatarUrl! : null}
         name={name}
+        slug={slug}
       />
     </>
   );
@@ -114,11 +117,14 @@ function Lightbox({
   onClose,
   src,
   name,
+  slug,
 }: {
   open: boolean;
   onClose: () => void;
-  src: string;
+  /** Null when the person has no photo yet — we show their gradient instead. */
+  src: string | null;
   name: string;
+  slug: string;
 }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -161,11 +167,19 @@ function Lightbox({
             onClick={(e) => e.stopPropagation()}
             className="relative w-full max-w-xs"
           >
-            <img
-              src={src}
-              alt={name}
-              className="w-full rounded-3xl object-cover shadow-2xl ring-1 ring-white/15"
-            />
+            {src ? (
+              <img
+                src={src}
+                alt={name}
+                className="w-full rounded-3xl object-cover shadow-2xl ring-1 ring-white/15"
+              />
+            ) : (
+              <div
+                className={`grid aspect-square w-full place-items-center rounded-3xl bg-gradient-to-br ${gradientFor(slug)} text-8xl font-black text-white shadow-2xl ring-1 ring-white/15`}
+              >
+                {initialFor(name)}
+              </div>
+            )}
             <p className="mt-3 text-center text-lg font-bold">{name}</p>
 
             <button

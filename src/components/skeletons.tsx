@@ -11,11 +11,23 @@ export function SkeletonList({ rows = 5 }: { rows?: number }) {
   );
 }
 
-export function PageTitle({ title, subtitle }: { title: string; subtitle?: string }) {
+export function PageTitle({
+  title,
+  subtitle,
+  action,
+}: {
+  title: string;
+  subtitle?: string;
+  /** Right-hand slot, used for the share/copy button. */
+  action?: React.ReactNode;
+}) {
   return (
-    <header className="mb-5">
-      <h1 className="text-2xl font-bold">{title}</h1>
-      {subtitle && <p className="mt-1 text-sm text-white/50">{subtitle}</p>}
+    <header className="mb-5 flex items-start gap-3">
+      <div className="min-w-0 flex-1">
+        <h1 className="text-2xl font-bold">{title}</h1>
+        {subtitle && <p className="mt-1 text-sm text-white/50">{subtitle}</p>}
+      </div>
+      {action && <div className="shrink-0 pt-1">{action}</div>}
     </header>
   );
 }

@@ -3,9 +3,11 @@
 import { Check } from "lucide-react";
 import useSWR from "swr";
 
+import { CopyButton } from "@/components/copy-button";
 import { PageTitle, SkeletonList } from "@/components/skeletons";
 import { fetcher, swrConfig } from "@/lib/api";
 import { SLOT_LABELS, formatTripDay } from "@/lib/dates";
+import { formatMenu } from "@/lib/format-lists";
 import { cn } from "@/lib/utils";
 
 type Meal = {
@@ -33,7 +35,11 @@ export default function MealsPage() {
 
   return (
     <>
-      <PageTitle title="ארוחות" subtitle="מה אוכלים, ומה צריך בשביל זה" />
+      <PageTitle
+        title="ארוחות"
+        subtitle="מה אוכלים, ומה צריך בשביל זה"
+        action={<CopyButton getText={() => formatMenu(data?.days ?? [], formatTripDay)} />}
+      />
 
       <div className="space-y-7">
         {data?.days.map((day) => (

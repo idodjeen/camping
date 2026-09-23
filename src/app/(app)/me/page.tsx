@@ -6,12 +6,15 @@ import { signOut } from "next-auth/react";
 import { useState } from "react";
 import useSWR from "swr";
 
+import { AdminNotify } from "@/components/admin-notify";
+import { CopyButton } from "@/components/copy-button";
 import { Onboarding } from "@/components/onboarding";
 import { PageTitle, SkeletonList } from "@/components/skeletons";
 import { toast } from "@/components/toast";
 import { UserAvatar } from "@/components/user-avatar";
 import { ApiError, fetcher, send, swrConfig } from "@/lib/api";
 import { burstFrom } from "@/lib/confetti";
+import { formatMyList } from "@/lib/format-lists";
 import { cn } from "@/lib/utils";
 
 type Payload = {
@@ -155,7 +158,13 @@ export default function MePage() {
             {data.user.isShopper && <Badge>קניות</Badge>}
           </div>
         </div>
+        <CopyButton
+          label="הרשימה שלי"
+          getText={() => formatMyList(data.user.name, data.claims, data.personal)}
+        />
       </header>
+
+      {data.user.isAdmin && <AdminNotify />}
 
       <section className="mb-7">
         <h2 className="mb-2 px-1 text-sm font-semibold text-white/50">

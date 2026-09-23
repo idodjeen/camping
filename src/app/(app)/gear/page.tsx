@@ -6,10 +6,12 @@ import { useState } from "react";
 import useSWR from "swr";
 
 import { AvatarStack } from "@/components/avatar-stack";
+import { CopyButton } from "@/components/copy-button";
 import { PageTitle, SkeletonList } from "@/components/skeletons";
 import { toast } from "@/components/toast";
 import { ApiError, fetcher, send, swrConfig } from "@/lib/api";
 import { burstFrom } from "@/lib/confetti";
+import { formatGearList } from "@/lib/format-lists";
 import { cn } from "@/lib/utils";
 
 type Claim = {
@@ -103,6 +105,7 @@ export default function GearPage() {
       <PageTitle
         title="ציוד"
         subtitle={`${covered} מתוך ${required.length} פריטים מכוסים`}
+        action={<CopyButton getText={() => formatGearList(data?.categories ?? [])} />}
       />
 
       <div className="space-y-6">

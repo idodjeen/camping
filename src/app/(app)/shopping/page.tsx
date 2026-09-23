@@ -5,11 +5,13 @@ import { useState } from "react";
 import { Check, Loader2, Lock, Plus } from "lucide-react";
 import useSWR from "swr";
 
+import { CopyButton } from "@/components/copy-button";
 import { PageTitle, SkeletonList } from "@/components/skeletons";
 import { toast } from "@/components/toast";
 import { UserAvatar } from "@/components/user-avatar";
 import { ApiError, fetcher, send, swrConfig } from "@/lib/api";
 import { burstFrom } from "@/lib/confetti";
+import { formatShoppingList } from "@/lib/format-lists";
 import { SLOT_LABELS, formatTripDay } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 
@@ -67,7 +69,11 @@ export default function ShoppingPage() {
 
   return (
     <>
-      <PageTitle title="קניות" subtitle={`${bought} מתוך ${all.length} נקנו`} />
+      <PageTitle
+        title="קניות"
+        subtitle={`${bought} מתוך ${all.length} נקנו`}
+        action={<CopyButton getText={() => formatShoppingList(data?.categories ?? [])} />}
+      />
 
       {!data?.canBuy && (
         <p className="glass mb-4 flex items-center gap-2 rounded-2xl px-4 py-3 text-xs text-white/50">
