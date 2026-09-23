@@ -154,3 +154,21 @@ export async function buildMessages(type: NotifyType): Promise<Outgoing[]> {
       html: wrap(subject, `היי ${u.name},\n\n${body}`),
     }));
 }
+
+/**
+ * Sent the moment someone is tagged — not from the admin panel, which is why
+ * it is not one of NOTIFY_TYPES. Recipients come from the mention rows the
+ * server derived from the message text, never from a request body.
+ */
+export function buildMentionEmails(
+  author: string,
+  itemName: string,
+  body: string,
+  recipients: { email: string; name: string }[],
+): Outgoing[] {
+  const subject = `${author} שאל אותך על ${itemName}`;
+  return recipients.map((r) => {
+    const text = `היי ${r.name},\n\n${author} כתב לך על «${itemName}»:\n\n${body}`;
+    return { to: r.email, subject, text, html: wrap(subject, text) };
+  });
+}

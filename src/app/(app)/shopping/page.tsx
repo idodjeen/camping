@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Check, Loader2, Lock, Plus } from "lucide-react";
 import useSWR from "swr";
 
+import { CommentsButton } from "@/components/comments";
 import { CopyButton } from "@/components/copy-button";
 import { PageTitle, SkeletonList } from "@/components/skeletons";
 import { toast } from "@/components/toast";
@@ -22,6 +23,7 @@ type Item = {
   notes: string | null;
   isBought: boolean;
   boughtBy: { name: string; slug: string; avatarUrl: string | null } | null;
+  commentCount: number;
   meals: { id: number; title: string; date: string; slot: string }[];
 };
 type Payload = { categories: { id: number; name: string; items: Item[] }[]; canBuy: boolean };
@@ -137,6 +139,13 @@ export default function ShoppingPage() {
                         </p>
                       )}
                     </div>
+
+                    <CommentsButton
+                      subject="shopping"
+                      id={item.id}
+                      count={item.commentCount}
+                      name={item.name}
+                    />
 
                     {item.isBought && item.boughtBy && (
                       <UserAvatar

@@ -4,8 +4,12 @@ import { motion } from "framer-motion";
 import { Backpack, Home, ShoppingCart, Trophy, User, UtensilsCrossed } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import useSWR from "swr";
 
+import { fetcher, swrConfig } from "@/lib/api";
 import { cn } from "@/lib/utils";
+
+type Unread = { gear: number; shopping: number; meals: number };
 
 const TABS = [
   { href: "/", label: "בית", Icon: Home },
@@ -18,6 +22,15 @@ const TABS = [
 
 export function BottomNav() {
   const pathname = usePathname();
+  // Same SWR key the dashboard and profile already poll, so this is free there
+  // and one shared request elsewhere.
+  const { data } = useSWR<{ unreadMentions: Unread }>("/api/me", fetcher, swrConfig);
+  const unread = data?.unreadMentions;
+  const badgeFor = (href: string) =>
+    href === "/gear" ? unread?.gear
+    : href === "/shopping" ? unread?.shopping
+    : href === "/meals" ? unread?.meals
+    : 0;
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-night-950/80 backdrop-blur-xl">
@@ -46,7 +59,17 @@ export function BottomNav() {
                   transition={{ type: "spring", stiffness: 480, damping: 36 }}
                 />
               )}
-              <Icon className="relative size-[18px]" strokeWidth={active ? 2.5 : 1.9} />
+              <span className="relative">
+                <Icon className="size-[18px]" strokeWidth={active ? 2.5 : 1.9} />
+                {(badgeFor(href) ?? 0) > 0 && (
+                  <span
+                    aria-label="יש תגובה שמחכה לך"
+                    className="absolute -end-1.5 -top-1 grid size-4 place-items-center rounded-full bg-brand-500 text-[9px] font-bold text-white ring-2 ring-night-950"
+                  >
+                    {badgeFor(href)}
+                  </span>
+                )}
+              </span>
               <span className="relative text-[10px] font-medium leading-none">{label}</span>
             </Link>
           );

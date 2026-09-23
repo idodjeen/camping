@@ -1,7 +1,8 @@
 import { asc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { gearClaims, personalItems } from "@/db/schema";
+import { gearClaims, personalItems, users } from "@/db/schema";
+import { unreadMentions } from "@/lib/comments";
 import { handle, requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +45,15 @@ export function GET() {
         }))
         .sort((a, b) => a.categoryName.localeCompare(b.categoryName, "he")),
       personal,
+      unreadMentions: await unreadMentions(me.id),
+      // The five, for the @ picker. Small enough to ride along rather than
+      // making the composer fetch a roster of its own.
+      people: (await db.select().from(users).orderBy(asc(users.id))).map((u) => ({
+        id: u.id,
+        name: u.name,
+        slug: u.slug,
+        avatarUrl: u.avatarUrl,
+      })),
     };
   });
 }

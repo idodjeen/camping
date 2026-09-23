@@ -1,6 +1,7 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   date,
   doublePrecision,
   integer,
@@ -154,6 +155,61 @@ export const mealShoppingItems = pgTable(
   (t) => [primaryKey({ columns: [t.mealId, t.shoppingItemId] })],
 );
 
+/* ------------------------------------------------------------- comments */
+
+/**
+ * One thread per item, across all three lists.
+ *
+ * Three nullable foreign keys rather than a `subject_type` + `subject_id`
+ * pair: a string discriminator cannot be a foreign key, so deleting a gear
+ * item would silently orphan its thread. `num_nonnulls` enforces exactly one
+ * subject in the database itself, and each FK cascades on its own.
+ */
+export const comments = pgTable(
+  "comments",
+  {
+    id: serial("id").primaryKey(),
+    gearItemId: integer("gear_item_id").references(() => gearItems.id, { onDelete: "cascade" }),
+    shoppingItemId: integer("shopping_item_id").references(() => shoppingItems.id, {
+      onDelete: "cascade",
+    }),
+    mealId: integer("meal_id").references(() => meals.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      "comments_one_subject",
+      sql`num_nonnulls(${t.gearItemId}, ${t.shoppingItemId}, ${t.mealId}) = 1`,
+    ),
+  ],
+);
+
+/**
+ * Who a comment is addressed to.
+ *
+ * Its own table rather than an array column on `comments` because `read_at`
+ * belongs to one person and one comment — which is exactly what the unread
+ * badge counts, and it wants an index rather than an array scan.
+ */
+export const commentMentions = pgTable(
+  "comment_mentions",
+  {
+    id: serial("id").primaryKey(),
+    commentId: integer("comment_id")
+      .notNull()
+      .references(() => comments.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    readAt: timestamp("read_at", { withTimezone: true }),
+  },
+  (t) => [unique("comment_mentions_comment_user_uq").on(t.commentId, t.userId)],
+);
+
 /* -------------------------------------------------------- personal items */
 
 export const personalItems = pgTable("personal_items", {
@@ -225,6 +281,23 @@ export const personalItemsRelations = relations(personalItems, ({ one }) => ({
   user: one(users, { fields: [personalItems.userId], references: [users.id] }),
 }));
 
+export const commentsRelations = relations(comments, ({ one, many }) => ({
+  author: one(users, { fields: [comments.userId], references: [users.id] }),
+  gearItem: one(gearItems, { fields: [comments.gearItemId], references: [gearItems.id] }),
+  shoppingItem: one(shoppingItems, {
+    fields: [comments.shoppingItemId],
+    references: [shoppingItems.id],
+  }),
+  meal: one(meals, { fields: [comments.mealId], references: [meals.id] }),
+  mentions: many(commentMentions),
+}));
+
+export const commentMentionsRelations = relations(commentMentions, ({ one }) => ({
+  comment: one(comments, { fields: [commentMentions.commentId], references: [comments.id] }),
+  user: one(users, { fields: [commentMentions.userId], references: [users.id] }),
+}));
+
+export type Comment = typeof comments.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type GearItem = typeof gearItems.$inferSelect;
 export type GearClaim = typeof gearClaims.$inferSelect;

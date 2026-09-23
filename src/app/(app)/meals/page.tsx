@@ -3,6 +3,7 @@
 import { Check } from "lucide-react";
 import useSWR from "swr";
 
+import { CommentsButton } from "@/components/comments";
 import { CopyButton } from "@/components/copy-button";
 import { PageTitle, SkeletonList } from "@/components/skeletons";
 import { fetcher, swrConfig } from "@/lib/api";
@@ -16,6 +17,7 @@ type Meal = {
   title: string;
   description: string | null;
   items: { id: number; name: string; quantityText: string | null; isBought: boolean }[];
+  commentCount: number;
 };
 type Payload = { days: { date: string; meals: Meal[] }[] };
 
@@ -58,6 +60,14 @@ export default function MealsPage() {
                       <span aria-hidden>{SLOT_EMOJI[meal.slot]}</span>
                       <h3 className="font-bold">{meal.title}</h3>
                       <span className="text-xs text-white/40">{SLOT_LABELS[meal.slot]}</span>
+                      <span className="ms-auto">
+                        <CommentsButton
+                          subject="meal"
+                          id={meal.id}
+                          count={meal.commentCount}
+                          name={meal.title}
+                        />
+                      </span>
                     </div>
 
                     {meal.description && (

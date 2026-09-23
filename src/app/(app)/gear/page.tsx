@@ -6,6 +6,7 @@ import { useState } from "react";
 import useSWR from "swr";
 
 import { AvatarStack } from "@/components/avatar-stack";
+import { CommentsButton } from "@/components/comments";
 import { CopyButton } from "@/components/copy-button";
 import { PageTitle, SkeletonList } from "@/components/skeletons";
 import { toast } from "@/components/toast";
@@ -34,6 +35,7 @@ type Item = {
   claimedTotal: number;
   remaining: number | null;
   isFull: boolean;
+  commentCount: number;
 };
 type Category = { id: number; name: string; items: Item[] };
 type Payload = { categories: Category[] };
@@ -366,6 +368,10 @@ function GearRow({
             </motion.button>
           )}
         </AnimatePresence>
+
+        <span className="ms-auto">
+          <CommentsButton subject="gear" id={item.id} count={item.commentCount} name={item.name} />
+        </span>
 
         {myQty > 0 && (
           <button

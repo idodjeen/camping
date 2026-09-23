@@ -1,7 +1,7 @@
-import { asc } from "drizzle-orm";
+import { asc, count, isNotNull } from "drizzle-orm";
 
 import { db } from "@/db";
-import { gearCategories, meals, shoppingCategories } from "@/db/schema";
+import { comments, gearCategories, meals, shoppingCategories } from "@/db/schema";
 
 /**
  * Read models shared by the route handlers.
@@ -21,6 +21,25 @@ export type ClaimView = {
   isPacked: boolean;
 };
 
+/**
+ * Comment counts per item, fetched as one grouped query per list rather than
+ * a count per row — 45 gear items would otherwise be 45 extra round trips to
+ * Neon just to render a number on each row.
+ */
+type SubjectColumn =
+  | typeof comments.gearItemId
+  | typeof comments.shoppingItemId
+  | typeof comments.mealId;
+
+async function commentCounts(column: SubjectColumn) {
+  const rows = await db
+    .select({ id: column, n: count() })
+    .from(comments)
+    .where(isNotNull(column))
+    .groupBy(column);
+  return new Map(rows.map((r) => [r.id as number, r.n]));
+}
+
 export type GearItemView = {
   id: number;
   name: string;
@@ -33,9 +52,11 @@ export type GearItemView = {
   claimedTotal: number;
   remaining: number | null;
   isFull: boolean;
+  commentCount: number;
 };
 
 export async function getGear() {
+  const counts = await commentCounts(comments.gearItemId);
   const rows = await db.query.gearCategories.findMany({
     orderBy: [asc(gearCategories.sort)],
     with: {
@@ -74,6 +95,7 @@ export async function getGear() {
             isPacked: c.isPacked,
           })),
           claimedTotal,
+          commentCount: counts.get(item.id) ?? 0,
           remaining: item.isOpenQuantity
             ? null
             : Math.max((item.qtyNeeded ?? 1) - claimedTotal, 0),
@@ -85,6 +107,7 @@ export async function getGear() {
 }
 
 export async function getShopping() {
+  const counts = await commentCounts(comments.shoppingItemId);
   const rows = await db.query.shoppingCategories.findMany({
     orderBy: [asc(shoppingCategories.sort)],
     with: {
@@ -108,6 +131,7 @@ export async function getShopping() {
           ? { name: item.buyer.name, slug: item.buyer.slug, avatarUrl: item.buyer.avatarUrl }
           : null,
         boughtAt: item.boughtAt,
+        commentCount: counts.get(item.id) ?? 0,
         meals: item.mealLinks.map((l) => ({
           id: l.meal.id,
           title: l.meal.title,
@@ -125,9 +149,11 @@ export type MealView = {
   title: string;
   description: string | null;
   items: { id: number; name: string; quantityText: string | null; isBought: boolean }[];
+  commentCount: number;
 };
 
 export async function getMeals(): Promise<{ date: string; meals: MealView[] }[]> {
+  const counts = await commentCounts(comments.mealId);
   const rows = await db.query.meals.findMany({
     orderBy: [asc(meals.sort)],
     with: { shoppingLinks: { with: { shoppingItem: true } } },
@@ -147,6 +173,7 @@ export async function getMeals(): Promise<{ date: string; meals: MealView[] }[]>
       slot: m.slot,
       title: m.title,
       description: m.description,
+      commentCount: counts.get(m.id) ?? 0,
       items: m.shoppingLinks.map((l) => ({
         id: l.shoppingItem.id,
         name: l.shoppingItem.name,
