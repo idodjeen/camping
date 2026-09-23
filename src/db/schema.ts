@@ -120,6 +120,8 @@ export const shoppingItems = pgTable(
     isBought: boolean("is_bought").notNull().default(false),
     boughtBy: integer("bought_by").references(() => users.id, { onDelete: "set null" }),
     boughtAt: timestamp("bought_at", { withTimezone: true }),
+    // Null for the 27 seeded rows: nobody gets credit for the original list.
+    createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
     sort: integer("sort").notNull().default(0),
   },
 );
@@ -199,6 +201,11 @@ export const shoppingItemsRelations = relations(shoppingItems, ({ one, many }) =
     references: [shoppingCategories.id],
   }),
   buyer: one(users, { fields: [shoppingItems.boughtBy], references: [users.id] }),
+  creator: one(users, {
+    fields: [shoppingItems.createdBy],
+    references: [users.id],
+    relationName: "shoppingCreator",
+  }),
   mealLinks: many(mealShoppingItems),
 }));
 

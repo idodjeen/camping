@@ -11,8 +11,23 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Session expiry is the case to get right here.
+ *
+ * When a session lapses, the proxy redirects API calls to /login — and `fetch`
+ * follows redirects, so what comes back is the login page's HTML with status
+ * **200**. Parsing that as JSON yields {}, which looks like a successful empty
+ * response: every consumer then reads a missing field and crashes with a white
+ * screen. Detecting the redirect (and any non-JSON body) turns that into a
+ * clean error SWR can surface.
+ */
 export async function fetcher<T>(url: string): Promise<T> {
   const res = await fetch(url);
+
+  if (res.redirected || !res.headers.get("content-type")?.includes("application/json")) {
+    throw new ApiError(401, "ההתחברות פגה — רעננו את הדף");
+  }
+
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new ApiError(res.status, json.error ?? "שגיאה בטעינה");
   return json as T;

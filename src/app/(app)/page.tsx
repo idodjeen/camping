@@ -7,6 +7,7 @@ import useSWR from "swr";
 
 import { Countdown } from "@/components/countdown";
 import { LocationCard } from "@/components/location-card";
+import { Podium } from "@/components/podium";
 import { ProgressRing } from "@/components/progress-ring";
 import { UserAvatar } from "@/components/user-avatar";
 import { WeatherCard } from "@/components/weather-card";
@@ -107,6 +108,10 @@ export default function HomePage() {
           label="קניות שבוצעו"
           color="aqua"
         />
+      </section>
+
+      <section className="mt-4">
+        <Podium />
       </section>
 
       <section className="mt-4">

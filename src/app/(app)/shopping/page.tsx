@@ -1,7 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Check, Lock } from "lucide-react";
+import { useState } from "react";
+import { Check, Loader2, Lock, Plus } from "lucide-react";
 import useSWR from "swr";
 
 import { PageTitle, SkeletonList } from "@/components/skeletons";
@@ -145,6 +146,119 @@ export default function ShoppingPage() {
           </section>
         ))}
       </div>
+
+      <AddShoppingItem
+        categories={data?.categories.map((c) => ({ id: c.id, name: c.name })) ?? []}
+        onAdded={() => mutate()}
+      />
     </>
+  );
+}
+
+/**
+ * Anyone can add a missing item — noticing the gap is not a privileged act.
+ * Only marking something bought stays restricted to is_shopper.
+ */
+function AddShoppingItem({
+  categories,
+  onAdded,
+}: {
+  categories: { id: number; name: string }[];
+  onAdded: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [qtyText, setQtyText] = useState("");
+  const [categoryId, setCategoryId] = useState<number | "">("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim() || !categoryId) return;
+    setBusy(true);
+    try {
+      await send("/api/shopping", "POST", {
+        name: name.trim(),
+        categoryId,
+        quantityText: qtyText.trim() || undefined,
+      });
+      setName("");
+      setQtyText("");
+      setOpen(false);
+      onAdded();
+      toast("נוסף לרשימה", "ok");
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : "לא הצלחנו להוסיף");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="tap mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-white/15 px-5 text-sm font-semibold text-white/45 transition active:scale-[0.98]"
+      >
+        <Plus className="size-4" />
+        להוסיף פריט לרשימה
+      </button>
+    );
+  }
+
+  return (
+    <motion.form
+      onSubmit={submit}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="glass mt-6 space-y-3 rounded-2xl p-4"
+    >
+      <input
+        autoFocus
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="מה חסר? (חומוס, קרח…)"
+        maxLength={80}
+        className="tap w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm outline-none placeholder:text-white/25 focus:border-brand-400/40"
+      />
+      <div className="flex gap-2">
+        <select
+          value={categoryId}
+          onChange={(e) => setCategoryId(Number(e.target.value))}
+          className="tap min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-brand-400/40"
+        >
+          <option value="">קטגוריה…</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id} className="bg-night-800">
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <input
+          value={qtyText}
+          onChange={(e) => setQtyText(e.target.value)}
+          placeholder="כמות"
+          maxLength={40}
+          className="tap w-24 rounded-xl border border-white/10 bg-white/5 px-3 text-center text-sm outline-none placeholder:text-white/25 focus:border-brand-400/40"
+        />
+      </div>
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={busy || !name.trim() || !categoryId}
+          className="tap flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-500/25 text-sm font-semibold text-brand-100 transition active:scale-95 disabled:opacity-30"
+        >
+          {busy ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+          להוסיף
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="tap rounded-xl px-4 text-sm text-white/45"
+        >
+          ביטול
+        </button>
+      </div>
+    </motion.form>
   );
 }
