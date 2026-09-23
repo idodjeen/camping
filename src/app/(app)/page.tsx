@@ -111,7 +111,7 @@ export default function HomePage() {
       </section>
 
       <section className="mt-4">
-        <Podium />
+        <Podium linked />
       </section>
 
       <section className="mt-4">

@@ -42,9 +42,24 @@ export default function GearPage() {
   const { data, isLoading, mutate } = useSWR<Payload>("/api/gear", fetcher, swrConfig);
   const { data: me } = useSWR<{ user: { id: number } }>("/api/me", fetcher, swrConfig);
   const myId = me?.user.id;
+  const [flashId, setFlashId] = useState<number | null>(null);
 
   async function setQty(item: Item, qty: number, el: Element | null) {
     if (!myId) return;
+
+    const current = item.claims.find((c) => c.userId === myId)?.qty ?? 0;
+    const isTakingMore = qty > 0 && qty > current;
+
+    // Celebrate on the tap itself rather than after the round-trip to Neon.
+    // The row already updates optimistically, so waiting for the server made
+    // the confetti arrive detached from the press — it read as nothing having
+    // happened, then something random happening. The rare cost is a burst for
+    // a claim that loses the race for the last unit, which the toast explains.
+    if (isTakingMore) {
+      burstFrom(el);
+      setFlashId(item.id);
+      setTimeout(() => setFlashId((id) => (id === item.id ? null : id)), 700);
+    }
 
     // Optimistic: recompute this item locally exactly as the server will, so
     // the row updates on tap rather than after a round trip to Neon.
@@ -79,9 +94,6 @@ export default function GearPage() {
         },
         { optimisticData: optimistic, rollbackOnError: true, revalidate: false },
       );
-      if (qty > 0 && qty > (item.claims.find((c) => c.userId === myId)?.qty ?? 0)) {
-        burstFrom(el, { small: true });
-      }
     } catch (err) {
       toast(err instanceof ApiError ? err.message : "לא הצלחנו לעדכן");
     }
@@ -118,6 +130,7 @@ export default function GearPage() {
                   key={item.id}
                   item={item}
                   myId={myId}
+                  flash={flashId === item.id}
                   onSetQty={(qty, el) => setQty(item, qty, el)}
                 />
               ))}
@@ -240,10 +253,12 @@ function AddGearItem({
 function GearRow({
   item,
   myId,
+  flash,
   onSetQty,
 }: {
   item: Item;
   myId?: number;
+  flash?: boolean;
   onSetQty: (qty: number, el: Element | null) => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -264,6 +279,7 @@ function GearRow({
       className={cn(
         "glass rounded-2xl p-3.5 transition-colors",
         item.isFull && "border-aqua-400/25 bg-aqua-500/5",
+        flash && "claim-pulse",
       )}
     >
       <div className="flex items-center gap-3">

@@ -81,6 +81,14 @@ body {
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--pb-safe-extra, 0px));
 }
 
+@keyframes claim-pulse {
+  0%   { box-shadow: 0 0 0 0 rgb(167 139 250 / 0.55); }
+  70%  { box-shadow: 0 0 0 12px rgb(167 139 250 / 0); }
+  100% { box-shadow: 0 0 0 0 rgb(167 139 250 / 0); }
+}
+/* The reduced-motion rule below caps this to ~0ms, so it degrades on its own. */
+.claim-pulse { animation: claim-pulse 0.7s ease-out; }
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

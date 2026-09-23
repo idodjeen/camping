@@ -5,6 +5,8 @@ import { Info } from "lucide-react";
 import { useState } from "react";
 import useSWR from "swr";
 
+import { Modal } from "@/components/modal";
+import { Podium } from "@/components/podium";
 import { PageTitle, SkeletonList } from "@/components/skeletons";
 import { UserAvatar } from "@/components/user-avatar";
 import { fetcher, swrConfig } from "@/lib/api";
@@ -39,6 +41,10 @@ export default function LeaderboardPage() {
   return (
     <>
       <PageTitle title="טבלת התורמים" subtitle="מי באמת מרים את הטיול הזה" />
+
+      <div className="mb-5">
+        <Podium />
+      </div>
 
       {data.titles.length > 0 && (
         <section className="mb-5 grid grid-cols-2 gap-2">
@@ -138,40 +144,34 @@ export default function LeaderboardPage() {
       )}
 
       <button
-        onClick={() => setShowHow((v) => !v)}
+        onClick={() => setShowHow(true)}
         className="tap mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 px-4 text-xs font-semibold text-white/45"
       >
         <Info className="size-3.5" />
         איך זה נספר?
       </button>
 
-      {showHow && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: "auto" }}
-          className="glass mt-2 overflow-hidden rounded-2xl p-4 text-xs leading-relaxed text-white/55"
-        >
-          <ul className="space-y-1.5">
-            <li>
-              <b className="text-white/80">{data.scoring.perItem} נק׳</b> על כל פריט ציוד שתפסת
-            </li>
-            <li>
-              <b className="text-white/80">{data.scoring.perExtraUnit} נק׳</b> על כל יחידה נוספת,
-              עד {data.scoring.maxExtraUnits} לפריט
-            </li>
-            <li>
-              <b className="text-white/80">{data.scoring.perPacked} נק׳</b> על כל פריט שכבר ארזת
-            </li>
-            <li>
-              <b className="text-white/80">{data.scoring.perAdded} נק׳</b> על כל פריט שהוספת לרשימות
-            </li>
-          </ul>
-          <p className="mt-3 text-white/35">
-            קניות לא נספרות בניקוד — רק עידו וניר יכולים לסמן שנקנה, אז זה לא היה הוגן. יש להן
-            תואר משלהן 🛒
-          </p>
-        </motion.div>
-      )}
+      <Modal open={showHow} onClose={() => setShowHow(false)} title="איך זה נספר">
+        <ul className="space-y-2 text-sm leading-relaxed text-white/60">
+          <li>
+            <b className="text-white/85">{data.scoring.perItem} נק׳</b> על כל פריט ציוד שתפסת
+          </li>
+          <li>
+            <b className="text-white/85">{data.scoring.perExtraUnit} נק׳</b> על כל יחידה נוספת, עד{" "}
+            {data.scoring.maxExtraUnits} לפריט
+          </li>
+          <li>
+            <b className="text-white/85">{data.scoring.perPacked} נק׳</b> על כל פריט שכבר ארזת
+          </li>
+          <li>
+            <b className="text-white/85">{data.scoring.perAdded} נק׳</b> על כל פריט שהוספת לרשימות
+          </li>
+        </ul>
+        <p className="mt-4 border-t border-white/10 pt-3 text-xs leading-relaxed text-white/40">
+          קניות לא נספרות בניקוד — רק עידו וניר יכולים לסמן שנקנה, אז זה לא היה הוגן. יש להן תואר
+          משלהן 🛒
+        </p>
+      </Modal>
     </>
   );
 }

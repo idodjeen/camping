@@ -33,6 +33,10 @@ export default function ShoppingPage() {
     if (!data?.canBuy) return;
     const next = !item.isBought;
 
+    // Fire on the tap, not after the server confirms — see the note in
+    // gear/page.tsx. The row updates optimistically either way.
+    if (next) burstFrom(el);
+
     const optimistic: Payload = {
       ...data,
       categories: data.categories.map((c) => ({
@@ -49,7 +53,6 @@ export default function ShoppingPage() {
         },
         { optimisticData: optimistic, rollbackOnError: true, revalidate: false },
       );
-      if (next) burstFrom(el);
     } catch (err) {
       toast(err instanceof ApiError ? err.message : "לא הצלחנו לעדכן");
     }

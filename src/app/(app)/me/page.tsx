@@ -46,6 +46,7 @@ export default function MePage() {
   const optimistic = (patch: (p: Payload) => Payload) => (data ? patch(data) : undefined);
 
   async function togglePacked(itemId: number, next: boolean, el: Element | null) {
+    if (next) burstFrom(el);
     try {
       await mutate(
         async () => {
@@ -61,7 +62,6 @@ export default function MePage() {
           revalidate: false,
         },
       );
-      if (next) burstFrom(el);
     } catch (err) {
       toast(err instanceof ApiError ? err.message : "לא הצלחנו לעדכן");
     }
@@ -87,6 +87,7 @@ export default function MePage() {
   }
 
   async function togglePersonal(id: number, next: boolean, el: Element | null) {
+    if (next) burstFrom(el, { small: true });
     try {
       await mutate(
         async () => {
@@ -102,7 +103,6 @@ export default function MePage() {
           revalidate: false,
         },
       );
-      if (next) burstFrom(el, { small: true });
     } catch {
       toast("לא הצלחנו לעדכן");
     }

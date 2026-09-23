@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Backpack, Home, ShoppingCart, User, UtensilsCrossed } from "lucide-react";
+import { Backpack, Home, ShoppingCart, Trophy, User, UtensilsCrossed } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -12,6 +12,7 @@ const TABS = [
   { href: "/gear", label: "ציוד", Icon: Backpack },
   { href: "/meals", label: "ארוחות", Icon: UtensilsCrossed },
   { href: "/shopping", label: "קניות", Icon: ShoppingCart },
+  { href: "/leaderboard", label: "טבלה", Icon: Trophy },
   { href: "/me", label: "שלי", Icon: User },
 ] as const;
 
@@ -21,7 +22,7 @@ export function BottomNav() {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-night-950/80 backdrop-blur-xl">
       <div
-        className="mx-auto flex max-w-md items-stretch justify-between px-2 pt-1.5"
+        className="mx-auto flex max-w-md items-stretch justify-between px-1 pt-1.5"
         // Clears the iPhone home indicator; harmless zero on other devices.
         style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.375rem)" }}
       >
@@ -33,7 +34,7 @@ export function BottomNav() {
               href={href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "tap relative flex flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 py-1.5 transition-colors",
+                "tap relative flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 py-1.5 transition-colors",
                 active ? "text-brand-300" : "text-white/45 active:text-white/70",
               )}
             >
@@ -45,8 +46,8 @@ export function BottomNav() {
                   transition={{ type: "spring", stiffness: 480, damping: 36 }}
                 />
               )}
-              <Icon className="relative size-5" strokeWidth={active ? 2.4 : 1.9} />
-              <span className="relative text-[11px] font-medium">{label}</span>
+              <Icon className="relative size-[18px]" strokeWidth={active ? 2.5 : 1.9} />
+              <span className="relative text-[10px] font-medium leading-none">{label}</span>
             </Link>
           );
         })}
