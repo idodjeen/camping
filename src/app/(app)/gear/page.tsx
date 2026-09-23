@@ -2,12 +2,14 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, Loader2, Minus, Plus, Sparkles, X } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import useSWR from "swr";
 
 import { AvatarStack } from "@/components/avatar-stack";
 import { CommentsButton } from "@/components/comments";
 import { CopyButton } from "@/components/copy-button";
+import { FilterChips } from "@/components/filter-chips";
 import { PageTitle, SkeletonList } from "@/components/skeletons";
 import { toast } from "@/components/toast";
 import { ApiError, fetcher, send, swrConfig } from "@/lib/api";
@@ -45,6 +47,9 @@ export default function GearPage() {
   const { data: me } = useSWR<{ user: { id: number } }>("/api/me", fetcher, swrConfig);
   const myId = me?.user.id;
   const [flashId, setFlashId] = useState<number | null>(null);
+  // The filter lives in the URL so the dashboard rings can link straight into
+  // a filtered view, and so the view survives a refresh or a shared link.
+  const filter = useSearchParams().get("filter");
 
   async function setQty(item: Item, qty: number, el: Element | null) {
     if (!myId) return;
@@ -122,12 +127,26 @@ export default function GearPage() {
         action={<CopyButton getText={() => formatGearList(data?.categories ?? [])} />}
       />
 
+      <FilterChips
+        current={filter}
+        options={[
+          { key: null, label: "הכול" },
+          { key: "done", label: `מכוסה · ${covered}` },
+          { key: "todo", label: `חסר · ${required.length - covered}` },
+        ]}
+      />
+
       <div className="space-y-6">
-        {data?.categories.map((cat) => (
+        {data?.categories.map((cat) => {
+          const items = cat.items.filter((i) =>
+            filter === "done" ? i.isFull : filter === "todo" ? !i.isFull : true,
+          );
+          if (items.length === 0) return null;
+          return (
           <section key={cat.id}>
             <h2 className="mb-2 px-1 text-sm font-semibold text-white/50">{cat.name}</h2>
             <div className="space-y-2">
-              {cat.items.map((item) => (
+              {items.map((item) => (
                 <GearRow
                   key={item.id}
                   item={item}
@@ -138,7 +157,8 @@ export default function GearPage() {
               ))}
             </div>
           </section>
-        ))}
+          );
+        })}
       </div>
 
       <AddGearItem

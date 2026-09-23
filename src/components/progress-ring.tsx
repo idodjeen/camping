@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { ChevronLeft } from "lucide-react";
 
 /**
  * Circular progress. Drawn with stroke-dasharray on an SVG circle rotated so
@@ -12,11 +13,14 @@ export function ProgressRing({
   total,
   label,
   color = "brand",
+  linked = false,
 }: {
   done: number;
   total: number;
   label: string;
   color?: "brand" | "aqua";
+  /** Draws the chevron, so a tappable ring looks tappable. */
+  linked?: boolean;
 }) {
   const pct = total === 0 ? 0 : Math.round((done / total) * 100);
   const r = 34;
@@ -24,7 +28,8 @@ export function ProgressRing({
   const stroke = color === "aqua" ? "var(--color-aqua-400)" : "var(--color-brand-400)";
 
   return (
-    <div className="glass flex flex-col items-center rounded-2xl p-4">
+    <div className="glass relative flex flex-col items-center rounded-2xl p-4">
+      {linked && <ChevronLeft className="absolute start-2 top-2 size-4 text-white/25" />}
       <div className="relative">
         <svg width="88" height="88" viewBox="0 0 88 88" className="-rotate-90">
           <circle cx="44" cy="44" r={r} fill="none" stroke="rgb(255 255 255 / 0.08)" strokeWidth="8" />

@@ -1,12 +1,14 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Check, Loader2, Lock, Plus } from "lucide-react";
 import useSWR from "swr";
 
 import { CommentsButton } from "@/components/comments";
 import { CopyButton } from "@/components/copy-button";
+import { FilterChips } from "@/components/filter-chips";
 import { PageTitle, SkeletonList } from "@/components/skeletons";
 import { toast } from "@/components/toast";
 import { UserAvatar } from "@/components/user-avatar";
@@ -30,6 +32,7 @@ type Payload = { categories: { id: number; name: string; items: Item[] }[]; canB
 
 export default function ShoppingPage() {
   const { data, isLoading, mutate } = useSWR<Payload>("/api/shopping", fetcher, swrConfig);
+  const filter = useSearchParams().get("filter");
 
   async function toggle(item: Item, el: Element | null) {
     if (!data?.canBuy) return;
@@ -87,12 +90,26 @@ export default function ShoppingPage() {
         </p>
       )}
 
+      <FilterChips
+        current={filter}
+        options={[
+          { key: null, label: "הכול" },
+          { key: "bought", label: `נקנה · ${bought}` },
+          { key: "todo", label: `נשאר · ${all.length - bought}` },
+        ]}
+      />
+
       <div className="space-y-6">
-        {data?.categories.map((cat) => (
+        {data?.categories.map((cat) => {
+          const items = cat.items.filter((i) =>
+            filter === "bought" ? i.isBought : filter === "todo" ? !i.isBought : true,
+          );
+          if (items.length === 0) return null;
+          return (
           <section key={cat.id}>
             <h2 className="mb-2 px-1 text-sm font-semibold text-white/50">{cat.name}</h2>
             <div className="space-y-2">
-              {cat.items.map((item) => (
+              {items.map((item) => (
                 <motion.div key={item.id} layout className="glass rounded-2xl p-3.5">
                   <div className="flex items-start gap-3">
                     <button
@@ -162,7 +179,8 @@ export default function ShoppingPage() {
               ))}
             </div>
           </section>
-        ))}
+          );
+        })}
       </div>
 
       <AddShoppingItem

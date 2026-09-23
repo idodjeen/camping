@@ -96,18 +96,31 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Each ring opens its own list already filtered to what it counts. */}
       <section className="mt-4 grid grid-cols-2 gap-3">
-        <ProgressRing
-          done={data?.progress.gear.done ?? 0}
-          total={data?.progress.gear.total ?? 0}
-          label="ציוד מכוסה"
-        />
-        <ProgressRing
-          done={data?.progress.shopping.done ?? 0}
-          total={data?.progress.shopping.total ?? 0}
-          label="קניות שבוצעו"
-          color="aqua"
-        />
+        <Link
+          href={{ pathname: "/gear", query: { filter: "done" } }}
+          className="transition active:scale-[0.97]"
+        >
+          <ProgressRing
+            done={data?.progress.gear.done ?? 0}
+            total={data?.progress.gear.total ?? 0}
+            label="ציוד מכוסה"
+            linked
+          />
+        </Link>
+        <Link
+          href={{ pathname: "/shopping", query: { filter: "bought" } }}
+          className="transition active:scale-[0.97]"
+        >
+          <ProgressRing
+            done={data?.progress.shopping.done ?? 0}
+            total={data?.progress.shopping.total ?? 0}
+            label="קניות שבוצעו"
+            color="aqua"
+            linked
+          />
+        </Link>
       </section>
 
       <section className="mt-4">
