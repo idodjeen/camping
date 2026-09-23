@@ -12,10 +12,10 @@ import type { LeaderRow, Title } from "@/lib/leaderboard";
 type Payload = { rows: LeaderRow[]; titles: NonNullable<Title>[] };
 
 const MEDALS = ["🥇", "🥈", "🥉"];
-// Second place on the right, winner centre, third on the left — the classic
-// arrangement, and in RTL the eye lands on the centre column either way.
-const ORDER = [1, 0, 2];
-const HEIGHTS = ["h-12", "h-16", "h-9"];
+// Straight descending order rather than the classic winner-in-the-middle
+// podium: in RTL the first column sits rightmost, so the scores read
+// 199 → 110 → 90 the way you read the rest of the page.
+const HEIGHTS = ["h-16", "h-11", "h-8"];
 
 /**
  * The top three, rendered identically on the dashboard and at the top of the
@@ -41,9 +41,7 @@ export function Podium({ linked = false }: { linked?: boolean }) {
         <div className="h-24 animate-pulse rounded-xl bg-white/5" aria-hidden />
       ) : (
         <div className="flex items-end justify-center gap-3">
-          {ORDER.map((idx, col) => {
-            const r = top[idx];
-            if (!r) return <div key={col} className="w-20" />;
+          {top.map((r, idx) => {
             return (
               <motion.div
                 key={r.userId}
