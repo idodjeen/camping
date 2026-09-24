@@ -158,12 +158,14 @@ export const mealShoppingItems = pgTable(
 /* ------------------------------------------------------------- comments */
 
 /**
- * One thread per item, across all three lists.
+ * One thread per item, across all three lists — plus the general chat, which
+ * is the comments with no item at all.
  *
  * Three nullable foreign keys rather than a `subject_type` + `subject_id`
  * pair: a string discriminator cannot be a foreign key, so deleting a gear
- * item would silently orphan its thread. `num_nonnulls` enforces exactly one
- * subject in the database itself, and each FK cascades on its own.
+ * item would silently orphan its thread. `num_nonnulls` enforces at most one
+ * subject in the database itself (zero means a general chat message), and each
+ * FK cascades on its own.
  */
 export const comments = pgTable(
   "comments",
@@ -183,7 +185,7 @@ export const comments = pgTable(
   (t) => [
     check(
       "comments_one_subject",
-      sql`num_nonnulls(${t.gearItemId}, ${t.shoppingItemId}, ${t.mealId}) = 1`,
+      sql`num_nonnulls(${t.gearItemId}, ${t.shoppingItemId}, ${t.mealId}) <= 1`,
     ),
   ],
 );

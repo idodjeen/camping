@@ -22,6 +22,13 @@
       "when": 1790204693762,
       "tag": "0002_harsh_darwin",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790253513021,
+      "tag": "0003_general_chat",
+      "breakpoints": true
     }
   ]
 }

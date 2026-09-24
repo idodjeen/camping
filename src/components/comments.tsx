@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { AtSign, Loader2, MessageCircle, Send, Trash2 } from "lucide-react";
+import { AtSign, Loader2, MessageCircle, Send, Trash2, Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 
@@ -10,6 +10,7 @@ import { toast } from "@/components/toast";
 import { UserAvatar } from "@/components/user-avatar";
 import { ApiError, NOTIFICATIONS_KEY, fetcher, send, swrConfig } from "@/lib/api";
 import { formatRelative } from "@/lib/dates";
+import { EVERYONE } from "@/lib/mention-all";
 import { cn } from "@/lib/utils";
 
 type Person = { id: number; name: string; slug: string; avatarUrl: string | null };
@@ -168,7 +169,7 @@ export function CommentsSheet({
           <p className="py-6 text-center text-sm leading-relaxed text-white/40">
             אין עדיין תגובות.
             <br />
-            אפשר לתייג מישהו עם @ והוא יקבל מייל.
+            אפשר לתייג מישהו עם @ והוא יקבל מייל, או את כולם עם @כולם.
           </p>
         ) : (
           <AnimatePresence initial={false}>
@@ -233,36 +234,51 @@ export function CommentsSheet({
  * by re-reading the body, so deleting "@ניר" before sending really does undo
  * the mention.
  */
-function MentionBox({
+export function MentionBox({
   value,
   onChange,
   people,
   boxRef,
+  rows = 2,
+  placeholder = "לכתוב תגובה… אפשר לתייג עם @",
 }: {
   value: string;
   onChange: (v: string) => void;
   people: Person[];
   boxRef: React.RefObject<HTMLTextAreaElement | null>;
+  rows?: number;
+  placeholder?: string;
 }) {
   // The word being typed after an @, if the caret sits inside one.
   const partial = /(?:^|\s)@([^\s@]*)$/.exec(value)?.[1];
   const matches =
     partial === undefined ? [] : people.filter((p) => p.name.startsWith(partial)).slice(0, 5);
+  const offerEveryone = partial !== undefined && EVERYONE.startsWith(partial);
 
-  function pick(p: Person) {
-    onChange(value.replace(/@[^\s@]*$/, `@${p.name} `));
+  function pick(name: string) {
+    onChange(value.replace(/@[^\s@]*$/, `@${name} `));
     boxRef.current?.focus();
   }
 
   return (
     <div className="relative">
-      {matches.length > 0 && (
+      {(matches.length > 0 || offerEveryone) && (
         <div className="absolute bottom-full mb-1.5 flex w-full flex-wrap gap-1.5 rounded-xl border border-white/10 bg-night-800 p-2 shadow-xl">
+          {offerEveryone && (
+            <button
+              type="button"
+              onClick={() => pick(EVERYONE)}
+              className="tap flex items-center gap-1.5 rounded-lg bg-brand-500/25 px-2 text-xs font-semibold text-brand-100 active:scale-95"
+            >
+              <Users className="size-4" />
+              {EVERYONE}
+            </button>
+          )}
           {matches.map((p) => (
             <button
               key={p.id}
               type="button"
-              onClick={() => pick(p)}
+              onClick={() => pick(p.name)}
               className="tap flex items-center gap-1.5 rounded-lg bg-white/5 px-2 text-xs font-semibold active:scale-95"
             >
               <UserAvatar name={p.name} slug={p.slug} avatarUrl={p.avatarUrl} size={20} />
@@ -275,9 +291,9 @@ function MentionBox({
         ref={boxRef}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        rows={2}
+        rows={rows}
         maxLength={1000}
-        placeholder="לכתוב תגובה… אפשר לתייג עם @"
+        placeholder={placeholder}
         className="w-full resize-none rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm outline-none placeholder:text-white/25 focus:border-brand-400/40"
       />
     </div>
@@ -285,10 +301,10 @@ function MentionBox({
 }
 
 /** Renders @name in the accent colour, leaving the rest of the text alone. */
-function highlight(body: string, people: Person[]) {
+export function highlight(body: string, people: Person[]) {
   if (people.length === 0) return body;
-  const names = people
-    .map((p) => p.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+  const names = [EVERYONE, ...people.map((p) => p.name)]
+    .map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
     .sort((a, b) => b.length - a.length)
     .join("|");
   return body.split(new RegExp(`(@(?:${names}))`, "u")).map((part, i) =>

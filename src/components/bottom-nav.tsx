@@ -9,7 +9,7 @@ import useSWR from "swr";
 import { fetcher, swrConfig } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-type Unread = { gear: number; shopping: number; meals: number };
+type Unread = { gear: number; shopping: number; meals: number; general: number };
 
 const TABS = [
   { href: "/", label: "בית", Icon: Home },
@@ -31,8 +31,8 @@ export function BottomNav() {
     href === "/gear" ? unread?.gear
     : href === "/shopping" ? unread?.shopping
     : href === "/meals" ? unread?.meals
-    // The chat holds every thread, so its badge is every unread tag.
-    : href === "/chat" ? (unread ? unread.gear + unread.shopping + unread.meals : 0)
+    // The chat holds every thread and the general room, so its badge is every unread tag.
+    : href === "/chat" ? (unread ? unread.gear + unread.shopping + unread.meals + unread.general : 0)
     : 0;
 
   return (

@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 
 import { CommentsSheet, type Subject } from "@/components/comments";
+import { useRouter } from "next/navigation";
 import { Modal } from "@/components/modal";
 import { toast } from "@/components/toast";
 import { UserAvatar } from "@/components/user-avatar";
@@ -15,7 +16,7 @@ import { cn } from "@/lib/utils";
 
 type Mention = {
   id: number;
-  subject: Subject;
+  subject: Subject | "general";
   subjectId: number;
   subjectLabel: string;
   body: string;
@@ -26,11 +27,16 @@ type Mention = {
 type Feed = { mentions: Mention[] };
 
 /** Which list the item lives on, for the chip on each row. */
-const LIST_LABEL: Record<Subject, string> = {
+const LIST_LABEL: Record<Subject | "general", string> = {
   gear: "ציוד",
   shopping: "קניות",
   meal: "ארוחות",
+  general: "צ׳אט",
 };
+
+/** "ציוד · שק שינה", or just "צ׳אט כללי" — the general room has no item to name. */
+const where = (m: Mention) =>
+  m.subject === "general" ? m.subjectLabel : `${LIST_LABEL[m.subject]} · ${m.subjectLabel}`;
 
 /**
  * The one subscription behind the bell, the pane and the banner.
@@ -45,11 +51,8 @@ function useMentions() {
 
 /** What CommentsSheet needs to open a thread from a mention row. */
 type OpenThread = { subject: Subject; id: number; name: string };
-const threadOf = (m: Mention): OpenThread => ({
-  subject: m.subject,
-  id: m.subjectId,
-  name: m.subjectLabel,
-});
+const threadOf = (m: Mention): OpenThread | null =>
+  m.subject === "general" ? null : { subject: m.subject, id: m.subjectId, name: m.subjectLabel };
 
 /* --------------------------------------------------------------- the bell */
 
@@ -92,6 +95,7 @@ export function NotificationsBell() {
 function NotificationsPane({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { data, isLoading, mutate } = useMentions();
   const { mutate: globalMutate } = useSWRConfig();
+  const router = useRouter();
   const [thread, setThread] = useState<OpenThread | null>(null);
   const [clearing, setClearing] = useState(false);
 
@@ -128,7 +132,10 @@ function NotificationsPane({ open, onClose }: { open: boolean; onClose: () => vo
   // on top of it: two portalled modals would fight over the backdrop tap.
   function openThread(m: Mention) {
     onClose();
-    setThread(threadOf(m));
+    // A general message has no sheet of its own — it lives in the chat tab.
+    const t = threadOf(m);
+    if (t) setThread(t);
+    else router.push("/chat");
   }
 
   return (
@@ -177,7 +184,7 @@ function NotificationsPane({ open, onClose }: { open: boolean; onClose: () => vo
                   <div className="flex items-baseline gap-1.5">
                     <span className="truncate text-xs font-bold">{m.author.name}</span>
                     <span className="shrink-0 rounded-md bg-white/8 px-1.5 py-0.5 text-[10px] text-white/50">
-                      {LIST_LABEL[m.subject]} · {m.subjectLabel}
+                      {where(m)}
                     </span>
                     <span className="ms-auto shrink-0 text-[10px] text-white/30">
                       {formatRelative(m.createdAt)}
@@ -259,6 +266,7 @@ function saveMark(id: number) {
 export function MentionBanner() {
   const { data } = useMentions();
   const [shown, setShown] = useState<{ mention: Mention; extra: number } | null>(null);
+  const router = useRouter();
   const [thread, setThread] = useState<OpenThread | null>(null);
   const mark = useRef<number | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -286,7 +294,9 @@ export function MentionBanner() {
 
   function open() {
     if (!shown) return;
-    setThread(threadOf(shown.mention));
+    const t = threadOf(shown.mention);
+    if (t) setThread(t);
+    else router.push("/chat");
     setShown(null);
   }
 
@@ -320,7 +330,7 @@ export function MentionBanner() {
                     {shown.mention.author.name} תייג/ה אותך
                     <span className="font-normal text-white/45">
                       {" · "}
-                      {LIST_LABEL[shown.mention.subject]} · {shown.mention.subjectLabel}
+                      {where(shown.mention)}
                     </span>
                   </p>
                   <p className="mt-0.5 line-clamp-2 break-words text-sm leading-relaxed text-white/80">

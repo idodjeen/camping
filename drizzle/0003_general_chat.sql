@@ -1,0 +1,2 @@
+ALTER TABLE "comments" DROP CONSTRAINT "comments_one_subject";--> statement-breakpoint
+ALTER TABLE "comments" ADD CONSTRAINT "comments_one_subject" CHECK (num_nonnulls("comments"."gear_item_id", "comments"."shopping_item_id", "comments"."meal_id") <= 1);
