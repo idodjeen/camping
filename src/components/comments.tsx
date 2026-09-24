@@ -3,12 +3,13 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Loader2, MessageCircle, Send, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import useSWR from "swr";
+import useSWR, { useSWRConfig } from "swr";
 
 import { Modal } from "@/components/modal";
 import { toast } from "@/components/toast";
 import { UserAvatar } from "@/components/user-avatar";
-import { ApiError, fetcher, send, swrConfig } from "@/lib/api";
+import { ApiError, NOTIFICATIONS_KEY, fetcher, send, swrConfig } from "@/lib/api";
+import { formatRelative } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 
 type Person = { id: number; name: string; slug: string; avatarUrl: string | null };
@@ -55,7 +56,12 @@ export function CommentsButton({
   );
 }
 
-function CommentsSheet({
+/**
+ * The thread itself, split out from the row button so a notification can open
+ * it straight from the pane — there the subject and id come from a mention row
+ * rather than from the list you happen to be looking at.
+ */
+export function CommentsSheet({
   open,
   onClose,
   subject,
@@ -71,17 +77,20 @@ function CommentsSheet({
   const key = open ? `/api/comments?subject=${subject}&id=${id}` : null;
   const { data, isLoading, mutate } = useSWR<Thread>(key, fetcher, swrConfig);
   const { data: me, mutate: mutateMe } = useSWR<Me>("/api/me", fetcher, swrConfig);
+  const { mutate: globalMutate } = useSWRConfig();
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const boxRef = useRef<HTMLTextAreaElement>(null);
 
-  // Opening the thread is what clears your badge for it.
+  // Opening the thread is what clears your badge for it — the nav counts come
+  // from /api/me and the pane's read/unread styling from the feed, so both are
+  // revalidated once the server has stamped read_at.
   useEffect(() => {
     if (!open) return;
     void send("/api/comments/read", "POST", { subject, id })
-      .then(() => mutateMe())
+      .then(() => Promise.all([mutateMe(), globalMutate(NOTIFICATIONS_KEY)]))
       .catch(() => {});
-  }, [open, subject, id, mutateMe]);
+  }, [open, subject, id, mutateMe, globalMutate]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -97,6 +106,7 @@ function CommentsSheet({
       setDraft("");
       await mutate();
       await mutateMe();
+      await globalMutate(NOTIFICATIONS_KEY);
       if (res.notified.length > 0) toast(`נשלח מייל ל${res.notified.join(", ")}`, "ok");
     } catch (err) {
       toast(err instanceof ApiError ? err.message : "לא הצלחנו לשלוח");
@@ -148,7 +158,7 @@ function CommentsSheet({
                 <div className="min-w-0 flex-1 rounded-2xl rounded-ts-sm bg-white/5 px-3 py-2">
                   <div className="flex items-baseline gap-2">
                     <span className="text-xs font-bold">{c.author.name}</span>
-                    <span className="text-[10px] text-white/30">{when(c.createdAt)}</span>
+                    <span className="text-[10px] text-white/30">{formatRelative(c.createdAt)}</span>
                     {(c.author.id === myId || me?.user.isAdmin) && (
                       <button
                         onClick={() => remove(c.id)}
@@ -258,13 +268,4 @@ function highlight(body: string, people: Person[]) {
       part
     ),
   );
-}
-
-function when(iso: string) {
-  const mins = Math.round((Date.now() - Date.parse(iso)) / 60000);
-  if (mins < 1) return "עכשיו";
-  if (mins < 60) return `לפני ${mins} דק׳`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `לפני ${hrs} שע׳`;
-  return `לפני ${Math.round(hrs / 24)} ימים`;
 }

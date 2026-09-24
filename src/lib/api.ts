@@ -49,6 +49,14 @@ export async function send<T>(
 }
 
 /**
+ * Shared so the bell, the pane and the banner all subscribe to one key.
+ *
+ * SWR dedupes by key string, so three components calling useSWR with this
+ * constant produce a single request per poll rather than three.
+ */
+export const NOTIFICATIONS_KEY = "/api/notifications";
+
+/**
  * Polling is what makes five people editing the same list feel shared: a claim
  * made on someone else's phone shows up here within 15 seconds, and instantly
  * when the tab regains focus. `keepPreviousData` stops the page blanking to a

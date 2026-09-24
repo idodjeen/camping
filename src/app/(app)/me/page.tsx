@@ -8,6 +8,7 @@ import useSWR from "swr";
 
 import { AdminNotify } from "@/components/admin-notify";
 import { CopyButton } from "@/components/copy-button";
+import { NotificationsBell } from "@/components/notifications";
 import { Onboarding } from "@/components/onboarding";
 import { PageTitle, SkeletonList } from "@/components/skeletons";
 import { toast } from "@/components/toast";
@@ -158,6 +159,7 @@ export default function MePage() {
             {data.user.isShopper && <Badge>קניות</Badge>}
           </div>
         </div>
+        <NotificationsBell />
         <CopyButton
           label="הרשימה שלי"
           getText={() => formatMyList(data.user.name, data.claims, data.personal)}

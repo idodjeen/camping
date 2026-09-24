@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
 import { commentMentions, comments, gearItems, meals, shoppingItems, users } from "@/db/schema";
@@ -126,6 +126,82 @@ export async function markThreadRead(userId: number, subject: Subject, subjectId
         ),
       ),
     )
+    .returning();
+
+  return { marked: updated.length };
+}
+
+export type MentionView = {
+  /** The mention row, not the comment — two people tagged in one comment get one each. */
+  id: number;
+  subject: Subject;
+  subjectId: number;
+  /** The item's own name, so the pane can say what the message is about. */
+  subjectLabel: string;
+  body: string;
+  createdAt: string;
+  readAt: string | null;
+  author: { id: number; name: string; slug: string; avatarUrl: string | null };
+};
+
+/**
+ * Every message I have been tagged in, newest first — read ones included.
+ *
+ * Ordered by the mention's own id rather than the comment's timestamp: the row
+ * is inserted in the same request that creates the comment, so the sequence is
+ * already in send order, and a serial primary key sorts without touching the
+ * joined table. Read mentions stay in the list because the pane is a history,
+ * not an inbox you empty.
+ *
+ * The three subject columns are collapsed back into a {subject, id, label}
+ * triple here so the client never has to know that a thread hangs off one of
+ * three nullable foreign keys.
+ */
+export async function listMentions(userId: number, limit = 40): Promise<MentionView[]> {
+  const rows = await db.query.commentMentions.findMany({
+    where: eq(commentMentions.userId, userId),
+    orderBy: [desc(commentMentions.id)],
+    limit,
+    with: {
+      comment: { with: { author: true, gearItem: true, shoppingItem: true, meal: true } },
+    },
+  });
+
+  return rows.map((m) => {
+    const c = m.comment;
+    // Exactly one of the three is non-null; the CHECK constraint guarantees it.
+    const [subject, subjectId, label] =
+      c.gearItemId !== null
+        ? (["gear", c.gearItemId, c.gearItem?.name] as const)
+        : c.shoppingItemId !== null
+          ? (["shopping", c.shoppingItemId, c.shoppingItem?.name] as const)
+          : (["meal", c.mealId as number, c.meal?.title] as const);
+
+    return {
+      id: m.id,
+      subject,
+      subjectId,
+      // Null only if the item was deleted between the insert and this read.
+      subjectLabel: label ?? "פריט שנמחק",
+      body: c.body,
+      createdAt: c.createdAt.toISOString(),
+      readAt: m.readAt?.toISOString() ?? null,
+      author: {
+        id: c.author.id,
+        name: c.author.name,
+        slug: c.author.slug,
+        avatarUrl: c.author.avatarUrl,
+      },
+    };
+  });
+}
+
+/** Clears every unread mention of mine at once, from the pane's "mark all read". */
+export async function markAllMentionsRead(userId: number) {
+  const updated = await db
+    .update(commentMentions)
+    .set({ readAt: new Date() })
+    .where(and(eq(commentMentions.userId, userId), isNull(commentMentions.readAt)))
     .returning();
 
   return { marked: updated.length };

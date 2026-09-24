@@ -64,3 +64,22 @@ export const SLOT_LABELS: Record<string, string> = {
   lunch: "צהריים",
   dinner: "ערב",
 };
+
+/**
+ * "עכשיו" / "לפני 4 דק׳" / "אתמול" — for comment and mention timestamps.
+ *
+ * Unlike everything above, this one takes a real ISO instant rather than a
+ * date-only string: a comment happened at a moment in time, not on a day.
+ */
+export function formatRelative(iso: string): string {
+  const mins = Math.round((Date.now() - Date.parse(iso)) / 60_000);
+  if (mins < 1) return "עכשיו";
+  if (mins < 60) return `לפני ${mins} דק׳`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `לפני ${hrs} שע׳`;
+  const days = Math.round(hrs / 24);
+  // Hebrew has a dual form, so "לפני 2 ימים" and "לפני 1 ימים" are both wrong.
+  if (days === 1) return "אתמול";
+  if (days === 2) return "לפני יומיים";
+  return `לפני ${days} ימים`;
+}
