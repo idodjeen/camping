@@ -9,8 +9,9 @@ export const dynamic = "force-dynamic";
 
 export function GET() {
   return handle(async () => {
-    await requireUser();
-    return { categories: await getGear() };
+    const me = await requireUser();
+    // The viewer is the session user, so "unread" can only ever mean mine.
+    return { categories: await getGear(me.id) };
   });
 }
 

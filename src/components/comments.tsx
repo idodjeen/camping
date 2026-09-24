@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Loader2, MessageCircle, Send, Trash2 } from "lucide-react";
+import { AtSign, Loader2, MessageCircle, Send, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 
@@ -25,31 +25,63 @@ type Me = { user: { id: number; isAdmin: boolean }; people: Person[] };
 
 export type Subject = "gear" | "shopping" | "meal";
 
-/** The affordance on a row: a bubble carrying the count. */
+/**
+ * Says in words that a row is holding a question for you.
+ *
+ * The outline and the tinted bubble only work if you already know what the
+ * colour means. This is the part that does not need decoding — and decoding
+ * was the whole problem: the nav badge said two tags existed in this list
+ * without anything saying which rows they were on.
+ */
+export function TaggedBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-brand-500/25 px-2 py-0.5 text-[10px] font-semibold text-brand-100 ring-1 ring-brand-400/40">
+      <AtSign className="size-3" />
+      תייגו אותך
+    </span>
+  );
+}
+
+/**
+ * The affordance on a row: a bubble carrying the count.
+ *
+ * When the thread holds an unread tag for you the bubble becomes a filled
+ * pill with a dot, because a plain count is indistinguishable from any other
+ * busy thread — which made the nav badge ("2 waiting in gear") a dead end:
+ * nothing in the list said which two rows it meant.
+ */
 export function CommentsButton({
   subject,
   id,
   count,
   name,
+  unread = 0,
 }: {
   subject: Subject;
   id: number;
   count: number;
   name: string;
+  /** Unread mentions of me in this thread. */
+  unread?: number;
 }) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <button
         onClick={() => setOpen(true)}
-        aria-label={`תגובות על ${name}`}
+        aria-label={unread > 0 ? `תגובות על ${name} — תייגו אותך` : `תגובות על ${name}`}
         className={cn(
-          "tap flex items-center gap-1 rounded-xl px-2 text-xs font-semibold transition active:scale-95",
-          count > 0 ? "text-brand-300" : "text-white/35",
+          "tap relative flex items-center gap-1 rounded-xl px-2 text-xs font-semibold transition active:scale-95",
+          unread > 0 ? "bg-brand-500/25 text-brand-100 ring-1 ring-brand-400/45"
+          : count > 0 ? "text-brand-300"
+          : "text-white/35",
         )}
       >
         <MessageCircle className="size-4" />
         {count > 0 && <span className="tabular-nums">{count}</span>}
+        {unread > 0 && (
+          <span className="absolute -top-0.5 -end-0.5 size-2 rounded-full bg-brand-400 ring-2 ring-night-900" />
+        )}
       </button>
       <CommentsSheet open={open} onClose={() => setOpen(false)} subject={subject} id={id} name={name} />
     </>

@@ -3,7 +3,7 @@
 import { Check } from "lucide-react";
 import useSWR from "swr";
 
-import { CommentsButton } from "@/components/comments";
+import { CommentsButton, TaggedBadge } from "@/components/comments";
 import { CopyButton } from "@/components/copy-button";
 import { PageTitle, SkeletonList } from "@/components/skeletons";
 import { fetcher, swrConfig } from "@/lib/api";
@@ -18,6 +18,7 @@ type Meal = {
   description: string | null;
   items: { id: number; name: string; quantityText: string | null; isBought: boolean }[];
   commentCount: number;
+  unreadMentions: number;
 };
 type Payload = { days: { date: string; meals: Meal[] }[] };
 
@@ -55,10 +56,18 @@ export default function MealsPage() {
               {day.meals.map((meal) => (
                 <div key={meal.id} className="relative">
                   <span className="absolute -end-[1.3rem] top-4 size-2 rounded-full bg-brand-400 ring-4 ring-night-950" />
-                  <article className="glass rounded-2xl p-4">
+                  <article
+                    className={cn(
+                      "glass rounded-2xl p-4 transition-colors",
+                      // outline, not ring/border: `glass` sets both the border shorthand and
+                      // box-shadow, so those utilities are silently overridden here.
+                      meal.unreadMentions > 0 && "bg-brand-500/10 outline-2 outline-brand-400/50",
+                    )}
+                  >
                     <div className="flex items-baseline gap-2">
                       <span aria-hidden>{SLOT_EMOJI[meal.slot]}</span>
                       <h3 className="font-bold">{meal.title}</h3>
+                      {meal.unreadMentions > 0 && <TaggedBadge />}
                       <span className="text-xs text-white/40">{SLOT_LABELS[meal.slot]}</span>
                       <span className="ms-auto">
                         <CommentsButton
@@ -66,6 +75,7 @@ export default function MealsPage() {
                           id={meal.id}
                           count={meal.commentCount}
                           name={meal.title}
+                          unread={meal.unreadMentions}
                         />
                       </span>
                     </div>

@@ -1,7 +1,13 @@
-import { asc, count, isNotNull } from "drizzle-orm";
+import { and, asc, count, eq, isNotNull, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
-import { comments, gearCategories, meals, shoppingCategories } from "@/db/schema";
+import {
+  commentMentions,
+  comments,
+  gearCategories,
+  meals,
+  shoppingCategories,
+} from "@/db/schema";
 
 /**
  * Read models shared by the route handlers.
@@ -40,6 +46,35 @@ async function commentCounts(column: SubjectColumn) {
   return new Map(rows.map((r) => [r.id as number, r.n]));
 }
 
+/**
+ * How many messages tagged *me* on each item and are still unread.
+ *
+ * Without this the bottom-nav badge is a dead end: it says "2 waiting in gear"
+ * and then 49 rows look identical. Grouped in one query per list, exactly like
+ * commentCounts — the per-row alternative is 49 round trips to Neon.
+ *
+ * viewerId is optional because the email jobs call these read models with no
+ * one looking; an absent viewer simply has nothing unread.
+ */
+async function unreadCounts(column: SubjectColumn, viewerId?: number) {
+  if (viewerId === undefined) return new Map<number, number>();
+
+  const rows = await db
+    .select({ id: column, n: count() })
+    .from(commentMentions)
+    .innerJoin(comments, eq(comments.id, commentMentions.commentId))
+    .where(
+      and(
+        eq(commentMentions.userId, viewerId),
+        isNull(commentMentions.readAt),
+        isNotNull(column),
+      ),
+    )
+    .groupBy(column);
+
+  return new Map(rows.map((r) => [r.id as number, r.n]));
+}
+
 export type GearItemView = {
   id: number;
   name: string;
@@ -53,10 +88,13 @@ export type GearItemView = {
   remaining: number | null;
   isFull: boolean;
   commentCount: number;
+  /** Mine only — how many unread tags this item's thread is holding for me. */
+  unreadMentions: number;
 };
 
-export async function getGear() {
+export async function getGear(viewerId?: number) {
   const counts = await commentCounts(comments.gearItemId);
+  const unread = await unreadCounts(comments.gearItemId, viewerId);
   const rows = await db.query.gearCategories.findMany({
     orderBy: [asc(gearCategories.sort)],
     with: {
@@ -96,6 +134,7 @@ export async function getGear() {
           })),
           claimedTotal,
           commentCount: counts.get(item.id) ?? 0,
+          unreadMentions: unread.get(item.id) ?? 0,
           remaining: item.isOpenQuantity
             ? null
             : Math.max((item.qtyNeeded ?? 1) - claimedTotal, 0),
@@ -106,8 +145,9 @@ export async function getGear() {
   }));
 }
 
-export async function getShopping() {
+export async function getShopping(viewerId?: number) {
   const counts = await commentCounts(comments.shoppingItemId);
+  const unread = await unreadCounts(comments.shoppingItemId, viewerId);
   const rows = await db.query.shoppingCategories.findMany({
     orderBy: [asc(shoppingCategories.sort)],
     with: {
@@ -132,6 +172,7 @@ export async function getShopping() {
           : null,
         boughtAt: item.boughtAt,
         commentCount: counts.get(item.id) ?? 0,
+        unreadMentions: unread.get(item.id) ?? 0,
         meals: item.mealLinks.map((l) => ({
           id: l.meal.id,
           title: l.meal.title,
@@ -150,10 +191,12 @@ export type MealView = {
   description: string | null;
   items: { id: number; name: string; quantityText: string | null; isBought: boolean }[];
   commentCount: number;
+  unreadMentions: number;
 };
 
-export async function getMeals(): Promise<{ date: string; meals: MealView[] }[]> {
+export async function getMeals(viewerId?: number): Promise<{ date: string; meals: MealView[] }[]> {
   const counts = await commentCounts(comments.mealId);
+  const unread = await unreadCounts(comments.mealId, viewerId);
   const rows = await db.query.meals.findMany({
     orderBy: [asc(meals.sort)],
     with: { shoppingLinks: { with: { shoppingItem: true } } },
@@ -174,6 +217,7 @@ export async function getMeals(): Promise<{ date: string; meals: MealView[] }[]>
       title: m.title,
       description: m.description,
       commentCount: counts.get(m.id) ?? 0,
+      unreadMentions: unread.get(m.id) ?? 0,
       items: m.shoppingLinks.map((l) => ({
         id: l.shoppingItem.id,
         name: l.shoppingItem.name,

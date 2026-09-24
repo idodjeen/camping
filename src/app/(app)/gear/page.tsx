@@ -7,7 +7,7 @@ import { useState } from "react";
 import useSWR from "swr";
 
 import { AvatarStack } from "@/components/avatar-stack";
-import { CommentsButton } from "@/components/comments";
+import { CommentsButton, TaggedBadge } from "@/components/comments";
 import { CopyButton } from "@/components/copy-button";
 import { FilterChips } from "@/components/filter-chips";
 import { PageTitle, SkeletonList } from "@/components/skeletons";
@@ -38,6 +38,7 @@ type Item = {
   remaining: number | null;
   isFull: boolean;
   commentCount: number;
+  unreadMentions: number;
 };
 type Category = { id: number; name: string; items: Item[] };
 type Payload = { categories: Category[] };
@@ -118,6 +119,7 @@ export default function GearPage() {
   const all = data?.categories.flatMap((c) => c.items) ?? [];
   const required = all.filter((i) => !i.isOptional);
   const covered = required.filter((i) => i.isFull).length;
+  const tagged = all.filter((i) => i.unreadMentions > 0).length;
 
   return (
     <>
@@ -133,13 +135,21 @@ export default function GearPage() {
           { key: null, label: "הכול" },
           { key: "done", label: `מכוסה · ${covered}` },
           { key: "todo", label: `חסר · ${required.length - covered}` },
+          // Only offered when there is something to find, so the row of chips
+          // does not grow a permanently empty option.
+          ...(tagged > 0
+            ? [{ key: "mentions", label: `תייגו אותך · ${tagged}`, tone: "alert" as const }]
+            : []),
         ]}
       />
 
       <div className="space-y-6">
         {data?.categories.map((cat) => {
           const items = cat.items.filter((i) =>
-            filter === "done" ? i.isFull : filter === "todo" ? !i.isFull : true,
+            filter === "done" ? i.isFull
+            : filter === "todo" ? !i.isFull
+            : filter === "mentions" ? i.unreadMentions > 0
+            : true,
           );
           if (items.length === 0) return null;
           return (
@@ -301,6 +311,11 @@ function GearRow({
       className={cn(
         "glass rounded-2xl p-3.5 transition-colors",
         item.isFull && "border-aqua-400/25 bg-aqua-500/5",
+        // Placed after the covered tint so it wins: a question addressed to you
+        // is the more urgent thing about the row. An outline rather than a
+        // ring or a border because `glass` sets both the border shorthand and
+        // box-shadow, which silently swallows either of those utilities.
+        item.unreadMentions > 0 && "bg-brand-500/10 outline-2 outline-brand-400/50",
         flash && "claim-pulse",
       )}
     >
@@ -308,6 +323,7 @@ function GearRow({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="font-semibold">{item.name}</span>
+            {item.unreadMentions > 0 && <TaggedBadge />}
             {item.qtyLabel && (
               <span className="rounded-md bg-white/8 px-1.5 py-0.5 text-[11px] text-white/60">
                 {item.qtyLabel}
@@ -390,7 +406,13 @@ function GearRow({
         </AnimatePresence>
 
         <span className="ms-auto">
-          <CommentsButton subject="gear" id={item.id} count={item.commentCount} name={item.name} />
+          <CommentsButton
+            subject="gear"
+            id={item.id}
+            count={item.commentCount}
+            name={item.name}
+            unread={item.unreadMentions}
+          />
         </span>
 
         {myQty > 0 && (

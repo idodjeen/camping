@@ -12,7 +12,7 @@ export function GET() {
     const me = await requireUser();
     // canBuy drives whether the client renders checkboxes. The PATCH handler
     // re-checks it server-side — this is presentation only, never permission.
-    return { categories: await getShopping(), canBuy: me.isShopper };
+    return { categories: await getShopping(me.id), canBuy: me.isShopper };
   });
 }
 

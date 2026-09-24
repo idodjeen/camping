@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 export function GET() {
   return handle(async () => {
-    await requireUser();
-    return { days: await getMeals() };
+    const me = await requireUser();
+    return { days: await getMeals(me.id) };
   });
 }

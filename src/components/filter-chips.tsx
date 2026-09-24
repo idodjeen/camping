@@ -17,7 +17,7 @@ export function FilterChips({
   options,
 }: {
   current: string | null;
-  options: { key: string | null; label: string }[];
+  options: { key: string | null; label: string; tone?: "alert" }[];
 }) {
   const path = usePathname();
 
@@ -32,9 +32,12 @@ export function FilterChips({
             scroll={false}
             className={cn(
               "tap flex items-center rounded-xl border px-3 text-xs font-semibold transition active:scale-95",
-              active
-                ? "border-brand-400/40 bg-brand-500/20 text-brand-200"
-                : "border-white/10 bg-white/5 text-white/45",
+              active ? "border-brand-400/40 bg-brand-500/20 text-brand-200"
+              // An alert chip stays coloured while inactive: it is the answer
+              // to "the nav badge said 2 — where are they?", so it has to be
+              // findable the moment the page lands, not after you read it.
+              : o.tone === "alert" ? "border-brand-400/35 bg-brand-500/15 text-brand-200"
+              : "border-white/10 bg-white/5 text-white/45",
             )}
           >
             {o.label}

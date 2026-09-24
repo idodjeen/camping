@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Check, Loader2, Lock, Plus } from "lucide-react";
 import useSWR from "swr";
 
-import { CommentsButton } from "@/components/comments";
+import { CommentsButton, TaggedBadge } from "@/components/comments";
 import { CopyButton } from "@/components/copy-button";
 import { FilterChips } from "@/components/filter-chips";
 import { PageTitle, SkeletonList } from "@/components/skeletons";
@@ -26,6 +26,7 @@ type Item = {
   isBought: boolean;
   boughtBy: { name: string; slug: string; avatarUrl: string | null } | null;
   commentCount: number;
+  unreadMentions: number;
   meals: { id: number; title: string; date: string; slot: string }[];
 };
 type Payload = { categories: { id: number; name: string; items: Item[] }[]; canBuy: boolean };
@@ -74,6 +75,7 @@ export default function ShoppingPage() {
 
   const all = data?.categories.flatMap((c) => c.items) ?? [];
   const bought = all.filter((i) => i.isBought).length;
+  const tagged = all.filter((i) => i.unreadMentions > 0).length;
 
   return (
     <>
@@ -96,13 +98,19 @@ export default function ShoppingPage() {
           { key: null, label: "הכול" },
           { key: "bought", label: `נקנה · ${bought}` },
           { key: "todo", label: `נשאר · ${all.length - bought}` },
+          ...(tagged > 0
+            ? [{ key: "mentions", label: `תייגו אותך · ${tagged}`, tone: "alert" as const }]
+            : []),
         ]}
       />
 
       <div className="space-y-6">
         {data?.categories.map((cat) => {
           const items = cat.items.filter((i) =>
-            filter === "bought" ? i.isBought : filter === "todo" ? !i.isBought : true,
+            filter === "bought" ? i.isBought
+            : filter === "todo" ? !i.isBought
+            : filter === "mentions" ? i.unreadMentions > 0
+            : true,
           );
           if (items.length === 0) return null;
           return (
@@ -110,7 +118,16 @@ export default function ShoppingPage() {
             <h2 className="mb-2 px-1 text-sm font-semibold text-white/50">{cat.name}</h2>
             <div className="space-y-2">
               {items.map((item) => (
-                <motion.div key={item.id} layout className="glass rounded-2xl p-3.5">
+                <motion.div
+                  key={item.id}
+                  layout
+                  className={cn(
+                    "glass rounded-2xl p-3.5 transition-colors",
+                    // outline, not ring/border: `glass` sets both the border shorthand and
+                    // box-shadow, so those utilities are silently overridden here.
+                    item.unreadMentions > 0 && "bg-brand-500/10 outline-2 outline-brand-400/50",
+                  )}
+                >
                   <div className="flex items-start gap-3">
                     <button
                       onClick={(e) => toggle(item, e.currentTarget)}
@@ -138,6 +155,7 @@ export default function ShoppingPage() {
                         >
                           {item.name}
                         </span>
+                        {item.unreadMentions > 0 && <TaggedBadge />}
                         {item.quantityText && (
                           <span className="rounded-md bg-white/8 px-1.5 py-0.5 text-[11px] text-white/60">
                             {item.quantityText}
@@ -162,6 +180,7 @@ export default function ShoppingPage() {
                       id={item.id}
                       count={item.commentCount}
                       name={item.name}
+                      unread={item.unreadMentions}
                     />
 
                     {item.isBought && item.boughtBy && (
