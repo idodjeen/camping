@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { BookOpen, Check, Loader2, LogOut, Plus, Trash2 } from "lucide-react";
+import { BookOpen, Check, ListPlus, Loader2, LogOut, Pencil, Plus, Trash2, X } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { useState } from "react";
 import useSWR from "swr";
@@ -16,6 +16,7 @@ import { UserAvatar } from "@/components/user-avatar";
 import { ApiError, fetcher, send, swrConfig } from "@/lib/api";
 import { burstFrom } from "@/lib/confetti";
 import { formatMyList } from "@/lib/format-lists";
+import { PERSONAL_TEMPLATE } from "@/lib/personal-template";
 import { cn } from "@/lib/utils";
 
 type Payload = {
@@ -43,6 +44,9 @@ export default function MePage() {
   const [draft, setDraft] = useState("");
   const [adding, setAdding] = useState(false);
   const [guide, setGuide] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editDraft, setEditDraft] = useState("");
+  const [loadingTemplate, setLoadingTemplate] = useState(false);
 
   const optimistic = (patch: (p: Payload) => Payload) => (data ? patch(data) : undefined);
 
@@ -109,6 +113,50 @@ export default function MePage() {
     }
   }
 
+  async function addTemplate(names: string[]) {
+    setLoadingTemplate(true);
+    try {
+      await mutate(async () => {
+        await send("/api/personal", "POST", { names });
+        return fetcher<Payload>("/api/me");
+      }, { revalidate: false });
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : "לא הצלחנו להוסיף");
+    } finally {
+      setLoadingTemplate(false);
+    }
+  }
+
+  function startEdit(item: { id: number; name: string }) {
+    setEditingId(item.id);
+    setEditDraft(item.name);
+  }
+
+  async function saveEdit(id: number) {
+    const name = editDraft.trim();
+    const current = data?.personal.find((i) => i.id === id);
+    setEditingId(null);
+    if (!name || !current || name === current.name) return;
+    try {
+      await mutate(
+        async () => {
+          await send(`/api/personal/${id}`, "PATCH", { name });
+          return fetcher<Payload>("/api/me");
+        },
+        {
+          optimisticData: optimistic((p) => ({
+            ...p,
+            personal: p.personal.map((i) => (i.id === id ? { ...i, name } : i)),
+          })),
+          rollbackOnError: true,
+          revalidate: false,
+        },
+      );
+    } catch {
+      toast("לא הצלחנו לשמור");
+    }
+  }
+
   async function removePersonal(id: number) {
     try {
       await mutate(
@@ -140,6 +188,9 @@ export default function MePage() {
   }
   if (!data) return null;
 
+  const missingTemplate = PERSONAL_TEMPLATE.filter(
+    (n) => !data.personal.some((i) => i.name.trim() === n),
+  );
   const packedCount = data.claims.filter((c) => c.isPacked).length;
 
   return (
@@ -227,6 +278,19 @@ export default function MePage() {
           </button>
         </form>
 
+        {missingTemplate.length > 0 && (
+          <button
+            onClick={() => addTemplate(missingTemplate)}
+            disabled={loadingTemplate}
+            className="tap mb-3 flex w-full items-center justify-center gap-2 rounded-xl border border-brand-400/30 bg-brand-500/15 px-4 text-sm font-semibold text-brand-200 transition active:scale-[0.98] disabled:opacity-50"
+          >
+            {loadingTemplate ? <Loader2 className="size-4 animate-spin" /> : <ListPlus className="size-4" />}
+            {data.personal.length === 0
+              ? `להוסיף את רשימת הציוד האישית (${missingTemplate.length})`
+              : `להוסיף פריטים חסרים מהרשימה (${missingTemplate.length})`}
+          </button>
+        )}
+
         <div className="space-y-2">
           <AnimatePresence initial={false}>
             {data.personal.map((item) => (
@@ -243,14 +307,56 @@ export default function MePage() {
                   onToggle={(el) => togglePersonal(item.id, !item.isPacked, el)}
                   label={item.isPacked ? "לבטל ארוז" : "לסמן כארוז"}
                 />
-                <span
-                  className={cn(
-                    "min-w-0 flex-1 break-words",
-                    item.isPacked && "text-white/40 line-through",
-                  )}
-                >
-                  {item.name}
-                </span>
+                {editingId === item.id ? (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      saveEdit(item.id);
+                    }}
+                    className="flex min-w-0 flex-1 items-center gap-1.5"
+                  >
+                    <input
+                      autoFocus
+                      value={editDraft}
+                      onChange={(e) => setEditDraft(e.target.value)}
+                      maxLength={120}
+                      className="min-w-0 flex-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-sm outline-none focus:border-brand-400/40"
+                    />
+                    <button
+                      type="submit"
+                      aria-label="לשמור"
+                      className="tap grid place-items-center rounded-lg text-aqua-200"
+                    >
+                      <Check className="size-4" strokeWidth={3} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingId(null)}
+                      aria-label="לבטל"
+                      className="tap grid place-items-center rounded-lg text-white/40"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </form>
+                ) : (
+                  <>
+                    <span
+                      className={cn(
+                        "min-w-0 flex-1 break-words",
+                        item.isPacked && "text-white/40 line-through",
+                      )}
+                    >
+                      {item.name}
+                    </span>
+                    <button
+                      onClick={() => startEdit(item)}
+                      aria-label="לערוך"
+                      className="tap grid place-items-center rounded-lg text-white/25 active:text-brand-200"
+                    >
+                      <Pencil className="size-4" />
+                    </button>
+                  </>
+                )}
                 <button
                   onClick={() => removePersonal(item.id)}
                   aria-label="למחוק"
