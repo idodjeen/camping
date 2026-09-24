@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Backpack, Home, ShoppingCart, Trophy, User, UtensilsCrossed } from "lucide-react";
+import { Backpack, Home, MessageCircle, ShoppingCart, Trophy, User, UtensilsCrossed } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import useSWR from "swr";
@@ -16,6 +16,7 @@ const TABS = [
   { href: "/gear", label: "ציוד", Icon: Backpack },
   { href: "/meals", label: "ארוחות", Icon: UtensilsCrossed },
   { href: "/shopping", label: "קניות", Icon: ShoppingCart },
+  { href: "/chat", label: "צ׳אט", Icon: MessageCircle },
   { href: "/leaderboard", label: "טבלה", Icon: Trophy },
   { href: "/me", label: "שלי", Icon: User },
 ] as const;
@@ -30,6 +31,8 @@ export function BottomNav() {
     href === "/gear" ? unread?.gear
     : href === "/shopping" ? unread?.shopping
     : href === "/meals" ? unread?.meals
+    // The chat holds every thread, so its badge is every unread tag.
+    : href === "/chat" ? (unread ? unread.gear + unread.shopping + unread.meals : 0)
     : 0;
 
   return (

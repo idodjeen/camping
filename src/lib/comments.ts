@@ -196,6 +196,69 @@ export async function listMentions(userId: number, limit = 40): Promise<MentionV
   });
 }
 
+export type ChatMessage = {
+  id: number;
+  subject: Subject;
+  subjectId: number;
+  subjectLabel: string;
+  body: string;
+  createdAt: string;
+  author: { id: number; name: string; slug: string; avatarUrl: string | null };
+  /** Is this message addressed to me, and have I not opened it yet? */
+  taggedMe: boolean;
+  unread: boolean;
+};
+
+/**
+ * Every comment on every item as one conversation, oldest first.
+ *
+ * The threads stay per-item in the database; this is only a read model that
+ * merges them by time. That is deliberate: it means the chat needs no schema
+ * change and can never disagree with the sheets on each row — both read the
+ * same rows. The newest `limit` are fetched newest-first (so the LIMIT keeps
+ * the right end of history) and reversed for display.
+ */
+export async function listChat(userId: number, limit = 150): Promise<ChatMessage[]> {
+  const rows = await db.query.comments.findMany({
+    orderBy: [desc(comments.id)],
+    limit,
+    with: {
+      author: true,
+      gearItem: true,
+      shoppingItem: true,
+      meal: true,
+      mentions: true,
+    },
+  });
+
+  return rows.reverse().map((c) => {
+    const [subject, subjectId, label] =
+      c.gearItemId !== null
+        ? (["gear", c.gearItemId, c.gearItem?.name] as const)
+        : c.shoppingItemId !== null
+          ? (["shopping", c.shoppingItemId, c.shoppingItem?.name] as const)
+          : (["meal", c.mealId as number, c.meal?.title] as const);
+    const mine = c.mentions.find((m) => m.userId === userId);
+
+    return {
+      id: c.id,
+      subject,
+      subjectId,
+      subjectLabel: label ?? "פריט שנמחק",
+      body: c.body,
+      createdAt: c.createdAt.toISOString(),
+      author: {
+        id: c.author.id,
+        name: c.author.name,
+        slug: c.author.slug,
+        avatarUrl: c.author.avatarUrl,
+      },
+      taggedMe: mine !== undefined,
+      unread: mine !== undefined && mine.readAt === null,
+    };
+  });
+}
+
 /** Clears every unread mention of mine at once, from the pane's "mark all read". */
 export async function markAllMentionsRead(userId: number) {
   const updated = await db
