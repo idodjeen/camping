@@ -132,10 +132,10 @@ function NotificationsPane({ open, onClose }: { open: boolean; onClose: () => vo
   // on top of it: two portalled modals would fight over the backdrop tap.
   function openThread(m: Mention) {
     onClose();
-    // A general message has no sheet of its own — it lives in the chat tab.
+    // A general message has no sheet of its own — it lives in the chat room.
     const t = threadOf(m);
     if (t) setThread(t);
-    else router.push("/chat");
+    else router.push("/room");
   }
 
   return (
@@ -296,7 +296,7 @@ export function MentionBanner() {
     if (!shown) return;
     const t = threadOf(shown.mention);
     if (t) setThread(t);
-    else router.push("/chat");
+    else router.push("/room");
     setShown(null);
   }
 

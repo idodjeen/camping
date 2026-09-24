@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, not } from "drizzle-orm";
 
 import { db } from "@/db";
 import { commentMentions, comments, gearItems, meals, shoppingItems, users } from "@/db/schema";
@@ -238,7 +238,9 @@ export type ChatMessage = {
 };
 
 /**
- * Every comment on every item as one conversation, oldest first.
+ * Every comment on every item as one conversation, oldest first — or, with
+ * `room: "general"`, the general room instead. The two never mix: the item
+ * timeline stays only about items, the room only about the crew.
  *
  * The threads stay per-item in the database; this is only a read model that
  * merges them by time. That is deliberate: it means the chat needs no schema
@@ -246,8 +248,13 @@ export type ChatMessage = {
  * same rows. The newest `limit` are fetched newest-first (so the LIMIT keeps
  * the right end of history) and reversed for display.
  */
-export async function listChat(userId: number, limit = 150): Promise<ChatMessage[]> {
+export async function listChat(
+  userId: number,
+  room: "items" | "general" = "items",
+  limit = 150,
+): Promise<ChatMessage[]> {
   const rows = await db.query.comments.findMany({
+    where: room === "general" ? generalOnly : not(generalOnly!),
     orderBy: [desc(comments.id)],
     limit,
     with: {

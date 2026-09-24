@@ -11,11 +11,15 @@ export const dynamic = "force-dynamic";
 // Notifying several people means several SMTP handshakes.
 export const maxDuration = 60;
 
-/** The whole crew's comments as one timeline. The viewer only shapes the tag/unread flags. */
-export function GET() {
+/**
+ * The item comments as one timeline, or with ?room=general the general room.
+ * The viewer only shapes the tag/unread flags.
+ */
+export function GET(req: Request) {
   return handle(async () => {
     const me = await requireUser();
-    return { messages: await listChat(me.id) };
+    const room = new URL(req.url).searchParams.get("room") === "general" ? "general" : "items";
+    return { messages: await listChat(me.id, room) };
   });
 }
 

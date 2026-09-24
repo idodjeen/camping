@@ -16,7 +16,7 @@ const TABS = [
   { href: "/gear", label: "ציוד", Icon: Backpack },
   { href: "/meals", label: "ארוחות", Icon: UtensilsCrossed },
   { href: "/shopping", label: "קניות", Icon: ShoppingCart },
-  { href: "/chat", label: "צ׳אט", Icon: MessageCircle },
+  { href: "/chat", label: "תגובות", Icon: MessageCircle },
   { href: "/leaderboard", label: "טבלה", Icon: Trophy },
   { href: "/me", label: "שלי", Icon: User },
 ] as const;
@@ -43,7 +43,8 @@ export function BottomNav() {
         style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.375rem)" }}
       >
         {TABS.map(({ href, label, Icon }) => {
-          const active = pathname === href;
+          // The chat room hangs off the comments tab, so it keeps that tab lit.
+          const active = pathname === href || (href === "/chat" && pathname === "/room");
           return (
             <Link
               key={href}

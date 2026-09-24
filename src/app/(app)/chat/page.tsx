@@ -1,27 +1,25 @@
 "use client";
 
-import { AtSign, Loader2, MessageCircle, Send, Trash2 } from "lucide-react";
+import { AtSign, MessageCircle, MessagesSquare } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import useSWR, { useSWRConfig } from "swr";
+import useSWR from "swr";
 
-import { CommentsSheet, MentionBox, highlight, type Subject } from "@/components/comments";
+import { CommentsSheet, type Subject } from "@/components/comments";
 import { PageTitle, SkeletonList } from "@/components/skeletons";
-import { toast } from "@/components/toast";
 import { UserAvatar } from "@/components/user-avatar";
-import { ApiError, NOTIFICATIONS_KEY, fetcher, send, swrConfig } from "@/lib/api";
+import { fetcher, swrConfig } from "@/lib/api";
 import { formatRelative } from "@/lib/dates";
 import type { ChatMessage } from "@/lib/comments";
 import { cn } from "@/lib/utils";
 
-type Person = { id: number; name: string; slug: string; avatarUrl: string | null };
-type Me = { user: { id: number; isAdmin: boolean }; people: Person[] };
-type Filter = "all" | "tagged" | "general" | Subject;
+type Me = { user: { id: number }; unreadMentions?: { general: number } };
+type Filter = "all" | "tagged" | Subject;
 
 const LIST_LABEL: Record<Subject, string> = { gear: "ציוד", shopping: "קניות", meal: "ארוחות" };
 const FILTERS: { key: Filter; label: string }[] = [
   { key: "all", label: "הכל" },
   { key: "tagged", label: "תייגו אותי" },
-  { key: "general", label: "כללי" },
   { key: "gear", label: "ציוד" },
   { key: "shopping", label: "קניות" },
   { key: "meal", label: "ארוחות" },
@@ -38,24 +36,20 @@ function dayLabel(iso: string): { key: string; label: string } {
   return { key, label: `${Number(d)}.${Number(m)}` };
 }
 
+/** The /api/chat feed carries item comments only; the general room lives at /room. */
+type ItemMessage = ChatMessage & { subject: Subject };
+const isItem = (m: ChatMessage): m is ItemMessage => m.subject !== "general";
+
 export default function ChatPage() {
-  const { data, isLoading, mutate } = useSWR<{ messages: ChatMessage[] }>(
-    "/api/chat",
-    fetcher,
-    swrConfig,
-  );
-  const { data: me, mutate: mutateMe } = useSWR<Me>("/api/me", fetcher, swrConfig);
-  const { mutate: globalMutate } = useSWRConfig();
-  const [draft, setDraft] = useState("");
-  const [busy, setBusy] = useState(false);
-  const boxRef = useRef<HTMLTextAreaElement>(null);
+  const { data, isLoading } = useSWR<{ messages: ChatMessage[] }>("/api/chat", fetcher, swrConfig);
+  const { data: me } = useSWR<Me>("/api/me", fetcher, swrConfig);
   const [filter, setFilter] = useState<Filter>("all");
   const [thread, setThread] = useState<{ subject: Subject; id: number; name: string } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastId = useRef<number | null>(null);
 
   const messages = useMemo(() => {
-    const all = data?.messages ?? [];
+    const all = (data?.messages ?? []).filter(isItem);
     return all.filter((m) =>
       filter === "all" ? true : filter === "tagged" ? m.taggedMe : m.subject === filter,
     );
@@ -81,55 +75,39 @@ export default function ChatPage() {
     lastId.current = null;
   }, [filter]);
 
-  // Being on this tab is what reads the general room, the way opening a sheet
-  // reads an item's thread. Item tags stay unread until their sheet is opened.
-  const generalUnread = data?.messages.some((m) => m.subject === "general" && m.unread) ?? false;
-  useEffect(() => {
-    if (!generalUnread) return;
-    void send("/api/chat/read", "POST")
-      .then(() => Promise.all([mutateMe(), globalMutate(NOTIFICATIONS_KEY), mutate()]))
-      .catch(() => {});
-  }, [generalUnread, mutateMe, globalMutate, mutate]);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    const body = draft.trim();
-    if (!body) return;
-    setBusy(true);
-    try {
-      const res = await send<{ notified: string[] }>("/api/chat", "POST", { body });
-      setDraft("");
-      // Sending is a request to be at the bottom, whatever the scroll position was.
-      lastId.current = null;
-      if (filter !== "all" && filter !== "general") setFilter("general");
-      await mutate();
-      if (res.notified.length > 0) toast(`נשלח מייל ל${res.notified.join(", ")}`, "ok");
-    } catch (err) {
-      toast(err instanceof ApiError ? err.message : "לא הצלחנו לשלוח");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function remove(id: number) {
-    try {
-      await send(`/api/comments/${id}`, "DELETE");
-      await mutate();
-    } catch (err) {
-      toast(err instanceof ApiError ? err.message : "לא הצלחנו למחוק");
-    }
-  }
-
-  const people = me?.people ?? [];
   const myId = me?.user.id;
   const unreadTags = data?.messages.filter((m) => m.unread).length ?? 0;
+  const roomUnread = me?.unreadMentions?.general ?? 0;
 
   let prevItem = "";
   let prevDay = "";
 
   return (
     <>
-      <PageTitle title="צ׳אט" subtitle="שיחה כללית, וגם כל התגובות על הפריטים" />
+      <PageTitle
+        title="תגובות"
+        subtitle="כל התגובות על הפריטים, במקום אחד"
+        action={
+          <Link
+            href="/room"
+            aria-label={roomUnread > 0 ? "חדר צ׳אט — תייגו אותך" : "חדר צ׳אט"}
+            className={cn(
+              "tap relative flex items-center gap-1.5 rounded-2xl border px-3 text-xs font-semibold transition active:scale-95",
+              roomUnread > 0
+                ? "border-brand-400/30 bg-brand-500/15 text-brand-200"
+                : "border-white/10 bg-white/5 text-white/60",
+            )}
+          >
+            <MessagesSquare className="size-4" />
+            חדר צ׳אט
+            {roomUnread > 0 && (
+              <span className="grid size-4 place-items-center rounded-full bg-brand-500 text-[9px] font-bold text-white">
+                {roomUnread}
+              </span>
+            )}
+          </Link>
+        }
+      />
 
       <div className="sticky top-0 z-10 -mx-5 mb-4 flex gap-2 overflow-x-auto bg-night-950/85 px-5 py-2 backdrop-blur-xl [scrollbar-width:none]">
         {FILTERS.map((f) => (
@@ -160,11 +138,11 @@ export default function ChatPage() {
         <div className="py-16 text-center">
           <MessageCircle className="mx-auto size-8 text-white/15" />
           <p className="mt-3 text-sm leading-relaxed text-white/40">
-            {filter === "all" || filter === "general"
+            {filter === "all"
               ? "עוד אף אחד לא כתב כלום."
               : "אין הודעות בסינון הזה."}
             <br />
-            אפשר לכתוב כאן לכולם, או להגיב על פריט — והתגובה תופיע כאן.
+            תגובות נכתבות על פריט — ציוד, קניות או ארוחה — ומופיעות כאן.
           </p>
         </div>
       ) : (
@@ -177,10 +155,6 @@ export default function ChatPage() {
             prevItem = item;
             prevDay = day.key;
             const mine = m.author.id === myId;
-            const general = m.subject === "general";
-            const open = () =>
-              !general &&
-              setThread({ subject: m.subject as Subject, id: m.subjectId, name: m.subjectLabel });
 
             return (
               <div key={m.id}>
@@ -189,18 +163,17 @@ export default function ChatPage() {
                     {day.label}
                   </p>
                 )}
-                {!general && (newItem || newDay) && (
+                {(newItem || newDay) && (
                   <button
-                    onClick={open}
+                    onClick={() => setThread({ subject: m.subject, id: m.subjectId, name: m.subjectLabel })}
                     className="mb-1.5 mt-2.5 flex max-w-full items-center gap-1 rounded-lg bg-white/8 px-2 py-1 text-[11px] font-semibold text-white/55 active:scale-95"
                   >
-                    <span className="text-white/35">{LIST_LABEL[m.subject as Subject]} ·</span>
+                    <span className="text-white/35">{LIST_LABEL[m.subject]} ·</span>
                     <span className="truncate">{m.subjectLabel}</span>
                   </button>
                 )}
-                <div
-                  role={general ? undefined : "button"}
-                  onClick={open}
+                <button
+                  onClick={() => setThread({ subject: m.subject, id: m.subjectId, name: m.subjectLabel })}
                   className={cn("flex w-full gap-2.5 text-start", mine && "flex-row-reverse")}
                 >
                   {!mine && (
@@ -224,21 +197,12 @@ export default function ChatPage() {
                       {m.taggedMe && !mine && (
                         <span className="text-[10px] font-semibold text-brand-300">תייגו אותך</span>
                       )}
-                      {general && (mine || me?.user.isAdmin) && (
-                        <button
-                          onClick={() => remove(m.id)}
-                          aria-label="למחוק הודעה"
-                          className="ms-auto text-white/25 active:text-rose-300"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </button>
-                      )}
                     </div>
                     <p className="mt-0.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-white/80">
-                      {general ? highlight(m.body, people) : m.body}
+                      {m.body}
                     </p>
                   </div>
-                </div>
+                </button>
               </div>
             );
           })}
@@ -247,37 +211,10 @@ export default function ChatPage() {
 
       {messages.length > 0 && (
         <p className="mt-5 text-center text-[11px] text-white/25">
-          לחיצה על הודעה על פריט פותחת את השרשור שלה, שם אפשר להשיב ולתייג
+          לחיצה על הודעה פותחת את השרשור שלה, שם אפשר להשיב ולתייג
         </p>
       )}
-      <div ref={bottomRef} className="scroll-mb-40" />
-
-      {/* Rides just above the bottom nav (its height + the home indicator). */}
-      <form
-        onSubmit={submit}
-        className="sticky bottom-[calc(env(safe-area-inset-bottom,0px)+4.25rem)] z-20 -mx-5 mt-4 border-t border-white/10 bg-night-950/90 px-5 py-2.5 backdrop-blur-xl"
-      >
-        <div className="flex items-end gap-2">
-          <div className="min-w-0 flex-1">
-            <MentionBox
-              value={draft}
-              onChange={setDraft}
-              people={people}
-              boxRef={boxRef}
-              rows={1}
-              placeholder="לכתוב לכולם… אפשר לתייג עם @"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={busy || !draft.trim()}
-            aria-label="לשלוח"
-            className="tap grid shrink-0 place-items-center rounded-xl bg-brand-500/25 px-3 text-brand-100 transition active:scale-95 disabled:opacity-30"
-          >
-            {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-          </button>
-        </div>
-      </form>
+      <div ref={bottomRef} className="scroll-mb-24" />
 
       {thread && (
         <CommentsSheet
