@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 
+import { ChatImage } from "@/components/chat-image";
 import { MentionBox, highlight } from "@/components/comments";
+import { AttachmentPreview, ImagePicker, type Attachment } from "@/components/image-picker";
 import { toast } from "@/components/toast";
 import { UserAvatar } from "@/components/user-avatar";
 import { ApiError, NOTIFICATIONS_KEY, fetcher, send, swrConfig } from "@/lib/api";
@@ -39,6 +41,7 @@ export default function RoomPage() {
   const { data: me, mutate: mutateMe } = useSWR<Me>("/api/me", fetcher, swrConfig);
   const { mutate: globalMutate } = useSWRConfig();
   const [draft, setDraft] = useState("");
+  const [image, setImage] = useState<Attachment | null>(null);
   const [busy, setBusy] = useState(false);
   const boxRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -75,11 +78,20 @@ export default function RoomPage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const body = draft.trim();
-    if (!body) return;
+    // A photo carries a message on its own, so either one is enough to send.
+    if (!body && !image) return;
     setBusy(true);
     try {
-      const res = await send<{ notified: string[] }>("/api/chat", "POST", { body });
+      const res = await send<{ notified: string[] }>("/api/chat", "POST", {
+        body,
+        image: image && {
+          publicId: image.publicId,
+          width: image.width,
+          height: image.height,
+        },
+      });
       setDraft("");
+      setImage(null);
       lastId.current = null; // your own message always scrolls into view
       await mutate();
       if (res.notified.length > 0) toast(`נשלח מייל ל${res.notified.join(", ")}`, "ok");
@@ -174,9 +186,14 @@ export default function RoomPage() {
                     {head && !mine && (
                       <p className="text-xs font-bold text-brand-200">{m.author.name}</p>
                     )}
-                    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-white/85">
-                      {highlight(m.body, people)}
-                    </p>
+                    {m.body && (
+                      <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-white/85">
+                        {highlight(m.body, people)}
+                      </p>
+                    )}
+                    {m.image && (
+                      <ChatImage image={m.image} alt={`תמונה מ${m.author.name}`} />
+                    )}
                     <div className="mt-0.5 flex items-center gap-2 text-[10px] text-white/30">
                       <span>{formatRelative(m.createdAt)}</span>
                       {(mine || me?.user.isAdmin) && (
@@ -204,7 +221,9 @@ export default function RoomPage() {
         onSubmit={submit}
         className="sticky bottom-[calc(env(safe-area-inset-bottom,0px)+4.25rem)] z-20 -mx-5 mt-4 border-t border-white/10 bg-night-950/90 px-5 py-2.5 backdrop-blur-xl"
       >
+        {image && <AttachmentPreview attachment={image} onClear={() => setImage(null)} />}
         <div className="flex items-end gap-2">
+          <ImagePicker onPicked={setImage} disabled={busy} />
           <div className="min-w-0 flex-1">
             <MentionBox
               value={draft}
@@ -217,7 +236,7 @@ export default function RoomPage() {
           </div>
           <button
             type="submit"
-            disabled={busy || !draft.trim()}
+            disabled={busy || (!draft.trim() && !image)}
             aria-label="לשלוח"
             className="tap grid shrink-0 place-items-center rounded-xl bg-brand-500/25 px-3 text-brand-100 transition active:scale-95 disabled:opacity-30"
           >

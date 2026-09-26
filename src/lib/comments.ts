@@ -10,6 +10,7 @@ import {
   shoppingItems,
   users,
 } from "@/db/schema";
+import { destroyImage, imageViewOf, isChatImageId, type ImageView } from "@/lib/cloudinary";
 import { notifyMessage } from "@/lib/notifications";
 import { EVERYONE } from "@/lib/mention-all";
 import { HttpError } from "@/lib/session";
@@ -41,6 +42,8 @@ export function parseSubject(value: string | null): Subject {
 export type CommentView = {
   id: number;
   body: string;
+  /** An attached photo, already resolved to delivery URLs. */
+  image: ImageView | null;
   createdAt: string;
   author: { id: number; name: string; slug: string; avatarUrl: string | null };
   mentions: string[];
@@ -56,6 +59,7 @@ export async function getThread(subject: Subject, subjectId: number): Promise<Co
   return rows.map((c) => ({
     id: c.id,
     body: c.body,
+    image: imageViewOf(c.imagePublicId, c.imageWidth, c.imageHeight),
     createdAt: c.createdAt.toISOString(),
     author: {
       id: c.author.id,
@@ -90,15 +94,35 @@ export function findMentions(body: string, people: { id: number; name: string }[
   return people.filter((p) => has(p.name));
 }
 
+/** A photo the browser has already put in Cloudinary, as it reports it back. */
+export type ImageUpload = { publicId: string; width: number; height: number };
+
+/** Nothing but a well-formed id from our own chat folder may be attached. */
+function checkImage(image: ImageUpload | null | undefined): ImageUpload | null {
+  if (!image) return null;
+  if (typeof image.publicId !== "string" || !isChatImageId(image.publicId)) {
+    throw new HttpError(400, "התמונה לא תקינה");
+  }
+  const width = Number(image.width);
+  const height = Number(image.height);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    throw new HttpError(400, "התמונה לא תקינה");
+  }
+  return { publicId: image.publicId, width: Math.round(width), height: Math.round(height) };
+}
+
 export async function createComment(
   authorId: number,
   /** null posts to the general chat, which belongs to no item. */
   subject: Subject | null,
   subjectId: number | null,
   rawBody: string,
+  rawImage?: ImageUpload | null,
 ) {
   const body = rawBody.trim();
-  if (!body) throw new HttpError(400, "אי אפשר לשלוח תגובה ריקה");
+  const image = checkImage(rawImage);
+  // A photo says enough on its own, so only a message with neither is empty.
+  if (!body && !image) throw new HttpError(400, "אי אפשר לשלוח תגובה ריקה");
   if (body.length > 1000) throw new HttpError(400, "התגובה ארוכה מדי");
 
   const people = await db.select().from(users);
@@ -114,6 +138,9 @@ export async function createComment(
       mealId: subject === "meal" ? subjectId : null,
       userId: authorId,
       body,
+      imagePublicId: image?.publicId ?? null,
+      imageWidth: image?.width ?? null,
+      imageHeight: image?.height ?? null,
     })
     .returning();
 
@@ -193,6 +220,7 @@ export type MentionView = {
   /** The item's own name, so the pane can say what the message is about. */
   subjectLabel: string;
   body: string;
+  image: ImageView | null;
   createdAt: string;
   readAt: string | null;
   author: { id: number; name: string; slug: string; avatarUrl: string | null };
@@ -233,6 +261,7 @@ export async function listMentions(userId: number, limit = 40): Promise<MentionV
       subjectId,
       subjectLabel: label,
       body: c.body,
+      image: imageViewOf(c.imagePublicId, c.imageWidth, c.imageHeight),
       createdAt: c.createdAt.toISOString(),
       readAt: m.readAt?.toISOString() ?? null,
       author: {
@@ -254,6 +283,7 @@ export type NotificationView = {
   subjectLabel: string;
   /** The message text; empty for "covered", which the pane words itself. */
   body: string;
+  image: ImageView | null;
   createdAt: string;
   readAt: string | null;
   author: { id: number; name: string; slug: string; avatarUrl: string | null };
@@ -287,6 +317,9 @@ export async function listNotifications(userId: number, limit = 40): Promise<Not
       subjectId,
       subjectLabel: label,
       body: n.comment?.body ?? "",
+      image: n.comment
+        ? imageViewOf(n.comment.imagePublicId, n.comment.imageWidth, n.comment.imageHeight)
+        : null,
       createdAt: n.createdAt.toISOString(),
       readAt: n.readAt?.toISOString() ?? null,
       author: {
@@ -305,6 +338,7 @@ export type ChatMessage = {
   subjectId: number;
   subjectLabel: string;
   body: string;
+  image: ImageView | null;
   createdAt: string;
   author: { id: number; name: string; slug: string; avatarUrl: string | null };
   /** Is this message addressed to me, and have I not opened it yet? */
@@ -351,6 +385,7 @@ export async function listChat(
       subjectId,
       subjectLabel: label,
       body: c.body,
+      image: imageViewOf(c.imagePublicId, c.imageWidth, c.imageHeight),
       createdAt: c.createdAt.toISOString(),
       author: {
         id: c.author.id,
@@ -428,6 +463,17 @@ export async function deleteComment(userId: number, isAdmin: boolean, commentId:
   if (row.userId !== userId && !isAdmin) throw new HttpError(403, "אפשר למחוק רק תגובות שלך");
 
   await db.delete(comments).where(eq(comments.id, commentId));
+
+  // Best-effort, like the mail and the bell row: the message is already gone,
+  // and a Cloudinary failure must not report the delete as failed.
+  if (row.imagePublicId) {
+    try {
+      await destroyImage(row.imagePublicId);
+    } catch (err) {
+      console.error("image delete failed", err);
+    }
+  }
+
   return { deleted: true };
 }
 

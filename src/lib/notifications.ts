@@ -5,6 +5,9 @@ import { notifications, users, type Comment, type User } from "@/db/schema";
 import { sendPush } from "@/lib/push";
 import { HttpError } from "@/lib/session";
 
+/** How a message that is only a photo words itself outside the chat. */
+export const PHOTO = "📷 תמונה";
+
 /** Either the top-level client or a transaction — both can insert. */
 type Writer = Pick<typeof db, "insert" | "select">;
 
@@ -29,7 +32,9 @@ export async function notifyMessage(
       !(mentionedIds.includes(p.id) && p.notifyMentions),
   );
   const author = people.find((p) => p.id === authorId);
-  const preview = comment.body.length > 120 ? `${comment.body.slice(0, 117)}…` : comment.body;
+  // A photo with no caption still has to read as something in a push banner.
+  const text = comment.body || (comment.imagePublicId ? PHOTO : "");
+  const preview = text.length > 120 ? `${text.slice(0, 117)}…` : text;
   const url = comment.gearItemId
     ? "/gear"
     : comment.shoppingItemId

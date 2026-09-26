@@ -5,22 +5,20 @@ import { AtSign, Loader2, MessageCircle, Send, Trash2, Users } from "lucide-reac
 import { useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 
+import { ChatImage } from "@/components/chat-image";
+import { AttachmentPreview, ImagePicker, type Attachment } from "@/components/image-picker";
 import { Modal } from "@/components/modal";
 import { toast } from "@/components/toast";
 import { UserAvatar } from "@/components/user-avatar";
 import { ApiError, NOTIFICATIONS_KEY, fetcher, send, swrConfig } from "@/lib/api";
+import type { CommentView } from "@/lib/comments";
 import { formatRelative } from "@/lib/dates";
 import { EVERYONE } from "@/lib/mention-all";
 import { cn } from "@/lib/utils";
 
 type Person = { id: number; name: string; slug: string; avatarUrl: string | null };
-type CommentView = {
-  id: number;
-  body: string;
-  createdAt: string;
-  author: Person;
-  mentions: string[];
-};
+// The server's own read model rather than a second copy of it — a field added
+// there (an attached photo, most recently) then cannot be missed here.
 type Thread = { comments: CommentView[]; label: string };
 type Me = { user: { id: number; isAdmin: boolean }; people: Person[] };
 
@@ -112,6 +110,7 @@ export function CommentsSheet({
   const { data: me, mutate: mutateMe } = useSWR<Me>("/api/me", fetcher, swrConfig);
   const { mutate: globalMutate } = useSWRConfig();
   const [draft, setDraft] = useState("");
+  const [image, setImage] = useState<Attachment | null>(null);
   const [busy, setBusy] = useState(false);
   const boxRef = useRef<HTMLTextAreaElement>(null);
 
@@ -128,15 +127,22 @@ export function CommentsSheet({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const body = draft.trim();
-    if (!body) return;
+    // A photo carries a message on its own, so either one is enough to send.
+    if (!body && !image) return;
     setBusy(true);
     try {
       const res = await send<{ notified: string[] }>("/api/comments", "POST", {
         subject,
         id,
         body,
+        image: image && {
+          publicId: image.publicId,
+          width: image.width,
+          height: image.height,
+        },
       });
       setDraft("");
+      setImage(null);
       await mutate();
       await mutateMe();
       await globalMutate(NOTIFICATIONS_KEY);
@@ -202,9 +208,12 @@ export function CommentsSheet({
                       </button>
                     )}
                   </div>
-                  <p className="mt-0.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-white/75">
-                    {highlight(c.body, people)}
-                  </p>
+                  {c.body && (
+                    <p className="mt-0.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-white/75">
+                      {highlight(c.body, people)}
+                    </p>
+                  )}
+                  {c.image && <ChatImage image={c.image} alt={`תמונה מ${c.author.name}`} />}
                 </div>
               </motion.div>
             ))}
@@ -213,15 +222,19 @@ export function CommentsSheet({
       </div>
 
       <form onSubmit={submit} className="mt-4 border-t border-white/10 pt-3">
+        {image && <AttachmentPreview attachment={image} onClear={() => setImage(null)} />}
         <MentionBox value={draft} onChange={setDraft} people={people} boxRef={boxRef} />
-        <button
-          type="submit"
-          disabled={busy || !draft.trim()}
-          className="tap mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500/25 text-sm font-semibold text-brand-100 transition active:scale-95 disabled:opacity-30"
-        >
-          {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-          לשלוח
-        </button>
+        <div className="mt-2 flex items-stretch gap-2">
+          <ImagePicker onPicked={setImage} disabled={busy} />
+          <button
+            type="submit"
+            disabled={busy || (!draft.trim() && !image)}
+            className="tap flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-500/25 text-sm font-semibold text-brand-100 transition active:scale-95 disabled:opacity-30"
+          >
+            {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+            לשלוח
+          </button>
+        </div>
       </form>
     </Modal>
   );

@@ -2,8 +2,9 @@ import { inArray } from "drizzle-orm";
 
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { createComment, listChat } from "@/lib/comments";
+import { createComment, listChat, type ImageUpload } from "@/lib/comments";
 import { buildMentionEmails } from "@/lib/emails";
+import { PHOTO } from "@/lib/notifications";
 import { sendAll } from "@/lib/mailer";
 import { handle, requireUser } from "@/lib/session";
 
@@ -32,8 +33,8 @@ export function GET(req: Request) {
 export function POST(req: Request) {
   return handle(async () => {
     const me = await requireUser();
-    const body = (await req.json()) as { body?: string };
-    const { mentioned } = await createComment(me.id, null, null, body.body ?? "");
+    const body = (await req.json()) as { body?: string; image?: ImageUpload | null };
+    const { mentioned } = await createComment(me.id, null, null, body.body ?? "", body.image);
 
     if (mentioned.length > 0) {
       // Best-effort, as with item comments: a mail failure must not lose the message.
@@ -42,7 +43,9 @@ export function POST(req: Request) {
           .select({ email: users.email, name: users.name })
           .from(users)
           .where(inArray(users.id, mentioned.map((m) => m.id)));
-        await sendAll(buildMentionEmails(me.name, "הצ׳אט הכללי", body.body!.trim(), recipients));
+        // A photo with no caption would otherwise be a blank email body.
+        const text = (body.body ?? "").trim() || PHOTO;
+        await sendAll(buildMentionEmails(me.name, "הצ׳אט הכללי", text, recipients));
       } catch (err) {
         console.error("mention email failed", err);
       }

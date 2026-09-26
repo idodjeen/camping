@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 
+import { ChatImage } from "@/components/chat-image";
 import { CommentsSheet, type Subject } from "@/components/comments";
 import { PageTitle, SkeletonList } from "@/components/skeletons";
 import { UserAvatar } from "@/components/user-avatar";
@@ -198,9 +199,15 @@ export default function ChatPage() {
                         <span className="text-[10px] font-semibold text-brand-300">תייגו אותך</span>
                       )}
                     </div>
-                    <p className="mt-0.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-white/80">
-                      {m.body}
-                    </p>
+                    {m.body && (
+                      <p className="mt-0.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-white/80">
+                        {m.body}
+                      </p>
+                    )}
+                    {/* Not tappable here: the whole bubble opens the thread. */}
+                    {m.image && (
+                      <ChatImage image={m.image} alt={`תמונה מ${m.author.name}`} tappable={false} />
+                    )}
                   </div>
                 </button>
               </div>
