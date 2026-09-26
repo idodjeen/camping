@@ -12,6 +12,8 @@ const heebo = Heebo({
 export const metadata: Metadata = {
   title: "מחנאות 2026",
   description: "מי מביא מה, מה אוכלים, ומה עוד צריך לקנות.",
+  // Lets iOS launch the Home Screen icon as a standalone app (required for push).
+  appleWebApp: { capable: true, title: "מחנאות", statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {

@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ChevronLeft, PackageOpen } from "lucide-react";
+import { ChevronLeft, PackageOpen, Wallet } from "lucide-react";
 import Link from "next/link";
 import useSWR from "swr";
 
@@ -127,6 +127,20 @@ export default function HomePage() {
 
       <section className="mt-4">
         <Podium linked />
+      </section>
+
+      <section className="mt-4">
+        <Link
+          href="/expenses"
+          className="glass flex items-center gap-3 rounded-glass p-4 transition active:scale-[0.99]"
+        >
+          <Wallet className="size-5 text-aqua-300" />
+          <div className="min-w-0 flex-1">
+            <p className="font-bold">הוצאות והתחשבנות</p>
+            <p className="text-xs text-white/45">מי שילם על מה, ומי חייב למי</p>
+          </div>
+          <ChevronLeft className="size-4 text-white/30" />
+        </Link>
       </section>
 
       <section className="mt-4">

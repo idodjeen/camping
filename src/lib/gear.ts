@@ -1,8 +1,9 @@
 import { and, eq, ne, sql } from "drizzle-orm";
 
 import { db } from "@/db";
-import { gearClaims, gearItems } from "@/db/schema";
+import { gearClaims, gearItems, users } from "@/db/schema";
 import { notifyCovered } from "@/lib/notifications";
+import { sendPush } from "@/lib/push";
 import { HttpError } from "@/lib/session";
 
 /**
@@ -26,7 +27,7 @@ export async function setClaim(userId: number, itemId: number, qty: number) {
   }
   if (qty > 99) throw new HttpError(400, "כמות גדולה מדי");
 
-  return db.transaction(async (tx) => {
+  const { covered, ...result } = await db.transaction(async (tx) => {
     const [item] = await tx
       .select()
       .from(gearItems)
@@ -73,10 +74,24 @@ export async function setClaim(userId: number, itemId: number, qty: number) {
     // Newly covered: was short before this call, is full after it. Raising an
     // already-full item's own qty, or a re-tap of the same amount, stays quiet.
     const capacity = item.qtyNeeded ?? 1;
+    let covered: { name: string; ids: number[] } | null = null;
     if (announces && othersTotal + (before?.qty ?? 0) < capacity && othersTotal + qty >= capacity) {
-      await notifyCovered(tx, itemId, userId);
+      covered = { name: item.name, ids: await notifyCovered(tx, itemId, userId) };
     }
 
-    return { claim };
+    return { claim, covered };
   });
+
+  // Push only after the transaction commits: a rolled-back claim must not
+  // buzz anyone's phone, and the network call should not hold the row lock.
+  if (covered && covered.ids.length > 0) {
+    const [actor] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId));
+    await sendPush(covered.ids, {
+      title: "פריט כוסה 🎉",
+      body: `${actor?.name ?? "מישהו"} לקח את האחרון: ${covered.name}`,
+      url: "/gear",
+      tag: `covered-${itemId}`,
+    });
+  }
+  return result;
 }

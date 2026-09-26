@@ -1,7 +1,8 @@
 import { and, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
-import { notifications, users, type User } from "@/db/schema";
+import { notifications, users, type Comment, type User } from "@/db/schema";
+import { sendPush } from "@/lib/push";
 import { HttpError } from "@/lib/session";
 
 /** Either the top-level client or a transaction — both can insert. */
@@ -16,7 +17,7 @@ type Writer = Pick<typeof db, "insert" | "select">;
  * plain message row, so muting one kind never silences the whole comment.
  */
 export async function notifyMessage(
-  comment: { id: number },
+  comment: Comment,
   authorId: number,
   people: User[],
   mentionedIds: number[],
@@ -27,27 +28,50 @@ export async function notifyMessage(
       p.notifyMessages &&
       !(mentionedIds.includes(p.id) && p.notifyMentions),
   );
-  if (recipients.length === 0) return;
+  const author = people.find((p) => p.id === authorId);
+  const preview = comment.body.length > 120 ? `${comment.body.slice(0, 117)}…` : comment.body;
+  const url = comment.gearItemId
+    ? "/gear"
+    : comment.shoppingItemId
+      ? "/shopping"
+      : comment.mealId
+        ? "/meals"
+        : "/chat";
 
-  await db.insert(notifications).values(
-    recipients.map((p) => ({
-      userId: p.id,
-      kind: "message" as const,
-      actorId: authorId,
-      commentId: comment.id,
-    })),
-  );
+  if (recipients.length > 0) {
+    await db.insert(notifications).values(
+      recipients.map((p) => ({
+        userId: p.id,
+        kind: "message" as const,
+        actorId: authorId,
+        commentId: comment.id,
+      })),
+    );
+  }
+
+  // Pushes mirror the bell exactly: a message row for the recipients above,
+  // and a separate "tagged you" push for mentioned people who kept tags on.
+  await Promise.all([
+    sendPush(
+      recipients.map((p) => p.id),
+      { title: author?.name ?? "הודעה חדשה", body: preview, url, tag: `comment-${comment.id}` },
+    ),
+    sendPush(
+      people.filter((p) => p.id !== authorId && mentionedIds.includes(p.id) && p.notifyMentions).map((p) => p.id),
+      { title: `${author?.name ?? "מישהו"} תייג אותך`, body: preview, url, tag: `comment-${comment.id}-mention` },
+    ),
+  ]);
 }
 
 /** An item just reached full coverage; `actorId` is whoever took the last unit. */
-export async function notifyCovered(tx: Writer, itemId: number, actorId: number) {
+export async function notifyCovered(tx: Writer, itemId: number, actorId: number): Promise<number[]> {
   const recipients = await tx
     .select({ id: users.id })
     .from(users)
     .where(eq(users.notifyCovered, true));
 
   const others = recipients.filter((r) => r.id !== actorId);
-  if (others.length === 0) return;
+  if (others.length === 0) return [];
 
   await tx.insert(notifications).values(
     others.map((r) => ({
@@ -57,6 +81,7 @@ export async function notifyCovered(tx: Writer, itemId: number, actorId: number)
       gearItemId: itemId,
     })),
   );
+  return others.map((r) => r.id);
 }
 
 export async function markAllNotificationsRead(userId: number) {

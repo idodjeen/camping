@@ -251,6 +251,31 @@ export const notifications = pgTable(
   (t) => [index("notifications_user_idx").on(t.userId, t.id)],
 );
 
+/* ------------------------------------------------------- push subscriptions */
+
+/**
+ * One row per browser / installed-app instance that agreed to Web Push.
+ *
+ * A person can have several (phone PWA + laptop), so this hangs off users
+ * one-to-many. `endpoint` is the push service's URL for that instance and is
+ * globally unique, which makes re-subscribing an idempotent upsert. The two
+ * keys are what lets us encrypt a payload only that device can read.
+ */
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull().unique(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("push_subscriptions_user_idx").on(t.userId)],
+);
+
 /* -------------------------------------------------------- personal items */
 
 export const personalItems = pgTable("personal_items", {
@@ -265,6 +290,75 @@ export const personalItems = pgTable("personal_items", {
   sort: integer("sort").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/* -------------------------------------------------------------- expenses */
+
+/**
+ * Money is stored as integer agorot (1/100 ₪), never floats: 0.1 + 0.2 must not
+ * leave a 1-agora hole in somebody's balance.
+ *
+ * `paid_by` and `created_by` are separate because someone may enter an expense
+ * on behalf of the friend who actually paid.
+ */
+export const expenses = pgTable(
+  "expenses",
+  {
+    id: serial("id").primaryKey(),
+    description: text("description").notNull(),
+    amount: integer("amount").notNull(),
+    paidBy: integer("paid_by")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdBy: integer("created_by")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [check("expenses_amount_positive", sql`${t.amount} > 0`)],
+);
+
+/**
+ * Each person's share, computed once when the expense is saved and stored.
+ * An equal split of an amount that does not divide evenly gives the leftover
+ * agorot to specific people; freezing the result here keeps the numbers stable
+ * instead of recomputing them (possibly differently) on every read.
+ */
+export const expenseShares = pgTable(
+  "expense_shares",
+  {
+    expenseId: integer("expense_id")
+      .notNull()
+      .references(() => expenses.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    amount: integer("amount").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.expenseId, t.userId] })],
+);
+
+/** "Dana paid Ido ₪50" — a payment outside the app, recorded to zero out a debt. */
+export const settlements = pgTable(
+  "settlements",
+  {
+    id: serial("id").primaryKey(),
+    fromUser: integer("from_user")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    toUser: integer("to_user")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    amount: integer("amount").notNull(),
+    createdBy: integer("created_by")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("settlements_amount_positive", sql`${t.amount} > 0`),
+    check("settlements_distinct_people", sql`${t.fromUser} <> ${t.toUser}`),
+  ],
+);
 
 /* -------------------------------------------------------------- relations */
 
@@ -352,5 +446,7 @@ export type GearItem = typeof gearItems.$inferSelect;
 export type GearClaim = typeof gearClaims.$inferSelect;
 export type ShoppingItem = typeof shoppingItems.$inferSelect;
 export type Meal = typeof meals.$inferSelect;
+export type Expense = typeof expenses.$inferSelect;
+export type Settlement = typeof settlements.$inferSelect;
 export type PersonalItem = typeof personalItems.$inferSelect;
 export type Trip = typeof trip.$inferSelect;

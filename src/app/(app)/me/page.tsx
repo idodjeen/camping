@@ -1,6 +1,7 @@
 "use client";
 
-import { BookOpen, LogOut } from "lucide-react";
+import { BookOpen, LogOut, Wallet } from "lucide-react";
+import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
@@ -9,6 +10,7 @@ import { AdminNotify } from "@/components/admin-notify";
 import { NotificationPrefs, type NotifyPrefs } from "@/components/notification-prefs";
 import { NotificationsBell } from "@/components/notifications";
 import { Onboarding } from "@/components/onboarding";
+import { PushToggle } from "@/components/push-toggle";
 import { PageTitle, SkeletonList } from "@/components/skeletons";
 import { UserAvatar } from "@/components/user-avatar";
 import { NOTIFICATIONS_KEY, fetcher, swrConfig } from "@/lib/api";
@@ -71,11 +73,21 @@ export default function MePage() {
 
       {data.user.isAdmin && <AdminNotify />}
 
+      <PushToggle />
+
       <NotificationPrefs
         prefs={data.notify}
         // The bell must drop (or regain) rows right away, not on the next 15s poll.
         onChanged={() => void Promise.all([mutate(), globalMutate(NOTIFICATIONS_KEY)])}
       />
+
+      <Link
+        href="/expenses"
+        className="tap mb-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 text-sm font-semibold text-white/60 transition active:scale-[0.98]"
+      >
+        <Wallet className="size-4" />
+        הוצאות והתחשבנות
+      </Link>
 
       <button
         onClick={() => setGuide(true)}
