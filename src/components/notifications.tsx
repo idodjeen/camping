@@ -273,37 +273,44 @@ function NotificationsPane({ open, onClose }: { open: boolean; onClose: () => vo
 /* ------------------------------------------------------------- the banner */
 
 /**
- * The highest mention id we have already popped a banner for.
+ * The highest id we have already popped a banner for, one mark per source.
  *
  * This deliberately does *not* reuse `read_at`. "Did I show you a banner" and
  * "did you open the thread" are different questions: swiping a banner away
  * must not mark the message read, and a page refresh must not re-announce
  * something you already saw slide past. So the banner keeps its own
- * high-water mark on the device, while the badges keep using the server's
+ * high-water marks on the device, while the badges keep using the server's
  * read_at.
+ *
+ * Tags and the other events live in different tables, so their ids come from
+ * different sequences and each needs a mark of its own.
  */
-const ANNOUNCED_KEY = "camping:announced-mention";
+const MENTION_MARK = "camping:announced-mention";
+const EVENT_MARK = "camping:announced-event";
 
-function loadMark(): number {
+/** null = this device has never stored one. */
+function loadMark(key: string): number | null {
   try {
-    return Number(localStorage.getItem(ANNOUNCED_KEY)) || 0;
+    const raw = localStorage.getItem(key);
+    return raw === null ? null : Number(raw) || 0;
   } catch {
-    // Private mode / blocked storage. The ref below still stops a loop within
+    // Private mode / blocked storage. The refs below still stop a loop within
     // the session; the cost is one repeat banner after a refresh.
-    return 0;
+    return null;
   }
 }
 
-function saveMark(id: number) {
+function saveMark(key: string, id: number) {
   try {
-    localStorage.setItem(ANNOUNCED_KEY, String(id));
+    localStorage.setItem(key, String(id));
   } catch {
     /* nothing to do — see loadMark */
   }
 }
 
 /**
- * Slides a banner down when someone tags you while the app is open.
+ * Slides a banner down when a tag, a message or a "covered" event reaches you
+ * while the app is open.
  *
  * Mounted once in the app layout, so it survives navigation between tabs and
  * fires wherever you happen to be. The 15s poll is what makes it arrive
@@ -311,26 +318,45 @@ function saveMark(id: number) {
  */
 export function MentionBanner() {
   const { data } = useMentions();
-  const [shown, setShown] = useState<{ mention: Mention; extra: number } | null>(null);
+  const { mutate: globalMutate } = useSWRConfig();
+  const [shown, setShown] = useState<{ row: Row; extra: number } | null>(null);
   const router = useRouter();
   const [thread, setThread] = useState<OpenThread | null>(null);
-  const mark = useRef<number | null>(null);
+  const marks = useRef<{ mention: number; event: number } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!data) return;
-    if (mark.current === null) mark.current = loadMark();
 
-    const fresh = data.mentions.filter((m) => !m.readAt && m.id > mark.current!);
+    if (marks.current === null) {
+      const stored = loadMark(EVENT_MARK);
+      marks.current = {
+        mention: loadMark(MENTION_MARK) ?? 0,
+        // A device that has never seen an event banner starts from what is
+        // already there, so the first load after an update is not a flood of
+        // old messages. Tags keep their earlier behaviour.
+        event: stored ?? Math.max(0, ...data.notifications.map((n) => n.id)),
+      };
+      if (stored === null) saveMark(EVENT_MARK, marks.current.event);
+    }
+    const seen = marks.current;
+
+    const fresh = toRows(data).filter(
+      (r) => !r.m.readAt && (r.eventId === null ? r.m.id > seen.mention : r.eventId > seen.event),
+    );
     if (fresh.length === 0) return;
 
-    // The feed is newest-first, so the head is the one worth showing; the rest
-    // only contribute a count, and the pane has the detail.
-    mark.current = fresh[0].id;
-    saveMark(fresh[0].id);
-    setShown({ mention: fresh[0], extra: fresh.length - 1 });
+    // Newest first, so the head is the one worth showing; the rest only
+    // contribute a count, and the pane has the detail.
+    for (const r of fresh) {
+      if (r.eventId === null) seen.mention = Math.max(seen.mention, r.m.id);
+      else seen.event = Math.max(seen.event, r.eventId);
+    }
+    saveMark(MENTION_MARK, seen.mention);
+    saveMark(EVENT_MARK, seen.event);
+    setShown({ row: fresh[0], extra: fresh.length - 1 });
 
-    // Advancing the mark above makes this effect idempotent: every later poll
+    // Advancing the marks above makes this effect idempotent: every later poll
     // returns a new `data` object but no fresh rows, so nothing re-fires.
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setShown(null), 9000);
@@ -340,7 +366,15 @@ export function MentionBanner() {
 
   function open() {
     if (!shown) return;
-    const t = threadOf(shown.mention);
+    const { row } = shown;
+    // Same rule as the pane: a tag is read by opening its thread, the other
+    // kinds are read by this tap.
+    if (row.eventId !== null) {
+      void send(NOTIFICATIONS_KEY, "PATCH", { id: row.eventId })
+        .then(() => Promise.all([globalMutate(NOTIFICATIONS_KEY), globalMutate("/api/me")]))
+        .catch(() => {});
+    }
+    const t = threadOf(row.m);
     if (t) setThread(t);
     else router.push("/room");
     setShown(null);
@@ -364,27 +398,27 @@ export function MentionBanner() {
             >
               <div className="flex items-start gap-2.5">
                 <UserAvatar
-                  name={shown.mention.author.name}
-                  slug={shown.mention.author.slug}
-                  avatarUrl={shown.mention.author.avatarUrl}
+                  name={shown.row.m.author.name}
+                  slug={shown.row.m.author.slug}
+                  avatarUrl={shown.row.m.author.avatarUrl}
                   size={34}
                 />
                 {/* The card is the tap target; the ✕ sits outside it so
                     dismissing never also opens the thread. */}
                 <button onClick={open} className="min-w-0 flex-1 text-start">
                   <p className="text-xs font-bold text-brand-200">
-                    {shown.mention.author.name} תייג/ה אותך
+                    {shown.row.headline}
                     <span className="font-normal text-white/45">
                       {" · "}
-                      {where(shown.mention)}
+                      {where(shown.row.m)}
                     </span>
                   </p>
                   <p className="mt-0.5 line-clamp-2 break-words text-sm leading-relaxed text-white/80">
-                    {shown.mention.body}
+                    {shown.row.text}
                   </p>
                   {shown.extra > 0 && (
                     <p className="mt-1 text-[11px] font-semibold text-white/40">
-                      {shown.extra === 1 ? "ועוד תיוג אחד" : `ועוד ${shown.extra} תיוגים`}
+                      {shown.extra === 1 ? "ועוד התראה אחת" : `ועוד ${shown.extra} התראות`}
                     </p>
                   )}
                 </button>
