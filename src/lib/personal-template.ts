@@ -1,4 +1,4 @@
-/** Suggested starter list for the private "personal gear" section on /me. */
+/** Suggested starter list for the private "personal gear" section on the gear screen. */
 export const PERSONAL_TEMPLATE = [
   "בגד ים",
   "תחתונים להחלפה",

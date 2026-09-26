@@ -10,12 +10,13 @@ import { AvatarStack } from "@/components/avatar-stack";
 import { CommentsButton, TaggedBadge } from "@/components/comments";
 import { CopyButton } from "@/components/copy-button";
 import { FilterChips } from "@/components/filter-chips";
+import { MyGearList, type MyClaim } from "@/components/my-gear-list";
 import { PersonalList } from "@/components/personal-list";
 import { PageTitle, SkeletonList } from "@/components/skeletons";
 import { toast } from "@/components/toast";
 import { ApiError, fetcher, send, swrConfig } from "@/lib/api";
 import { burstFrom } from "@/lib/confetti";
-import { formatGearList } from "@/lib/format-lists";
+import { formatGearList, formatMyList } from "@/lib/format-lists";
 import { cn } from "@/lib/utils";
 
 type Claim = {
@@ -46,7 +47,11 @@ type Payload = { categories: Category[] };
 
 export default function GearPage() {
   const { data, isLoading, mutate } = useSWR<Payload>("/api/gear", fetcher, swrConfig);
-  const { data: me } = useSWR<{ user: { id: number }; personal: { id: number }[] }>("/api/me", fetcher, swrConfig);
+  const { data: me } = useSWR<{
+    user: { id: number; name: string };
+    claims: MyClaim[];
+    personal: { id: number; name: string; isPacked: boolean; qty: number | null }[];
+  }>("/api/me", fetcher, swrConfig);
   const myId = me?.user.id;
   const [flashId, setFlashId] = useState<number | null>(null);
   // The filter lives in the URL so the dashboard rings can link straight into
@@ -120,6 +125,7 @@ export default function GearPage() {
   const all = data?.categories.flatMap((c) => c.items) ?? [];
   const required = all.filter((i) => !i.isOptional);
   const covered = required.filter((i) => i.isFull).length;
+  const isMyView = filter === "mine" || filter === "personal";
   const tagged = all.filter((i) => i.unreadMentions > 0).length;
 
   return (
@@ -127,7 +133,22 @@ export default function GearPage() {
       <PageTitle
         title="ציוד"
         subtitle={`${covered} מתוך ${required.length} פריטים מכוסים`}
-        action={<CopyButton getText={() => formatGearList(data?.categories ?? [])} />}
+        action={
+          filter === "mine" || filter === "personal" ? (
+            <CopyButton
+              label="הרשימה שלי"
+              getText={() =>
+                formatMyList(
+                  me?.user.name ?? "",
+                  filter === "mine" ? (me?.claims ?? []) : [],
+                  filter === "personal" ? (me?.personal ?? []) : [],
+                )
+              }
+            />
+          ) : (
+            <CopyButton getText={() => formatGearList(data?.categories ?? [])} />
+          )
+        }
       />
 
       <FilterChips
@@ -136,7 +157,8 @@ export default function GearPage() {
           { key: null, label: "הכול" },
           { key: "done", label: `מכוסה · ${covered}` },
           { key: "todo", label: `חסר · ${required.length - covered}` },
-          { key: "personal", label: `אישי · ${me?.personal.length ?? 0}` },
+          { key: "mine", label: `מה אני מביא · ${me?.claims.length ?? 0}` },
+          { key: "personal", label: `ציוד אישי · ${me?.personal.length ?? 0}` },
           // Only offered when there is something to find, so the row of chips
           // does not grow a permanently empty option.
           ...(tagged > 0
@@ -145,9 +167,10 @@ export default function GearPage() {
         ]}
       />
 
+      {filter === "mine" && <MyGearList />}
       {filter === "personal" && <PersonalList />}
 
-      <div className={cn("space-y-6", filter === "personal" && "hidden")}>
+      <div className={cn("space-y-6", isMyView && "hidden")}>
         {data?.categories.map((cat) => {
           const items = cat.items.filter((i) =>
             filter === "done" ? i.isFull
@@ -175,7 +198,7 @@ export default function GearPage() {
         })}
       </div>
 
-      {filter !== "personal" && (
+      {!isMyView && (
       <AddGearItem
         categories={data?.categories.map((c) => ({ id: c.id, name: c.name })) ?? []}
         onAdded={() => mutate()}

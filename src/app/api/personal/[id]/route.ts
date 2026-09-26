@@ -17,10 +17,17 @@ export function PATCH(req: Request, { params }: Ctx) {
   return handle(async () => {
     const me = await requireUser();
     const id = Number((await params).id);
-    const body = (await req.json()) as { name?: string; isPacked?: boolean };
+    const body = (await req.json()) as { name?: string; isPacked?: boolean; qty?: number | null };
 
-    const patch: { name?: string; isPacked?: boolean } = {};
+    const patch: { name?: string; isPacked?: boolean; qty?: number | null } = {};
     if (typeof body.isPacked === "boolean") patch.isPacked = body.isPacked;
+    if (body.qty === null) patch.qty = null;
+    else if (typeof body.qty === "number") {
+      if (!Number.isInteger(body.qty) || body.qty < 1 || body.qty > 99) {
+        throw new HttpError(400, "כמות בין 1 ל-99");
+      }
+      patch.qty = body.qty;
+    }
     if (typeof body.name === "string") {
       const name = body.name.trim();
       if (!name) throw new HttpError(400, "צריך שם לפריט");

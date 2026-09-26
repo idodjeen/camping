@@ -106,7 +106,7 @@ export type MyClaimLite = {
   isPacked: boolean;
   categoryName: string;
 };
-export type MyPersonalLite = { name: string; isPacked: boolean };
+export type MyPersonalLite = { name: string; isPacked: boolean; qty?: number | null };
 
 export function formatMyList(
   name: string,
@@ -133,7 +133,7 @@ export function formatMyList(
   const mine = opts?.onlyUnpacked ? personal.filter((p) => !p.isPacked) : personal;
   if (mine.length > 0) {
     lines.push("", "*אישי*");
-    for (const p of mine) lines.push(`${p.isPacked ? DONE : TODO} ${p.name}`);
+    for (const p of mine) lines.push(`${p.isPacked ? DONE : TODO} ${p.name}${p.isPacked && p.qty ? ` ×${p.qty}` : ""}`);
   }
 
   return lines.join("\n");

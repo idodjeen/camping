@@ -260,6 +260,8 @@ export const personalItems = pgTable("personal_items", {
     .references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   isPacked: boolean("is_packed").notNull().default(false),
+  // How many the person actually packed; asked for when ticking the box.
+  qty: integer("qty"),
   sort: integer("sort").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

@@ -85,7 +85,7 @@ export default function ChatPage() {
   return (
     <>
       <PageTitle
-        title="תגובות"
+        title="צ׳אט"
         subtitle="כל התגובות על הפריטים, במקום אחד"
         action={
           <Link

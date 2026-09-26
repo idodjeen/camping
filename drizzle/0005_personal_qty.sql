@@ -1,0 +1,1 @@
+ALTER TABLE "personal_items" ADD COLUMN "qty" integer;

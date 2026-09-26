@@ -36,6 +36,13 @@
       "when": 1790267705676,
       "tag": "0004_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790428839777,
+      "tag": "0005_personal_qty",
+      "breakpoints": true
     }
   ]
 }

@@ -13,12 +13,12 @@ type Unread = { gear: number; shopping: number; meals: number; general: number }
 
 const TABS = [
   { href: "/", label: "בית", Icon: Home },
-  { href: "/gear", label: "ציוד", Icon: Backpack },
   { href: "/meals", label: "ארוחות", Icon: UtensilsCrossed },
+  { href: "/gear", label: "ציוד", Icon: Backpack },
   { href: "/shopping", label: "קניות", Icon: ShoppingCart },
-  { href: "/chat", label: "תגובות", Icon: MessageCircle },
-  { href: "/leaderboard", label: "טבלה", Icon: Trophy },
-  { href: "/me", label: "שלי", Icon: User },
+  { href: "/chat", label: "צ׳אט", Icon: MessageCircle },
+  { href: "/leaderboard", label: "לוח התורמים", Icon: Trophy },
+  { href: "/me", label: "חשבון", Icon: User },
 ] as const;
 
 export function BottomNav() {

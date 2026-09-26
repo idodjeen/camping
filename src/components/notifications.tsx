@@ -206,7 +206,7 @@ function NotificationsPane({ open, onClose }: { open: boolean; onClose: () => vo
             <p className="mt-2 text-sm leading-relaxed text-white/40">
               אין התראות עדיין.
               <br />
-              תיוגים, הודעות ופריטים שכוסו יופיעו כאן — אפשר לבחור מה בעמוד שלי.
+              תיוגים, הודעות ופריטים שכוסו יופיעו כאן — אפשר לבחור מה בחשבון.
             </p>
           </div>
         ) : (

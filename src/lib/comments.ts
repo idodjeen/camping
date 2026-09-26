@@ -209,7 +209,7 @@ export type MentionView = {
  *
  */
 export async function listMentions(userId: number, limit = 40): Promise<MentionView[]> {
-  // Tags switched off in שלי: the bell stops showing them. The rows are still
+  // Tags switched off in חשבון: the bell stops showing them. The rows are still
   // written, so switching back on brings the history back rather than a gap.
   const [me] = await db.select({ on: users.notifyMentions }).from(users).where(eq(users.id, userId));
   if (!me?.on) return [];

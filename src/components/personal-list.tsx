@@ -5,13 +5,14 @@ import { Check, ListPlus, Loader2, Pencil, Plus, Trash2, X } from "lucide-react"
 import { useState } from "react";
 import useSWR from "swr";
 
+import { Modal } from "@/components/modal";
 import { toast } from "@/components/toast";
 import { ApiError, fetcher, send, swrConfig } from "@/lib/api";
 import { burstFrom } from "@/lib/confetti";
 import { PERSONAL_TEMPLATE } from "@/lib/personal-template";
 import { cn } from "@/lib/utils";
 
-type Personal = { id: number; name: string; isPacked: boolean };
+type Personal = { id: number; name: string; isPacked: boolean; qty: number | null };
 type Payload = { personal: Personal[] } & Record<string, unknown>;
 
 /**
@@ -26,6 +27,9 @@ export function PersonalList() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editDraft, setEditDraft] = useState("");
   const [loadingTemplate, setLoadingTemplate] = useState(false);
+  // The item whose quantity is being asked for, plus the draft in the box.
+  const [qtyFor, setQtyFor] = useState<Personal | null>(null);
+  const [qtyDraft, setQtyDraft] = useState("");
 
   const optimistic = (patch: (p: Payload) => Payload) => (data ? patch(data) : undefined);
 
@@ -48,18 +52,38 @@ export function PersonalList() {
     }
   }
 
-  async function togglePersonal(id: number, next: boolean, el: Element | null) {
-    if (next) burstFrom(el, { small: true });
+  /** Ticking asks "how many?" first; unticking is immediate. */
+  function askQty(item: Personal) {
+    // Template names carry a hint — "חולצות (3)" — so start from that.
+    const hint = /\((\d+)/.exec(item.name)?.[1];
+    setQtyDraft(String(item.qty ?? hint ?? 1));
+    setQtyFor(item);
+  }
+
+  async function confirmQty(e: React.FormEvent) {
+    e.preventDefault();
+    const item = qtyFor;
+    const qty = Number(qtyDraft);
+    if (!item || !Number.isInteger(qty) || qty < 1 || qty > 99) return;
+    setQtyFor(null);
+    if (!item.isPacked) burstFrom(document.getElementById(`personal-${item.id}`), { small: true });
+    await togglePersonal(item.id, true, null, qty);
+  }
+
+  async function togglePersonal(id: number, next: boolean, el: Element | null, qty?: number) {
+    if (next && el) burstFrom(el, { small: true });
     try {
       await mutate(
         async () => {
-          await send(`/api/personal/${id}`, "PATCH", { isPacked: next });
+          await send(`/api/personal/${id}`, "PATCH", { isPacked: next, ...(qty ? { qty } : {}) });
           return fetcher<Payload>("/api/me");
         },
         {
           optimisticData: optimistic((p) => ({
             ...p,
-            personal: p.personal.map((i) => (i.id === id ? { ...i, isPacked: next } : i)),
+            personal: p.personal.map((i) =>
+              i.id === id ? { ...i, isPacked: next, qty: qty ?? i.qty } : i,
+            ),
           })),
           rollbackOnError: true,
           revalidate: false,
@@ -189,8 +213,9 @@ export function PersonalList() {
                 className="glass flex items-center gap-3 rounded-2xl p-3.5"
               >
                 <CheckBox
+                  id={`personal-${item.id}`}
                   checked={item.isPacked}
-                  onToggle={(el) => togglePersonal(item.id, !item.isPacked, el)}
+                  onToggle={(el) => (item.isPacked ? togglePersonal(item.id, false, el) : askQty(item))}
                   label={item.isPacked ? "לבטל ארוז" : "לסמן כארוז"}
                 />
                 {editingId === item.id ? (
@@ -234,6 +259,15 @@ export function PersonalList() {
                     >
                       {item.name}
                     </span>
+                    {item.isPacked && item.qty && (
+                      <button
+                        onClick={() => askQty(item)}
+                        aria-label="לשנות כמות"
+                        className="rounded-md bg-brand-500/20 px-1.5 py-0.5 text-[11px] font-bold text-brand-200"
+                      >
+                        ×{item.qty}
+                      </button>
+                    )}
                     <button
                       onClick={() => startEdit(item)}
                       aria-label="לערוך"
@@ -254,6 +288,32 @@ export function PersonalList() {
             ))}
           </AnimatePresence>
         </div>
+
+        <Modal open={qtyFor !== null} onClose={() => setQtyFor(null)} title="כמה ארזת?">
+          <form onSubmit={confirmQty} className="space-y-3">
+            <p className="text-sm text-white/55">{qtyFor?.name}</p>
+            <input
+              autoFocus
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={qtyDraft}
+              // Digits only, whatever the keyboard lets through (paste, hardware).
+              onChange={(e) => setQtyDraft(e.target.value.replace(/\D/g, "").slice(0, 2))}
+              onFocus={(e) => e.currentTarget.select()}
+              aria-label="כמות"
+              className="tap w-full rounded-xl border border-white/10 bg-white/5 px-3 text-center text-2xl font-bold tabular-nums outline-none focus:border-brand-400/40"
+            />
+            <button
+              type="submit"
+              disabled={!Number(qtyDraft)}
+              className="tap flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500/25 text-sm font-semibold text-brand-100 transition active:scale-95 disabled:opacity-30"
+            >
+              <Check className="size-4" strokeWidth={3} />
+              סימנתי כארוז
+            </button>
+          </form>
+        </Modal>
       </section>
   );
 }
@@ -262,13 +322,16 @@ export function CheckBox({
   checked,
   onToggle,
   label,
+  id,
 }: {
+  id?: string;
   checked: boolean;
   onToggle: (el: Element | null) => void;
   label: string;
 }) {
   return (
     <button
+      id={id}
       onClick={(e) => onToggle(e.currentTarget)}
       aria-pressed={checked}
       aria-label={label}
