@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Backpack, Home, MessageCircle, ShoppingCart, Trophy, User, UtensilsCrossed } from "lucide-react";
+import { Backpack, Home, MessageCircle, ShoppingCart, Trophy, User, UtensilsCrossed, Wallet } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import useSWR from "swr";
@@ -16,6 +16,7 @@ const TABS = [
   { href: "/meals", label: "ארוחות", Icon: UtensilsCrossed },
   { href: "/gear", label: "ציוד", Icon: Backpack },
   { href: "/shopping", label: "קניות", Icon: ShoppingCart },
+  { href: "/expenses", label: "הוצאות", Icon: Wallet },
   { href: "/chat", label: "צ׳אט", Icon: MessageCircle },
   { href: "/leaderboard", label: "לוח התורמים", Icon: Trophy },
   { href: "/me", label: "חשבון", Icon: User },

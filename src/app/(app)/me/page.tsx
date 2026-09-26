@@ -1,7 +1,6 @@
 "use client";
 
-import { BookOpen, LogOut, Wallet } from "lucide-react";
-import Link from "next/link";
+import { BookOpen, LogOut } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
@@ -80,14 +79,6 @@ export default function MePage() {
         // The bell must drop (or regain) rows right away, not on the next 15s poll.
         onChanged={() => void Promise.all([mutate(), globalMutate(NOTIFICATIONS_KEY)])}
       />
-
-      <Link
-        href="/expenses"
-        className="tap mb-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 text-sm font-semibold text-white/60 transition active:scale-[0.98]"
-      >
-        <Wallet className="size-4" />
-        הוצאות והתחשבנות
-      </Link>
 
       <button
         onClick={() => setGuide(true)}
