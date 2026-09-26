@@ -1,6 +1,6 @@
 import type { PushSubscription } from "web-push";
 
-import { getPublicKey, removeSubscription, saveSubscription, sendPush } from "@/lib/push";
+import { getPublicKey, removeSubscription, saveSubscription, sendPushLater } from "@/lib/push";
 import { handle, HttpError, requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -17,16 +17,23 @@ export function GET() {
 export function POST(req: Request) {
   return handle(async () => {
     const me = await requireUser();
-    const { subscription, test } = (await req.json()) as {
+    const { subscription, test, replaces } = (await req.json()) as {
       subscription?: PushSubscription;
       test?: boolean;
+      /** The endpoint this one supersedes, sent by the SW on a rotation. */
+      replaces?: string;
     };
     if (!subscription || !(await saveSubscription(me.id, subscription))) {
       throw new HttpError(400, "מינוי לא תקין");
     }
+    // Drop the retired row now rather than leaving it to be pruned by the next
+    // push that fails against it.
+    if (replaces && replaces !== subscription.endpoint) {
+      await removeSubscription(me.id, replaces);
+    }
     // Confirms the whole pipe works right after opting in — to me only.
     if (test) {
-      await sendPush([me.id], {
+      sendPushLater([me.id], {
         title: "ההתראות פעילות ✅",
         body: "מעכשיו נעדכן אותך על הודעות, תיוגים וציוד.",
         url: "/me",

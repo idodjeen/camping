@@ -3,7 +3,7 @@ import { and, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { gearClaims, gearItems, users } from "@/db/schema";
 import { notifyCovered } from "@/lib/notifications";
-import { sendPush } from "@/lib/push";
+import { sendPushLater } from "@/lib/push";
 import { HttpError } from "@/lib/session";
 
 /**
@@ -86,7 +86,7 @@ export async function setClaim(userId: number, itemId: number, qty: number) {
   // buzz anyone's phone, and the network call should not hold the row lock.
   if (covered && covered.ids.length > 0) {
     const [actor] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId));
-    await sendPush(covered.ids, {
+    sendPushLater(covered.ids, {
       title: "פריט כוסה 🎉",
       body: `${actor?.name ?? "מישהו"} לקח את האחרון: ${covered.name}`,
       url: "/gear",

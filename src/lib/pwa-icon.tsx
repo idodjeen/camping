@@ -26,3 +26,23 @@ export function renderIcon(size: number) {
     { width: size, height: size },
   );
 }
+
+/**
+ * The status-bar badge Android draws next to a notification.
+ *
+ * Android keeps only the alpha channel of this image and tints the result, so
+ * it has to be a flat silhouette on transparency — the full-colour icon comes
+ * out as a solid grey square. iOS and desktop ignore it entirely.
+ */
+export function renderBadge(size = 96) {
+  return new ImageResponse(
+    (
+      <svg width={size} height={size} viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        {/* Just the tent outline: at 24dp in a status bar the doorway
+            would not survive the downscale anyway. */}
+        <path d="M32 9 58 55H6Z" fill="#ffffff" />
+      </svg>
+    ),
+    { width: size, height: size },
+  );
+}

@@ -2,7 +2,7 @@ import { and, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
 import { notifications, users, type Comment, type User } from "@/db/schema";
-import { sendPush } from "@/lib/push";
+import { sendPushLater } from "@/lib/push";
 import { HttpError } from "@/lib/session";
 
 /** How a message that is only a photo words itself outside the chat. */
@@ -56,16 +56,14 @@ export async function notifyMessage(
 
   // Pushes mirror the bell exactly: a message row for the recipients above,
   // and a separate "tagged you" push for mentioned people who kept tags on.
-  await Promise.all([
-    sendPush(
-      recipients.map((p) => p.id),
-      { title: author?.name ?? "הודעה חדשה", body: preview, url, tag: `comment-${comment.id}` },
-    ),
-    sendPush(
-      people.filter((p) => p.id !== authorId && mentionedIds.includes(p.id) && p.notifyMentions).map((p) => p.id),
-      { title: `${author?.name ?? "מישהו"} תייג אותך`, body: preview, url, tag: `comment-${comment.id}-mention` },
-    ),
-  ]);
+  sendPushLater(
+    recipients.map((p) => p.id),
+    { title: author?.name ?? "הודעה חדשה", body: preview, url, tag: `comment-${comment.id}` },
+  );
+  sendPushLater(
+    people.filter((p) => p.id !== authorId && mentionedIds.includes(p.id) && p.notifyMentions).map((p) => p.id),
+    { title: `${author?.name ?? "מישהו"} תייג אותך`, body: preview, url, tag: `comment-${comment.id}-mention` },
+  );
 }
 
 /** An item just reached full coverage; `actorId` is whoever took the last unit. */

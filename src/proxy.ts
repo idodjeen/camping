@@ -9,6 +9,6 @@ export default NextAuth(authConfig).auth;
 export const config = {
   matcher: [
     // Everything except Next internals, the auth endpoints, and static assets.
-    "/((?!api/auth|_next/static|_next/image|avatars|favicon.ico|manifest.webmanifest|sw.js|pwa-icon|apple-icon|.*\\.(?:png|jpg|jpeg|svg|webp|ico)$).*)",
+    "/((?!api/auth|_next/static|_next/image|avatars|favicon.ico|manifest.webmanifest|sw.js|pwa-icon|badge-icon|apple-icon|.*\\.(?:png|jpg|jpeg|svg|webp|ico)$).*)",
   ],
 };
