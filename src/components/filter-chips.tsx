@@ -22,7 +22,7 @@ export function FilterChips({
   const path = usePathname();
 
   return (
-    <div className="mb-4 flex gap-2">
+    <div className="mb-4 flex flex-wrap gap-2">
       {options.map((o) => {
         const active = current === o.key;
         return (
