@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { AppHeader } from "@/components/app-header";
 import { BottomNav } from "@/components/bottom-nav";
 import { MentionBanner } from "@/components/notifications";
 import { OnboardingGate } from "@/components/onboarding";
@@ -26,8 +27,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <OnboardingGate initialOpen={me.onboardedAt === null} />
       {/* One pop-up per deployed commit; see [no-popup] in /api/release. */}
       <WhatsNew />
-      {/* pb clears the fixed bottom nav plus the home indicator. */}
-      <div className="mx-auto w-full max-w-md px-5 pt-7 pb-[calc(env(safe-area-inset-bottom,0px)+5.5rem)]">
+      <AppHeader />
+      {/* pb clears the fixed bottom nav plus the home indicator. The header is
+          sticky and carries its own top inset, so the content starts tight. */}
+      <div className="mx-auto w-full max-w-md px-5 pt-4 pb-[calc(env(safe-area-inset-bottom,0px)+5.5rem)]">
         {children}
       </div>
       <BottomNav />

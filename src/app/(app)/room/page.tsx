@@ -104,7 +104,7 @@ export default function RoomPage() {
 
   return (
     <>
-      <header className="sticky top-0 z-10 -mx-5 mb-3 flex items-center gap-3 border-b border-white/10 bg-night-950/85 px-5 py-2.5 backdrop-blur-xl">
+      <header className="sticky top-[var(--app-header-h)] z-10 -mx-5 mb-3 flex items-center gap-3 border-b border-white/10 bg-night-950/85 px-5 py-2.5 backdrop-blur-xl">
         <Link
           href="/chat"
           aria-label="חזרה לצ׳אט"

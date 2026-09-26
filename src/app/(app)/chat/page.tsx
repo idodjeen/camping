@@ -109,7 +109,7 @@ export default function ChatPage() {
         }
       />
 
-      <div className="sticky top-0 z-10 -mx-5 mb-4 flex gap-2 overflow-x-auto bg-night-950/85 px-5 py-2 backdrop-blur-xl [scrollbar-width:none]">
+      <div className="sticky top-[var(--app-header-h)] z-10 -mx-5 mb-4 flex gap-2 overflow-x-auto bg-night-950/85 px-5 py-2 backdrop-blur-xl [scrollbar-width:none]">
         {FILTERS.map((f) => (
           <button
             key={f.key}
