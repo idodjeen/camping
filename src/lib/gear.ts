@@ -2,6 +2,7 @@ import { and, eq, ne, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { gearClaims, gearItems } from "@/db/schema";
+import { notifyCovered } from "@/lib/notifications";
 import { HttpError } from "@/lib/session";
 
 /**
@@ -33,12 +34,17 @@ export async function setClaim(userId: number, itemId: number, qty: number) {
       .for("update");
     if (!item) throw new HttpError(404, "הפריט לא נמצא");
 
+    // Coverage is only ever announced for a capped, required item.
+    const announces = !item.isOpenQuantity && !item.isOptional;
+    let othersTotal = 0;
+
     if (!item.isOpenQuantity) {
       const [{ total }] = await tx
         .select({ total: sql<number>`coalesce(sum(${gearClaims.qty}), 0)::int` })
         .from(gearClaims)
         .where(and(eq(gearClaims.gearItemId, itemId), ne(gearClaims.userId, userId)));
 
+      othersTotal = total;
       const capacity = item.qtyNeeded ?? 1;
       if (total + qty > capacity) {
         const left = Math.max(capacity - total, 0);
@@ -49,6 +55,12 @@ export async function setClaim(userId: number, itemId: number, qty: number) {
       }
     }
 
+    // What I held before decides whether this call is what tipped it over.
+    const [before] = await tx
+      .select({ qty: gearClaims.qty })
+      .from(gearClaims)
+      .where(and(eq(gearClaims.gearItemId, itemId), eq(gearClaims.userId, userId)));
+
     const [claim] = await tx
       .insert(gearClaims)
       .values({ gearItemId: itemId, userId, qty })
@@ -57,6 +69,13 @@ export async function setClaim(userId: number, itemId: number, qty: number) {
         set: { qty },
       })
       .returning();
+
+    // Newly covered: was short before this call, is full after it. Raising an
+    // already-full item's own qty, or a re-tap of the same amount, stays quiet.
+    const capacity = item.qtyNeeded ?? 1;
+    if (announces && othersTotal + (before?.qty ?? 0) < capacity && othersTotal + qty >= capacity) {
+      await notifyCovered(tx, itemId, userId);
+    }
 
     return { claim };
   });

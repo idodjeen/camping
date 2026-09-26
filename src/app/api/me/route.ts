@@ -3,6 +3,7 @@ import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { gearClaims, personalItems, users } from "@/db/schema";
 import { unreadMentions } from "@/lib/comments";
+import { prefsOf } from "@/lib/notifications";
 import { handle, requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +35,7 @@ export function GET() {
         isAdmin: me.isAdmin,
         isShopper: me.isShopper,
       },
+      notify: prefsOf(me),
       claims: claims
         .map((c) => ({
           itemId: c.gearItemId,

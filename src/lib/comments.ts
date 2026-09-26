@@ -1,7 +1,16 @@
 import { and, asc, desc, eq, inArray, isNull, not } from "drizzle-orm";
 
 import { db } from "@/db";
-import { commentMentions, comments, gearItems, meals, shoppingItems, users } from "@/db/schema";
+import {
+  commentMentions,
+  comments,
+  gearItems,
+  meals,
+  notifications,
+  shoppingItems,
+  users,
+} from "@/db/schema";
+import { notifyMessage } from "@/lib/notifications";
 import { EVERYONE } from "@/lib/mention-all";
 import { HttpError } from "@/lib/session";
 
@@ -115,6 +124,13 @@ export async function createComment(
       .onConflictDoNothing();
   }
 
+  // The bell row is best-effort, like the email: losing it must not lose the message.
+  try {
+    await notifyMessage(created, authorId, people, mentioned.map((p) => p.id));
+  } catch (err) {
+    console.error("message notification failed", err);
+  }
+
   return { comment: created, mentioned };
 }
 
@@ -193,6 +209,11 @@ export type MentionView = {
  *
  */
 export async function listMentions(userId: number, limit = 40): Promise<MentionView[]> {
+  // Tags switched off in שלי: the bell stops showing them. The rows are still
+  // written, so switching back on brings the history back rather than a gap.
+  const [me] = await db.select({ on: users.notifyMentions }).from(users).where(eq(users.id, userId));
+  if (!me?.on) return [];
+
   const rows = await db.query.commentMentions.findMany({
     where: eq(commentMentions.userId, userId),
     orderBy: [desc(commentMentions.id)],
@@ -219,6 +240,60 @@ export async function listMentions(userId: number, limit = 40): Promise<MentionV
         name: c.author.name,
         slug: c.author.slug,
         avatarUrl: c.author.avatarUrl,
+      },
+    };
+  });
+}
+
+/** A bell row that is not a tag: a new chat message, or an item reaching full coverage. */
+export type NotificationView = {
+  id: number;
+  kind: "message" | "covered";
+  subject: Topic;
+  subjectId: number;
+  subjectLabel: string;
+  /** The message text; empty for "covered", which the pane words itself. */
+  body: string;
+  createdAt: string;
+  readAt: string | null;
+  author: { id: number; name: string; slug: string; avatarUrl: string | null };
+};
+
+/** Newest first. The prefs are applied when rows are written, so this reads all of mine. */
+export async function listNotifications(userId: number, limit = 40): Promise<NotificationView[]> {
+  const rows = await db.query.notifications.findMany({
+    where: eq(notifications.userId, userId),
+    orderBy: [desc(notifications.id)],
+    limit,
+    with: {
+      actor: true,
+      gearItem: true,
+      comment: { with: { gearItem: true, shoppingItem: true, meal: true } },
+    },
+  });
+
+  return rows.map((n) => {
+    const [subject, subjectId, label] =
+      n.kind === "covered"
+        ? (["gear", n.gearItemId ?? 0, n.gearItem?.name ?? "פריט שנמחק"] as const)
+        : n.comment
+          ? topicOf(n.comment)
+          : (["general", 0, "צ׳אט כללי"] as const);
+
+    return {
+      id: n.id,
+      kind: n.kind,
+      subject,
+      subjectId,
+      subjectLabel: label,
+      body: n.comment?.body ?? "",
+      createdAt: n.createdAt.toISOString(),
+      readAt: n.readAt?.toISOString() ?? null,
+      author: {
+        id: n.actor.id,
+        name: n.actor.name,
+        slug: n.actor.slug,
+        avatarUrl: n.actor.avatarUrl,
       },
     };
   });

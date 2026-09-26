@@ -1,19 +1,25 @@
-import { listMentions, markAllMentionsRead } from "@/lib/comments";
-import { handle, requireUser } from "@/lib/session";
+import { listMentions, listNotifications, markAllMentionsRead } from "@/lib/comments";
+import { markAllNotificationsRead, markNotificationRead } from "@/lib/notifications";
+import { handle, HttpError, requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 /**
- * My notification feed: every comment that tagged me, newest first.
+ * My bell: the tags that name me, plus the messages and "covered" events I
+ * asked to hear about, each newest first. The pane merges them by time.
  *
  * There is no user id in the request anywhere — the session decides whose
- * mentions these are, exactly like /api/me. Asking for someone else's feed is
- * not a permission check that can be got wrong, it is unexpressible.
+ * feed this is, exactly like /api/me. Asking for someone else's is not a
+ * permission check that can be got wrong, it is unexpressible.
  */
 export function GET() {
   return handle(async () => {
     const me = await requireUser();
-    return { mentions: await listMentions(me.id) };
+    const [mentions, notifications] = await Promise.all([
+      listMentions(me.id),
+      listNotifications(me.id),
+    ]);
+    return { mentions, notifications };
   });
 }
 
@@ -21,6 +27,20 @@ export function GET() {
 export function POST() {
   return handle(async () => {
     const me = await requireUser();
-    return markAllMentionsRead(me.id);
+    const [a, b] = await Promise.all([
+      markAllMentionsRead(me.id),
+      markAllNotificationsRead(me.id),
+    ]);
+    return { marked: a.marked + b.marked };
+  });
+}
+
+/** Opening one bell row marks just that row read. */
+export function PATCH(req: Request) {
+  return handle(async () => {
+    const me = await requireUser();
+    const { id } = (await req.json()) as { id?: number };
+    if (!Number.isInteger(id)) throw new HttpError(400, "מזהה לא תקין");
+    return markNotificationRead(me.id, id!);
   });
 }

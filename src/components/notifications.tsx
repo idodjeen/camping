@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { AtSign, Bell, CheckCheck, Loader2, X } from "lucide-react";
+import { Bell, CheckCheck, Loader2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 
@@ -24,7 +24,43 @@ type Mention = {
   readAt: string | null;
   author: { id: number; name: string; slug: string; avatarUrl: string | null };
 };
-type Feed = { mentions: Mention[] };
+/** A bell row that is not a tag: a chat message, or an item reaching full coverage. */
+type Event = Omit<Mention, "body"> & { kind: "message" | "covered"; body: string };
+type Feed = { mentions: Mention[]; notifications: Event[] };
+
+/** One shape for the pane, so the two sources render and sort as a single list. */
+type Row = {
+  key: string;
+  kind: "mention" | "message" | "covered";
+  /** Set for rows backed by the `notifications` table; a tap marks just that one read. */
+  eventId: number | null;
+  m: Mention;
+  headline: string;
+  text: string;
+};
+
+const toRows = (feed: Feed | undefined): Row[] => {
+  if (!feed) return [];
+  const rows: Row[] = [
+    ...feed.mentions.map((m): Row => ({
+      key: `m${m.id}`,
+      kind: "mention",
+      eventId: null,
+      m,
+      headline: `${m.author.name} תייג/ה אותך`,
+      text: m.body,
+    })),
+    ...feed.notifications.map((n): Row => ({
+      key: `n${n.id}`,
+      kind: n.kind,
+      eventId: n.id,
+      m: n,
+      headline: n.kind === "covered" ? "הפריט מכוסה" : `${n.author.name} כתב/ה`,
+      text: n.kind === "covered" ? `${n.author.name} לקח/ה את היחידה האחרונה` : n.body,
+    })),
+  ];
+  return rows.sort((a, b) => b.m.createdAt.localeCompare(a.m.createdAt));
+};
 
 /** Which list the item lives on, for the chip on each row. */
 const LIST_LABEL: Record<Subject | "general", string> = {
@@ -60,16 +96,16 @@ const threadOf = (m: Mention): OpenThread | null =>
 export function NotificationsBell() {
   const { data } = useMentions();
   const [open, setOpen] = useState(false);
-  const unread = data?.mentions.filter((m) => !m.readAt).length ?? 0;
+  const unread = toRows(data).filter((r) => !r.m.readAt).length;
 
   return (
     <>
       <button
         onClick={() => setOpen(true)}
         aria-label={
-          unread === 0 ? "תיוגים"
-          : unread === 1 ? "תיוגים — אחד חדש"
-          : `תיוגים — ${unread} חדשים`
+          unread === 0 ? "התראות"
+          : unread === 1 ? "התראות — אחת חדשה"
+          : `התראות — ${unread} חדשות`
         }
         className={cn(
           "tap relative grid place-items-center rounded-2xl border transition active:scale-95",
@@ -99,8 +135,8 @@ function NotificationsPane({ open, onClose }: { open: boolean; onClose: () => vo
   const [thread, setThread] = useState<OpenThread | null>(null);
   const [clearing, setClearing] = useState(false);
 
-  const mentions = data?.mentions ?? [];
-  const unread = mentions.filter((m) => !m.readAt).length;
+  const rows = toRows(data);
+  const unread = rows.filter((r) => !r.m.readAt).length;
 
   async function markAll() {
     setClearing(true);
@@ -114,7 +150,10 @@ function NotificationsPane({ open, onClose }: { open: boolean; onClose: () => vo
         {
           // Every row loses its unread styling on tap rather than after Neon
           // answers — the same optimistic pattern the gear claims use.
-          optimisticData: { mentions: mentions.map((m) => ({ ...m, readAt: m.readAt ?? now })) },
+          optimisticData: {
+            mentions: (data?.mentions ?? []).map((m) => ({ ...m, readAt: m.readAt ?? now })),
+            notifications: (data?.notifications ?? []).map((n) => ({ ...n, readAt: n.readAt ?? now })),
+          },
           rollbackOnError: true,
           revalidate: false,
         },
@@ -130,17 +169,24 @@ function NotificationsPane({ open, onClose }: { open: boolean; onClose: () => vo
 
   // Opening the thread replaces the pane rather than stacking a second sheet
   // on top of it: two portalled modals would fight over the backdrop tap.
-  function openThread(m: Mention) {
+  function openRow(r: Row) {
     onClose();
+    // Tags are cleared by opening their thread; the other rows have no thread
+    // state of their own, so the tap itself is what reads them.
+    if (r.eventId !== null && !r.m.readAt) {
+      void send(NOTIFICATIONS_KEY, "PATCH", { id: r.eventId })
+        .then(() => Promise.all([mutate(), globalMutate("/api/me")]))
+        .catch(() => {});
+    }
     // A general message has no sheet of its own — it lives in the chat room.
-    const t = threadOf(m);
+    const t = threadOf(r.m);
     if (t) setThread(t);
     else router.push("/room");
   }
 
   return (
     <>
-      <Modal open={open} onClose={onClose} title="תיוגים">
+      <Modal open={open} onClose={onClose} title="התראות">
         {unread > 0 && (
           <button
             onClick={markAll}
@@ -154,21 +200,21 @@ function NotificationsPane({ open, onClose }: { open: boolean; onClose: () => vo
 
         {isLoading && !data ? (
           <p className="py-6 text-center text-sm text-white/40">טוען…</p>
-        ) : mentions.length === 0 ? (
+        ) : rows.length === 0 ? (
           <div className="py-8 text-center">
-            <AtSign className="mx-auto size-7 text-white/15" />
+            <Bell className="mx-auto size-7 text-white/15" />
             <p className="mt-2 text-sm leading-relaxed text-white/40">
-              עוד לא תייגו אותך.
+              אין התראות עדיין.
               <br />
-              כשמישהו יכתוב @השם שלך בתגובה — זה יופיע כאן.
+              תיוגים, הודעות ופריטים שכוסו יופיעו כאן — אפשר לבחור מה בעמוד שלי.
             </p>
           </div>
         ) : (
           <div className="space-y-2">
-            {mentions.map((m) => (
+            {rows.map(({ key, m, headline, text, ...r }) => (
               <button
-                key={m.id}
-                onClick={() => openThread(m)}
+                key={key}
+                onClick={() => openRow({ key, m, headline, text, ...r })}
                 className={cn(
                   "flex w-full gap-2.5 rounded-2xl p-2.5 text-start transition active:scale-[0.98]",
                   m.readAt ? "bg-white/[0.03]" : "bg-brand-500/12 ring-1 ring-brand-400/20",
@@ -182,7 +228,7 @@ function NotificationsPane({ open, onClose }: { open: boolean; onClose: () => vo
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-1.5">
-                    <span className="truncate text-xs font-bold">{m.author.name}</span>
+                    <span className="truncate text-xs font-bold">{headline}</span>
                     <span className="shrink-0 rounded-md bg-white/8 px-1.5 py-0.5 text-[10px] text-white/50">
                       {where(m)}
                     </span>
@@ -196,7 +242,7 @@ function NotificationsPane({ open, onClose }: { open: boolean; onClose: () => vo
                       m.readAt ? "text-white/50" : "text-white/80",
                     )}
                   >
-                    {m.body}
+                    {text}
                   </p>
                 </div>
                 {!m.readAt && (

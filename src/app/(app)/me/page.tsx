@@ -4,16 +4,17 @@ import { AnimatePresence, motion } from "framer-motion";
 import { BookOpen, Check, ListPlus, Loader2, LogOut, Pencil, Plus, Trash2, X } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { useState } from "react";
-import useSWR from "swr";
+import useSWR, { useSWRConfig } from "swr";
 
 import { AdminNotify } from "@/components/admin-notify";
 import { CopyButton } from "@/components/copy-button";
+import { NotificationPrefs, type NotifyPrefs } from "@/components/notification-prefs";
 import { NotificationsBell } from "@/components/notifications";
 import { Onboarding } from "@/components/onboarding";
 import { PageTitle, SkeletonList } from "@/components/skeletons";
 import { toast } from "@/components/toast";
 import { UserAvatar } from "@/components/user-avatar";
-import { ApiError, fetcher, send, swrConfig } from "@/lib/api";
+import { ApiError, NOTIFICATIONS_KEY, fetcher, send, swrConfig } from "@/lib/api";
 import { burstFrom } from "@/lib/confetti";
 import { formatMyList } from "@/lib/format-lists";
 import { PERSONAL_TEMPLATE } from "@/lib/personal-template";
@@ -37,12 +38,14 @@ type Payload = {
     categoryName: string;
   }[];
   personal: { id: number; name: string; isPacked: boolean }[];
+  notify: NotifyPrefs;
 };
 
 export default function MePage() {
   const { data, isLoading, mutate } = useSWR<Payload>("/api/me", fetcher, swrConfig);
   const [draft, setDraft] = useState("");
   const [adding, setAdding] = useState(false);
+  const { mutate: globalMutate } = useSWRConfig();
   const [guide, setGuide] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editDraft, setEditDraft] = useState("");
@@ -369,6 +372,12 @@ export default function MePage() {
           </AnimatePresence>
         </div>
       </section>
+
+      <NotificationPrefs
+        prefs={data.notify}
+        // The bell must drop (or regain) rows right away, not on the next 15s poll.
+        onChanged={() => void Promise.all([mutate(), globalMutate(NOTIFICATIONS_KEY)])}
+      />
 
       <button
         onClick={() => setGuide(true)}

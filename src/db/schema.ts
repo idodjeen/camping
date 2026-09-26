@@ -4,6 +4,7 @@ import {
   check,
   date,
   doublePrecision,
+  index,
   integer,
   pgEnum,
   pgTable,
@@ -33,6 +34,10 @@ export const users = pgTable("users", {
   isAdmin: boolean("is_admin").notNull().default(false),
   isShopper: boolean("is_shopper").notNull().default(false),
   onboardedAt: timestamp("onboarded_at", { withTimezone: true }),
+  /** Which kinds of notification reach the bell. All on until the person opts out. */
+  notifyMentions: boolean("notify_mentions").notNull().default(true),
+  notifyCovered: boolean("notify_covered").notNull().default(true),
+  notifyMessages: boolean("notify_messages").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -212,6 +217,40 @@ export const commentMentions = pgTable(
   (t) => [unique("comment_mentions_comment_user_uq").on(t.commentId, t.userId)],
 );
 
+/* --------------------------------------------------------- notifications */
+
+export const notificationKind = pgEnum("notification_kind", ["covered", "message"]);
+
+/**
+ * The bell's rows for everything that is not a tag ("mentions" already live in
+ * `comment_mentions`, which the banner and the nav dots read).
+ *
+ * Written when the event happens — one row per recipient — rather than
+ * computed on read, because "covered" is a moment (the last unit got claimed)
+ * that is not recoverable from the current state, and because `read_at`
+ * belongs to one person and one event. Both subject FKs cascade, so deleting
+ * the message or the item takes its notifications with it.
+ */
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: notificationKind("kind").notNull(),
+    /** Who caused it: the author of the message, or whoever took the last unit. */
+    actorId: integer("actor_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    commentId: integer("comment_id").references(() => comments.id, { onDelete: "cascade" }),
+    gearItemId: integer("gear_item_id").references(() => gearItems.id, { onDelete: "cascade" }),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("notifications_user_idx").on(t.userId, t.id)],
+);
+
 /* -------------------------------------------------------- personal items */
 
 export const personalItems = pgTable("personal_items", {
@@ -292,6 +331,12 @@ export const commentsRelations = relations(comments, ({ one, many }) => ({
   }),
   meal: one(meals, { fields: [comments.mealId], references: [meals.id] }),
   mentions: many(commentMentions),
+}));
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  actor: one(users, { fields: [notifications.actorId], references: [users.id] }),
+  comment: one(comments, { fields: [notifications.commentId], references: [comments.id] }),
+  gearItem: one(gearItems, { fields: [notifications.gearItemId], references: [gearItems.id] }),
 }));
 
 export const commentMentionsRelations = relations(commentMentions, ({ one }) => ({
