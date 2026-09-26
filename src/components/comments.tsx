@@ -254,10 +254,36 @@ export function MentionBox({
   const matches =
     partial === undefined ? [] : people.filter((p) => p.name.startsWith(partial)).slice(0, 5);
   const offerEveryone = partial !== undefined && EVERYONE.startsWith(partial);
+  // Everyone first, then people — the same order the chips are drawn in.
+  const options = [...(offerEveryone ? [EVERYONE] : []), ...matches.map((p) => p.name)];
+  const [cursor, setCursor] = useState(0);
+  const active = Math.min(cursor, Math.max(options.length - 1, 0));
 
   function pick(name: string) {
     onChange(value.replace(/@[^\s@]*$/, `@${name} `));
+    setCursor(0);
     boxRef.current?.focus();
+  }
+
+  function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    // Cmd+Enter (Mac) / Ctrl+Enter sends.
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      e.currentTarget.form?.requestSubmit();
+      return;
+    }
+    if (options.length === 0 || e.nativeEvent.isComposing) return;
+    // The chips run right-to-left, so "next" is down or left.
+    if (e.key === "ArrowDown" || e.key === "ArrowLeft") {
+      e.preventDefault();
+      setCursor((active + 1) % options.length);
+    } else if (e.key === "ArrowUp" || e.key === "ArrowRight") {
+      e.preventDefault();
+      setCursor((active - 1 + options.length) % options.length);
+    } else if (e.key === "Enter" || e.key === "Tab") {
+      e.preventDefault();
+      pick(options[active]);
+    }
   }
 
   return (
@@ -268,18 +294,18 @@ export function MentionBox({
             <button
               type="button"
               onClick={() => pick(EVERYONE)}
-              className="tap flex items-center gap-1.5 rounded-lg bg-brand-500/25 px-2 text-xs font-semibold text-brand-100 active:scale-95"
+              className={`tap flex items-center gap-1.5 rounded-lg bg-brand-500/25 px-2 text-xs font-semibold text-brand-100 active:scale-95 ${active === 0 ? "ring-2 ring-brand-300" : ""}`}
             >
               <Users className="size-4" />
               {EVERYONE}
             </button>
           )}
-          {matches.map((p) => (
+          {matches.map((p, i) => (
             <button
               key={p.id}
               type="button"
               onClick={() => pick(p.name)}
-              className="tap flex items-center gap-1.5 rounded-lg bg-white/5 px-2 text-xs font-semibold active:scale-95"
+              className={`tap flex items-center gap-1.5 rounded-lg bg-white/5 px-2 text-xs font-semibold active:scale-95 ${active === i + (offerEveryone ? 1 : 0) ? "ring-2 ring-brand-300" : ""}`}
             >
               <UserAvatar name={p.name} slug={p.slug} avatarUrl={p.avatarUrl} size={20} />
               {p.name}
@@ -290,7 +316,11 @@ export function MentionBox({
       <textarea
         ref={boxRef}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setCursor(0);
+        }}
+        onKeyDown={onKeyDown}
         rows={rows}
         maxLength={1000}
         placeholder={placeholder}
