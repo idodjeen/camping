@@ -35,6 +35,10 @@
 
 :root {
   color-scheme: dark;
+  /* Height of the sticky app header, so a page's own sticky bar can park
+     directly under it instead of guessing. Kept in sync with the h-14 row in
+     components/app-header.tsx. */
+  --app-header-h: calc(env(safe-area-inset-top, 0px) + 3.5rem);
 }
 
 html,

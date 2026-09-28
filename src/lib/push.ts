@@ -1,4 +1,5 @@
 import { eq, inArray } from "drizzle-orm";
+import { after } from "next/server";
 import webpush, { type PushSubscription } from "web-push";
 
 import { db } from "@/db";
@@ -104,5 +105,24 @@ export async function sendPush(userIds: number[], payload: PushPayload) {
     }
   } catch (err) {
     console.error("push fan-out failed", err);
+  }
+}
+
+/**
+ * The same fan-out, but off the response's critical path.
+ *
+ * A push service can take seconds to answer, and there may be one call per
+ * device. Awaiting that inside the request meant the person who sent a message
+ * waited for everyone else's phones before their own screen updated — for work
+ * whose result they never see. `after` runs it once the response is out.
+ *
+ * The fallback covers being called outside a request, which is how
+ * scripts/simulate-untagged.ts drives the real createComment.
+ */
+export function sendPushLater(userIds: number[], payload: PushPayload) {
+  try {
+    after(() => sendPush(userIds, payload));
+  } catch {
+    void sendPush(userIds, payload);
   }
 }

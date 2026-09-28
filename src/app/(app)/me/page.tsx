@@ -7,7 +7,6 @@ import useSWR, { useSWRConfig } from "swr";
 
 import { AdminNotify } from "@/components/admin-notify";
 import { NotificationPrefs, type NotifyPrefs } from "@/components/notification-prefs";
-import { NotificationsBell } from "@/components/notifications";
 import { Onboarding } from "@/components/onboarding";
 import { PushToggle } from "@/components/push-toggle";
 import { PageTitle, SkeletonList } from "@/components/skeletons";
@@ -69,7 +68,6 @@ export default function MePage() {
             {data.user.isViewer && <Badge>צפייה בלבד</Badge>}
           </div>
         </div>
-        <NotificationsBell />
       </header>
 
       {data.user.isAdmin && <AdminNotify />}

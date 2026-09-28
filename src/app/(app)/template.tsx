@@ -3,8 +3,7 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { usePathname } from "next/navigation";
 
-// Tab order, so we know which way the page should slide in.
-const ORDER = ["/", "/meals", "/gear", "/shopping", "/chat", "/leaderboard", "/me"];
+import { ORDER } from "@/lib/nav";
 
 // Survives remounts (a template is re-created on every navigation).
 let lastIndex = 0;
@@ -19,7 +18,7 @@ export default function Template({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const reduce = useReducedMotion();
 
-  const idx = ORDER.indexOf(pathname === "/room" ? "/chat" : pathname);
+  const idx = ORDER.indexOf((pathname === "/room" ? "/chat" : pathname) as (typeof ORDER)[number]);
   const dir = idx === -1 || idx === lastIndex ? 0 : idx > lastIndex ? -1 : 1;
   if (idx !== -1) lastIndex = idx;
 

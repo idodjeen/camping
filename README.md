@@ -78,8 +78,21 @@ Set these in **Vercel → Settings → Environment Variables** (Production + Pre
 | `AUTH_GOOGLE_SECRET` | from step 1 |
 | `AUTH_TRUST_HOST` | `true` |
 | `ALLOWED_USERS` | `email:עידו,email:ניר,email:סער,email:אור,email:יצחק` |
+| `CLOUDINARY_CLOUD_NAME` | from step 3a |
+| `CLOUDINARY_API_KEY` | from step 3a |
+| `CLOUDINARY_API_SECRET` | from step 3a |
 
-`DATABASE_URL` is already there from step 2.
+`DATABASE_URL` is already there from step 2. See `.env.example` for the rest,
+including the Web Push (VAPID) pair.
+
+#### 3a. Cloudinary (chat photos)
+
+[cloudinary.com](https://cloudinary.com) → free account → **Settings → API Keys**.
+The browser shrinks each photo and uploads it straight to Cloudinary using a
+signature minted per upload by `/api/uploads/sign`, so the secret stays on the
+server and a multi-megabyte photo never passes through a serverless function.
+Without these three the chat still works — the photo button reports that
+uploads are not configured.
 
 ### 4. Local setup
 

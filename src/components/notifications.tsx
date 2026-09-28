@@ -92,7 +92,7 @@ const threadOf = (m: Mention): OpenThread | null =>
 
 /* --------------------------------------------------------------- the bell */
 
-/** Bell + unread count, opening the pane. Lives in the page headers. */
+/** Bell + unread count, opening the pane. Lives in the app header. */
 export function NotificationsBell() {
   const { data } = useMentions();
   const [open, setOpen] = useState(false);
