@@ -2,11 +2,8 @@ import { and, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
 import { notifications, users, type Comment, type User } from "@/db/schema";
-import { sendPushLater } from "@/lib/push";
+import { sendPush } from "@/lib/push";
 import { HttpError } from "@/lib/session";
-
-/** How a message that is only a photo words itself outside the chat. */
-export const PHOTO = "📷 תמונה";
 
 /** Either the top-level client or a transaction — both can insert. */
 type Writer = Pick<typeof db, "insert" | "select">;
@@ -32,9 +29,7 @@ export async function notifyMessage(
       !(mentionedIds.includes(p.id) && p.notifyMentions),
   );
   const author = people.find((p) => p.id === authorId);
-  // A photo with no caption still has to read as something in a push banner.
-  const text = comment.body || (comment.imagePublicId ? PHOTO : "");
-  const preview = text.length > 120 ? `${text.slice(0, 117)}…` : text;
+  const preview = comment.body.length > 120 ? `${comment.body.slice(0, 117)}…` : comment.body;
   const url = comment.gearItemId
     ? "/gear"
     : comment.shoppingItemId
@@ -56,14 +51,16 @@ export async function notifyMessage(
 
   // Pushes mirror the bell exactly: a message row for the recipients above,
   // and a separate "tagged you" push for mentioned people who kept tags on.
-  sendPushLater(
-    recipients.map((p) => p.id),
-    { title: author?.name ?? "הודעה חדשה", body: preview, url, tag: `comment-${comment.id}` },
-  );
-  sendPushLater(
-    people.filter((p) => p.id !== authorId && mentionedIds.includes(p.id) && p.notifyMentions).map((p) => p.id),
-    { title: `${author?.name ?? "מישהו"} תייג אותך`, body: preview, url, tag: `comment-${comment.id}-mention` },
-  );
+  await Promise.all([
+    sendPush(
+      recipients.map((p) => p.id),
+      { title: author?.name ?? "הודעה חדשה", body: preview, url, tag: `comment-${comment.id}` },
+    ),
+    sendPush(
+      people.filter((p) => p.id !== authorId && mentionedIds.includes(p.id) && p.notifyMentions).map((p) => p.id),
+      { title: `${author?.name ?? "מישהו"} תייג אותך`, body: preview, url, tag: `comment-${comment.id}-mention` },
+    ),
+  ]);
 }
 
 /** An item just reached full coverage; `actorId` is whoever took the last unit. */

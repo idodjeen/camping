@@ -1,10 +1,8 @@
 import { redirect } from "next/navigation";
 
-import { AppHeader } from "@/components/app-header";
 import { BottomNav } from "@/components/bottom-nav";
 import { MentionBanner } from "@/components/notifications";
 import { OnboardingGate } from "@/components/onboarding";
-import { PushSync } from "@/components/push-sync";
 import { Toaster } from "@/components/toast";
 import { WhatsNew } from "@/components/whats-new";
 import { getCurrentUser } from "@/lib/session";
@@ -28,18 +26,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <OnboardingGate initialOpen={me.onboardedAt === null} />
       {/* One pop-up per deployed commit; see [no-popup] in /api/release. */}
       <WhatsNew />
-      {/* Re-registers the service worker and re-announces this device's push
-          subscription; see the component for the two ways it goes stale. */}
-      <PushSync />
-      <AppHeader />
       {me.isViewer && (
         <div className="bg-white/10 px-4 py-1.5 text-center text-xs font-semibold text-white/70">
           👀 מצב צפייה בלבד - אפשר לראות הכול, אי אפשר לערוך
         </div>
       )}
-      {/* pb clears the fixed bottom nav plus the home indicator. The header is
-          sticky and carries its own top inset, so the content starts tight. */}
-      <div className="mx-auto w-full max-w-md px-5 pt-4 pb-[calc(env(safe-area-inset-bottom,0px)+5.5rem)]">
+      {/* pb clears the fixed bottom nav plus the home indicator. */}
+      <div className="mx-auto w-full max-w-md px-5 pt-7 pb-[calc(env(safe-area-inset-bottom,0px)+5.5rem)]">
         {children}
       </div>
       <BottomNav />

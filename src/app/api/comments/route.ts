@@ -7,10 +7,8 @@ import {
   getThread,
   parseSubject,
   subjectLabel,
-  type ImageUpload,
 } from "@/lib/comments";
 import { buildMentionEmails } from "@/lib/emails";
-import { PHOTO } from "@/lib/notifications";
 import { sendAll } from "@/lib/mailer";
 import { handle, HttpError, requireReader, requireUser } from "@/lib/session";
 
@@ -33,19 +31,14 @@ export function GET(req: Request) {
 export function POST(req: Request) {
   return handle(async () => {
     const me = await requireUser();
-    const body = (await req.json()) as {
-      subject?: string;
-      id?: number;
-      body?: string;
-      image?: ImageUpload | null;
-    };
+    const body = (await req.json()) as { subject?: string; id?: number; body?: string };
     const subject = parseSubject(body.subject ?? null);
     const id = Number(body.id);
     if (!Number.isInteger(id)) throw new HttpError(400, "מזהה לא תקין");
 
     // The author is the session user. Nothing in the request body can change
     // who a comment is from, or who it notifies.
-    const { mentioned } = await createComment(me.id, subject, id, body.body ?? "", body.image);
+    const { mentioned } = await createComment(me.id, subject, id, body.body ?? "");
 
     if (mentioned.length > 0) {
       // Fire-and-forget on purpose: a missing GMAIL_APP_PASSWORD or an SMTP
@@ -57,9 +50,7 @@ export function POST(req: Request) {
           .from(users)
           .where(inArray(users.id, mentioned.map((m) => m.id)));
         const label = await subjectLabel(subject, id);
-        // A photo with no caption would otherwise be a blank email body.
-        const text = (body.body ?? "").trim() || PHOTO;
-        await sendAll(buildMentionEmails(me.name, label, text, recipients));
+        await sendAll(buildMentionEmails(me.name, label, body.body!.trim(), recipients));
       } catch (err) {
         console.error("mention email failed", err);
       }

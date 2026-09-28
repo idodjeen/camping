@@ -185,18 +185,6 @@ export const comments = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     body: text("body").notNull(),
-    /**
-     * A photo attached to the message, held by Cloudinary.
-     *
-     * The public id alone, never a URL: the delivery URL carries the
-     * transformation, so storing one would freeze today's size and format into
-     * every old message. The dimensions are stored so a bubble can reserve the
-     * right box before the image loads — the chat auto-scrolls off
-     * `scrollHeight`, and a late reflow would yank the reader.
-     */
-    imagePublicId: text("image_public_id"),
-    imageWidth: integer("image_width"),
-    imageHeight: integer("image_height"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -204,8 +192,6 @@ export const comments = pgTable(
       "comments_one_subject",
       sql`num_nonnulls(${t.gearItemId}, ${t.shoppingItemId}, ${t.mealId}) <= 1`,
     ),
-    // A message is either said or shown; an empty row with neither is a bug.
-    check("comments_has_content", sql`length(${t.body}) > 0 OR ${t.imagePublicId} IS NOT NULL`),
   ],
 );
 
