@@ -1,6 +1,6 @@
 import { listMentions, listNotifications, markAllMentionsRead } from "@/lib/comments";
 import { markAllNotificationsRead, markNotificationRead } from "@/lib/notifications";
-import { handle, HttpError, requireUser } from "@/lib/session";
+import { handle, HttpError, requireReader, requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
  */
 export function GET() {
   return handle(async () => {
-    const me = await requireUser();
+    const me = await requireReader();
     const [mentions, notifications] = await Promise.all([
       listMentions(me.id),
       listNotifications(me.id),

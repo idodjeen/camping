@@ -3,13 +3,13 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { shoppingCategories, shoppingItems } from "@/db/schema";
 import { getShopping } from "@/lib/queries";
-import { handle, HttpError, requireUser } from "@/lib/session";
+import { handle, HttpError, requireReader, requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export function GET() {
   return handle(async () => {
-    const me = await requireUser();
+    const me = await requireReader();
     // canBuy drives whether the client renders checkboxes. The PATCH handler
     // re-checks it server-side — this is presentation only, never permission.
     return { categories: await getShopping(me.id), canBuy: me.isShopper };

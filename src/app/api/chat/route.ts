@@ -5,7 +5,7 @@ import { users } from "@/db/schema";
 import { createComment, listChat } from "@/lib/comments";
 import { buildMentionEmails } from "@/lib/emails";
 import { sendAll } from "@/lib/mailer";
-import { handle, requireUser } from "@/lib/session";
+import { handle, requireReader, requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 // Notifying several people means several SMTP handshakes.
@@ -17,7 +17,7 @@ export const maxDuration = 60;
  */
 export function GET(req: Request) {
   return handle(async () => {
-    const me = await requireUser();
+    const me = await requireReader();
     const room = new URL(req.url).searchParams.get("room") === "general" ? "general" : "items";
     return { messages: await listChat(me.id, room) };
   });

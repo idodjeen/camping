@@ -1,7 +1,7 @@
 import type { NextAuthConfig } from "next-auth";
 import Google from "next-auth/providers/google";
 
-import { isAllowed } from "@/lib/allowlist";
+import { isAllowed, isViewer } from "@/lib/allowlist";
 
 /**
  * EDGE-SAFE auth config.
@@ -37,7 +37,8 @@ export const authConfig = {
      * (/no-access) instead of creating a session.
      */
     signIn({ user, profile }) {
-      return isAllowed(profile?.email ?? user?.email);
+      const email = profile?.email ?? user?.email;
+      return isAllowed(email) || isViewer(email);
     },
 
     /** Route protection for middleware. */
