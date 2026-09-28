@@ -4,13 +4,13 @@ import { db } from "@/db";
 import { trip } from "@/db/schema";
 import { SLOT_HOUR, nowInIsrael } from "@/lib/dates";
 import { getGear, getMeals, getShopping } from "@/lib/queries";
-import { handle, requireUser } from "@/lib/session";
+import { handle, requireReader } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export function GET() {
   return handle(async () => {
-    await requireUser();
+    await requireReader();
 
     const [[t], categories, shopping, days] = await Promise.all([
       db.select().from(trip).where(eq(trip.id, 1)),

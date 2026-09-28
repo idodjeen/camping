@@ -3,7 +3,7 @@ import { desc, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { expenseShares, expenses, settlements, users } from "@/db/schema";
 import { computeBalances, simplifyDebts, splitEqually } from "@/lib/expenses";
-import { handle, HttpError, requireUser } from "@/lib/session";
+import { handle, HttpError, requireReader, requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +11,7 @@ const MAX_AMOUNT = 10_000_000; // ₪100,000 — a typo guard, not a real limit
 
 export function GET() {
   return handle(async () => {
-    const me = await requireUser();
+    const me = await requireReader();
 
     const [members, expenseRows, shareRows, settlementRows] = await Promise.all([
       db.select().from(users).orderBy(users.id),

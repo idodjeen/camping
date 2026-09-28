@@ -4,13 +4,13 @@ import { db } from "@/db";
 import { gearClaims, personalItems, users } from "@/db/schema";
 import { unreadMentions } from "@/lib/comments";
 import { prefsOf } from "@/lib/notifications";
-import { handle, requireUser } from "@/lib/session";
+import { handle, requireReader } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export function GET() {
   return handle(async () => {
-    const me = await requireUser();
+    const me = await requireReader();
 
     const claims = await db.query.gearClaims.findMany({
       where: eq(gearClaims.userId, me.id),
@@ -34,6 +34,7 @@ export function GET() {
         avatarUrl: me.avatarUrl,
         isAdmin: me.isAdmin,
         isShopper: me.isShopper,
+        isViewer: me.isViewer,
       },
       notify: prefsOf(me),
       claims: claims

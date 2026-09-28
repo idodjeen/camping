@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 
 import { authConfig } from "./auth.config";
+import { isViewer } from "@/lib/allowlist";
 import { getOrCreateUser } from "@/lib/user";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -17,7 +18,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
      * takes effect immediately instead of waiting for a 30-day JWT to expire.
      */
     async jwt({ token, user }) {
-      if (user?.email) {
+      // Viewers have no users row, so there is no id to stash.
+      if (user?.email && !isViewer(user.email)) {
         const row = await getOrCreateUser(user.email);
         token.uid = row.id;
       }

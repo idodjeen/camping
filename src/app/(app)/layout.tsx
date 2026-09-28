@@ -27,6 +27,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {/* One pop-up per deployed commit; see [no-popup] in /api/release. */}
       <WhatsNew />
       {/* pb clears the fixed bottom nav plus the home indicator. */}
+      {me.isViewer && (
+        <div className="bg-white/10 px-4 py-1.5 text-center text-xs font-semibold text-white/70">
+          👀 מצב צפייה בלבד - אפשר לראות הכול, אי אפשר לערוך
+        </div>
+      )}
       <div className="mx-auto w-full max-w-md px-5 pt-7 pb-[calc(env(safe-area-inset-bottom,0px)+5.5rem)]">
         {children}
       </div>

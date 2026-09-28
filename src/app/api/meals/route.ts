@@ -1,11 +1,11 @@
 import { getMeals } from "@/lib/queries";
-import { handle, requireUser } from "@/lib/session";
+import { handle, requireReader } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export function GET() {
   return handle(async () => {
-    const me = await requireUser();
+    const me = await requireReader();
     return { days: await getMeals(me.id) };
   });
 }
