@@ -7,6 +7,7 @@ import useSWR from "swr";
 
 import { Countdown } from "@/components/countdown";
 import { LocationCard } from "@/components/location-card";
+import { NotificationsBell } from "@/components/notifications";
 import { Podium } from "@/components/podium";
 import { ProgressRing } from "@/components/progress-ring";
 import { UserAvatar } from "@/components/user-avatar";
@@ -69,6 +70,7 @@ export default function HomePage() {
         <div className="flex items-center gap-1.5">
           {me?.user.isAdmin && <Badge>מנהל</Badge>}
           {me?.user.isShopper && <Badge>קניות</Badge>}
+          <NotificationsBell />
         </div>
       </header>
 
