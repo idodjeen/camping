@@ -17,7 +17,7 @@
 
 | | |
 |---|---|
-| **Repo** | [`idodjeen/camping`](https://github.com/idodjeen/camping) (private), remote `origin` over SSH: `git@github.com:idodjeen/camping.git` |
+| **Repo** | [`idodjeen/camping`](https://github.com/idodjeen/camping) (**public**: anyone can read the code and history), remote `origin` over SSH: `git@github.com:idodjeen/camping.git` |
 | **Package** | `camping-2026` v1.0.0 |
 | **What it is** | Mobile-first Hebrew (RTL) PWA for five friends coordinating a camping trip to the Upper Galilee |
 | **Stack** | Next.js **16.3.6** (App Router) · React 19.3 · TypeScript 5.7 · Tailwind v4 · SWR |
