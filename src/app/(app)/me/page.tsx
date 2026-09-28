@@ -21,6 +21,7 @@ type Payload = {
     avatarUrl: string | null;
     isAdmin: boolean;
     isShopper: boolean;
+    isViewer: boolean;
   };
   claims: {
     itemId: number;
@@ -64,19 +65,21 @@ export default function MePage() {
           <div className="mt-1 flex gap-1.5">
             {data.user.isAdmin && <Badge>מנהל</Badge>}
             {data.user.isShopper && <Badge>קניות</Badge>}
+            {data.user.isViewer && <Badge>צפייה בלבד</Badge>}
           </div>
         </div>
       </header>
 
       {data.user.isAdmin && <AdminNotify />}
 
-      <PushToggle />
+      {/* Viewers have no notifications to configure. */}
+      {!data.user.isViewer && <PushToggle />}
 
-      <NotificationPrefs
+      {!data.user.isViewer && <NotificationPrefs
         prefs={data.notify}
         // The bell must drop (or regain) rows right away, not on the next 15s poll.
         onChanged={() => void Promise.all([mutate(), globalMutate(NOTIFICATIONS_KEY)])}
-      />
+      />}
 
       <button
         onClick={() => setGuide(true)}

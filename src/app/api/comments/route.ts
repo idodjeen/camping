@@ -12,7 +12,7 @@ import {
 import { buildMentionEmails } from "@/lib/emails";
 import { PHOTO } from "@/lib/notifications";
 import { sendAll } from "@/lib/mailer";
-import { handle, HttpError, requireUser } from "@/lib/session";
+import { handle, HttpError, requireReader, requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 // Notifying several people means several SMTP handshakes.
@@ -20,7 +20,7 @@ export const maxDuration = 60;
 
 export function GET(req: Request) {
   return handle(async () => {
-    await requireUser();
+    await requireReader();
     const url = new URL(req.url);
     const subject = parseSubject(url.searchParams.get("subject"));
     const id = Number(url.searchParams.get("id"));

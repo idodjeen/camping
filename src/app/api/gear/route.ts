@@ -3,13 +3,13 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { gearCategories, gearItems } from "@/db/schema";
 import { getGear } from "@/lib/queries";
-import { handle, HttpError, requireUser } from "@/lib/session";
+import { handle, HttpError, requireReader, requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export function GET() {
   return handle(async () => {
-    const me = await requireUser();
+    const me = await requireReader();
     // The viewer is the session user, so "unread" can only ever mean mine.
     return { categories: await getGear(me.id) };
   });

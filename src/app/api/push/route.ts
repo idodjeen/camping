@@ -1,14 +1,14 @@
 import type { PushSubscription } from "web-push";
 
 import { getPublicKey, removeSubscription, saveSubscription, sendPushLater } from "@/lib/push";
-import { handle, HttpError, requireUser } from "@/lib/session";
+import { handle, HttpError, requireReader, requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 /** The public VAPID key the browser needs to subscribe. Not a secret. */
 export function GET() {
   return handle(async () => {
-    await requireUser();
+    await requireReader();
     return { publicKey: getPublicKey() };
   });
 }
