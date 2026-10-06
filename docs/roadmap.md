@@ -19,9 +19,10 @@ follows its rules:
 - **Items 5, 6-7 and 8 come after its phase 3** and are built trip-aware: `requireTrip()` instead of
   `requireUser()`, `trip_id` on new rows, routes under `/api/t/[tripId]/`, mentions resolved against
   the trip's people. Each section says what that changes.
-- **Item 9 can go now**, before phase 2. It's small, and editing expenses is most useful now, while the
-  trip is being settled. Its migration takes the next number after `0008`, and phase 2 then moves one
-  more route.
+- **Item 9 comes right after phase 2.** Phase 2 is being built now, and it moves the expense routes to
+  `/api/t/[tripId]/expenses` and generates the next migration (it drops `users.is_admin`,
+  `users.is_shopper` and the temporary `DEFAULT 1`). Item 9 before it would collide on both. Right
+  after it, item 9 is the first feature on the new routes, and still useful for settling this trip.
 
 ### Scope
 
@@ -75,8 +76,9 @@ pre-flight check below.
   title. Feature PR titles are written for the campers. Chore PRs put `[no-popup]` in the title.
 - Gates: `npm run typecheck`, `npm run build`, then the section's **Verification** list on the PR's
   preview: an iPhone PWA and a desktop, with two members and a viewer.
-- Every new write path rejects viewers with 403: `requireUser()` today, `requireTrip(id, "write")`
-  after groups-and-trips phase 2. Admin-only paths check the admin role too. Every Verification list
+- Every new write path rejects viewers with 403: `requireUser()` today; after phase 2,
+  `tripRoute(ctx, "write")` in route handlers or `requireTrip(tripId, "write")` (`src/lib/access.ts`).
+  Admin-only paths use the `"admin"` level (group admin or super admin). Every Verification list
   includes a viewer 403.
 - RTL: logical properties only (`start-*`, `end-*`, `ms-*`, `me-*`, `ps-*`, `pe-*`). framer-motion's `x`
   is physical, so slide directions read `document.dir`.
@@ -570,11 +572,12 @@ o'clock, in legend order, largest first. A person keeps the same color in the pa
 Colors come from the theme tokens; load the `dataviz` skill when building it. The SVG gets `role="img"`
 and a summary label; the legend is the accessible data.
 
-**API.** `PATCH /api/expenses/[id]` with `{ description?, amount?, paidBy?, sharedWith?, category? }`.
-Viewers get 403; 404 if it's gone; 403 unless you created it or you're the admin ("אפשר לערוך רק הוצאה
-שהוספת"). The same validation as POST, through one shared parser. POST accepts `category`; GET adds
-`category`, `editedAt` and `canEdit`. "Admin" is `users.is_admin` today, and the group admin after
-groups-and-trips phase 2, which also moves this route under `/api/t/[tripId]/`.
+**API.** `PATCH /api/t/[tripId]/expenses/[id]` with `{ description?, amount?, paidBy?, sharedWith?,
+category? }`, starting with `tripRoute(ctx, "write")` like the DELETE next to it (viewers get 403). 404
+if it's gone or belongs to another trip; 403 unless you created it or `isAdmin` from `tripRoute` (group
+admin or super admin): "אפשר לערוך רק הוצאה שהוספת". The payer and everyone in the split must be on the
+trip. The same validation as POST, through one shared parser. POST accepts `category`; GET adds
+`category`, `editedAt` and `canEdit`.
 
 **UI and RTL.** `expenses/page.tsx` (the form takes `initial`, category chips, the edit button, the chart
 card), a new `components/donut-chart.tsx`, `lib/expenses.ts`, and both expense routes. Logical properties;
@@ -590,8 +593,8 @@ balances (still summing to zero) and the payments update. A member who didn't cr
 gets 403 from the API. The admin can edit. The viewer gets 403. The legend lines up on the right on an
 iPhone.
 
-**Size / dependencies.** M. After A and groups-and-trips phase 1 (merged, migration 0008); before or
-after phase 2. Migration: `category` and `edited_at`. Group F hooks the edit
+**Size / dependencies.** M. After A and groups-and-trips phase 2 (the routes and the migration number).
+Migration: `category` and `edited_at`. Group F hooks the edit
 notification into this PATCH later.
 
 ## 10. Admin page: add and remove people
@@ -639,9 +642,9 @@ route; a new member whose email collides with an existing slug signs in fine.
 | Order | Group | Branch | Items | Size | Migration | Needs |
 |---|---|---|---|---|---|---|
 | 1 | - | done: [PR #5](https://github.com/idodjeen/camping/pull/5) | groups-and-trips phase 1 | L | yes: `0008_groups_and_trips` | - |
-| 2 | A | `claude/safety-rails` | none: `dev` database, reload guard, error boundaries | S | no | lands before phase 2 |
-| 3 | B | `claude/expenses-edit-chart` | 9 | M | yes: `category`, `edited_at` | A, phase 1 |
-| 4 | - | (groups-and-trips plan) | phase 2 | L | maybe | A |
+| 2 | A | `claude/safety-rails` (in progress) | none: `dev` database, reload guard, error boundaries | S | no | lands before phase 2 |
+| 3 | - | `claude/groups-phase-2` (in progress) | groups-and-trips phase 2 | L | yes: drops `is_admin`, `is_shopper`, `DEFAULT 1` | A |
+| 4 | B | `claude/expenses-edit-chart` | 9 | M | yes: `category`, `edited_at` | A, phase 2 |
 | 5 | C | `claude/nav-header` | 0 (= phase 3) | M | no | phase 2 |
 | 6 | D | (groups-and-trips plan) | 10 (= phases 4-5) | M + M | maybe | phase 2 |
 | 7 | E | `claude/notifications-core` | 6, 7, and two parts of 2 | L | yes: unify | phase 3 |
@@ -651,11 +654,9 @@ route; a new member whose email collides with an existing slug signs in fine.
 
 ```mermaid
 flowchart LR
-  P1["groups-and-trips phase 1 (merged)"] --> B["B expenses (9)"]
-  A["A safety rails"] --> B
-  P1 --> P2["groups-and-trips phase 2"]
-  A --> P2
-  B -.-> P2
+  P1["groups-and-trips phase 1 (merged)"] --> P2["groups-and-trips phase 2"]
+  A["A safety rails"] --> P2
+  P2 --> B["B expenses (9)"]
   P2 --> C["C nav (0) = phase 3"]
   P2 --> D["D people (10) = phases 4-5"]
   C --> E["E notifications (6-7)"]
@@ -666,10 +667,9 @@ flowchart LR
   G --> H
 ```
 
-- Migrations run one at a time in this order: phase 1 (`0008`), B, phase 2, E, F, G, H, with whatever
+- Migrations run one at a time in this order: phase 1 (`0008`), phase 2, B, E, F, G, H, with whatever
   phases 4-7 add slotted in wherever they land. The file numbers are assigned when each is generated.
-- B can also wait until after phase 2 and be built under `/api/t/[tripId]/`. Going before phase 2 is
-  recommended only because settling this trip's expenses is happening now.
+- B and C both start once phase 2 is merged. C has no migration, so the two can run side by side.
 - Phases 4-7 of groups-and-trips can interleave with E, F and G, as long as only one migration PR is open
   at a time.
 - **H** drops `comment_mentions` and `users.notify_mentions`, `notify_covered` and `notify_messages`, and
@@ -678,8 +678,9 @@ flowchart LR
 
 Why this order: phase 1 is merged and owns migration 0008. A must land before phase 2, because
 phase 2 (every route and URL moving at once) is exactly the change that breaks open phones without the
-reload guard and the error boundaries. B goes after phase 1, because it's small, useful right now, and a
-gentle first run of the `dev` workflow. Then the rest of groups-and-trips, as agreed.
+reload guard and the error boundaries. B goes right after phase 2: it needs phase 2's routes and
+migration number, and it's small, useful while this trip is being settled, and a gentle first feature on
+the new trip routes. Then the rest of groups-and-trips, as agreed.
 E waits for phase 3, so the bell it rewrites is already in the header and already trip-scoped. G waits for E,
 because tags change tables.
 
@@ -688,6 +689,10 @@ because tags change tables.
 ## Opening prompts
 
 Merge this roadmap first: every prompt points at it and at `docs/groups-and-trips.md` (already on `main`).
+
+**Paths after phase 2.** Phase 2 moves every screen to `src/app/(app)/t/[tripId]/` and every trip API route
+to `src/app/api/t/[tripId]/`. Where a section or prompt below names an old path (for example
+`src/app/(app)/room/page.tsx`), use the moved file.
 Paste a prompt as the first message of a new session in `/Users/idodwek/camping`.
 
 ### A. Safety rails
@@ -714,11 +719,11 @@ Deliver: branch claude/safety-rails from the latest main, small commits, push, g
 ### B. Expenses: edit and charts (item 9)
 
 ```text
-Repo /Users/idodwek/camping (GitHub idodjeen/camping). Implement item 9 from docs/roadmap.md (group B). groups-and-trips phase 1 is already on main: expenses carry trip_id (DEFAULT 1 for now), and the app still reads trip 1 everywhere. Keep it that way; phase 2 moves the routes later. Your migration takes the next number after 0008.
+Repo /Users/idodwek/camping (GitHub idodjeen/camping). Implement item 9 from docs/roadmap.md (group B). groups-and-trips phase 2 is already on main: the expense routes live at src/app/api/t/[tripId]/expenses/, every handler starts with tripRoute(ctx, level) from src/lib/access.ts, and "admin" means isAdmin from tripRoute (group admin or super admin). Build on that; don't touch phase 2's access code.
 
-Read first: AGENTS.md (check node_modules/next/dist/docs/ before using any Next API), the Overview and section 9 of docs/roadmap.md, then src/app/(app)/expenses/page.tsx, src/lib/expenses.ts, src/app/api/expenses/route.ts, src/app/api/expenses/[id]/route.ts and src/db/schema.ts. Load the dataviz skill before writing the chart.
+Read first: AGENTS.md (check node_modules/next/dist/docs/ before using any Next API), the Overview and section 9 of docs/roadmap.md, then src/app/(app)/t/[tripId]/expenses/page.tsx, src/lib/expenses.ts, src/lib/access.ts, src/app/api/t/[tripId]/expenses/route.ts, src/app/api/t/[tripId]/expenses/[id]/route.ts and src/db/schema.ts. Load the dataviz skill before writing the chart.
 
-Build exactly section 9: PATCH /api/expenses/[id] (the creator or the admin; viewers 403), category on create, edit and GET, edited_at, the edit form filled in, and the donut card with its three views computed on the client, as a hand-drawn SVG with no new dependency.
+Build exactly section 9: PATCH /api/t/[tripId]/expenses/[id] (the creator or the admin; viewers 403; payer and split must be on the trip), category on create, edit and GET, edited_at, the edit form filled in, and the donut card with its three views computed on the client, as a hand-drawn SVG with no new dependency.
 
 Migration: edit src/db/schema.ts, run npm run db:generate, check the SQL only adds, and commit it with drizzle/meta. Confirm .env.local points at the Neon dev branch before running npm run db:migrate; if it points at production, stop and ask me. If another PR with a migration is open, stop and tell me. Put the production steps in the PR body: the pre-flight count query, then CONFIRM_PROD=1 DATABASE_URL="<prod>" npm run db:migrate, then the merge.
 
