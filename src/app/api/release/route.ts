@@ -12,7 +12,9 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   await headers();
 
-  const sha = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local";
+  // `||`, not `??`: `vercel env pull` writes this as "" locally. Keep in step
+  // with next.config.ts, which inlines the same value into the bundle.
+  const sha = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) || "local";
   const lines = (process.env.VERCEL_GIT_COMMIT_MESSAGE ?? "")
     .split("\n")
     .map((l) => l.trim())
