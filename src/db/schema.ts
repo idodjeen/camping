@@ -4,6 +4,7 @@ import {
   check,
   date,
   doublePrecision,
+  foreignKey,
   index,
   integer,
   pgEnum,
@@ -31,8 +32,15 @@ export const users = pgTable("users", {
   /** Latin slug — drives the avatar filename at /avatars/{slug}.jpg */
   slug: text("slug").notNull().unique(),
   avatarUrl: text("avatar_url"),
+  /** Moving to `group_members.role`; dropped in phase 2 of docs/groups-and-trips.md. */
   isAdmin: boolean("is_admin").notNull().default(false),
+  /** Moving to `trip_members.is_shopper`; dropped in phase 2 of docs/groups-and-trips.md. */
   isShopper: boolean("is_shopper").notNull().default(false),
+  /**
+   * Sees and manages every group. Set in the database only: no screen in the
+   * app grants it, so a compromised group admin cannot climb to it.
+   */
+  isSuperAdmin: boolean("is_super_admin").notNull().default(false),
   onboardedAt: timestamp("onboarded_at", { withTimezone: true }),
   /** Which kinds of notification reach the bell. All on until the person opts out. */
   notifyMentions: boolean("notify_mentions").notNull().default(true),
@@ -41,35 +49,134 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-/* ------------------------------------------------------------------- trip */
+/* ----------------------------------------------------------------- groups */
 
-export const trip = pgTable("trip", {
+/**
+ * A group of friends. It owns the people and their roles; everything the app
+ * is actually about (gear, meals, chat, money) lives one level down, on a trip.
+ */
+export const groups = pgTable("groups", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
-  // mode: "string" keeps these as plain "2026-10-01" strings. A JS Date here
-  // would be shifted by the server's UTC offset and could render as 30.9 in Israel.
-  startDate: date("start_date", { mode: "string" }).notNull(),
-  endDate: date("end_date", { mode: "string" }).notNull(),
-  lat: doublePrecision("lat").notNull(),
-  lng: doublePrecision("lng").notNull(),
-  locationName: text("location_name"),
+  createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const memberRole = pgEnum("member_role", ["admin", "editor", "viewer"]);
+
+/**
+ * Who is in a group, and as what. The role lives here rather than on `users`
+ * so the same person can run one group and only watch another.
+ */
+export const groupMembers = pgTable(
+  "group_members",
+  {
+    groupId: integer("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: memberRole("role").notNull().default("editor"),
+    addedBy: integer("added_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.groupId, t.userId] }),
+    // "Which groups am I in?" is asked on every request.
+    index("group_members_user_idx").on(t.userId),
+  ],
+);
+
+/* ------------------------------------------------------------------- trip */
+
+/**
+ * Every trip of every group. The singular table name is a leftover from the
+ * single-trip days: renaming it needs drizzle-kit's interactive prompt.
+ */
+export const trip = pgTable(
+  "trip",
+  {
+    id: serial("id").primaryKey(),
+    groupId: integer("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    // mode: "string" keeps these as plain "2026-10-01" strings. A JS Date here
+    // would be shifted by the server's UTC offset and could render as 30.9 in Israel.
+    startDate: date("start_date", { mode: "string" }).notNull(),
+    endDate: date("end_date", { mode: "string" }).notNull(),
+    lat: doublePrecision("lat").notNull(),
+    lng: doublePrecision("lng").notNull(),
+    locationName: text("location_name"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("trip_group_idx").on(t.groupId)],
+);
+
+/**
+ * Who is on a trip. Separate from group membership because not everyone comes
+ * every time: only these people are split into expenses, ranked on the
+ * leaderboard, and reached by @all and reminders. Shopping is per trip too.
+ */
+export const tripMembers = pgTable(
+  "trip_members",
+  {
+    tripId: integer("trip_id")
+      .notNull()
+      .references(() => trip.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    isShopper: boolean("is_shopper").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tripId, t.userId] }),
+    index("trip_members_user_idx").on(t.userId),
+  ],
+);
+
+/**
+ * The trip a content row belongs to.
+ *
+ * DEFAULT 1 is temporary (phase 1 of docs/groups-and-trips.md): it lets the
+ * current single-trip code keep inserting unchanged. Phase 2 passes the trip
+ * explicitly everywhere and drops the default, so a forgotten trip id fails
+ * loudly instead of quietly landing in someone else's trip.
+ *
+ * Rows that point at other trip-scoped rows also carry a composite foreign key
+ * on (trip_id, x_id), so the database itself refuses a link across trips.
+ */
+const tripId = () =>
+  integer("trip_id")
+    .notNull()
+    .default(1)
+    .references(() => trip.id, { onDelete: "cascade" });
 
 /* ------------------------------------------------------------------- gear */
 
-export const gearCategories = pgTable("gear_categories", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull().unique(),
-  sort: integer("sort").notNull().default(0),
-});
+export const gearCategories = pgTable(
+  "gear_categories",
+  {
+    id: serial("id").primaryKey(),
+    tripId: tripId(),
+    name: text("name").notNull(),
+    sort: integer("sort").notNull().default(0),
+  },
+  (t) => [
+    unique("gear_categories_trip_name_uq").on(t.tripId, t.name),
+    // Target of the composite FK from gear_items; (id) alone is already unique.
+    unique("gear_categories_trip_id_uq").on(t.tripId, t.id),
+  ],
+);
 
 export const gearItems = pgTable(
   "gear_items",
   {
     id: serial("id").primaryKey(),
-    categoryId: integer("category_id")
-      .notNull()
-      .references(() => gearCategories.id, { onDelete: "cascade" }),
+    tripId: tripId(),
+    categoryId: integer("category_id").notNull(),
     name: text("name").notNull(),
     /** Max of the original range: "כירות גז (2-3)" -> 3. Null when open quantity. */
     qtyNeeded: integer("qty_needed"),
@@ -82,7 +189,15 @@ export const gearItems = pgTable(
     createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [unique("gear_items_category_name_uq").on(t.categoryId, t.name)],
+  (t) => [
+    unique("gear_items_category_name_uq").on(t.categoryId, t.name),
+    unique("gear_items_trip_id_uq").on(t.tripId, t.id),
+    foreignKey({
+      name: "gear_items_category_fk",
+      columns: [t.tripId, t.categoryId],
+      foreignColumns: [gearCategories.tripId, gearCategories.id],
+    }).onDelete("cascade"),
+  ],
 );
 
 export const gearClaims = pgTable(
@@ -105,21 +220,28 @@ export const gearClaims = pgTable(
 
 /* -------------------------------------------------------------- shopping */
 
-export const shoppingCategories = pgTable("shopping_categories", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull().unique(),
-  sort: integer("sort").notNull().default(0),
-});
+export const shoppingCategories = pgTable(
+  "shopping_categories",
+  {
+    id: serial("id").primaryKey(),
+    tripId: tripId(),
+    name: text("name").notNull(),
+    sort: integer("sort").notNull().default(0),
+  },
+  (t) => [
+    unique("shopping_categories_trip_name_uq").on(t.tripId, t.name),
+    unique("shopping_categories_trip_id_uq").on(t.tripId, t.id),
+  ],
+);
 
 export const shoppingItems = pgTable(
   "shopping_items",
   {
     id: serial("id").primaryKey(),
-    categoryId: integer("category_id")
-      .notNull()
-      .references(() => shoppingCategories.id, { onDelete: "cascade" }),
-    /** Bare noun ("בטטות") so meal links can resolve by name. */
-    name: text("name").notNull().unique(),
+    tripId: tripId(),
+    categoryId: integer("category_id").notNull(),
+    /** Bare noun ("בטטות") so meal links can resolve by name; unique per trip. */
+    name: text("name").notNull(),
     /** "3", "כ-2 ק\"ג", "200 גרם" */
     quantityText: text("quantity_text"),
     notes: text("notes"),
@@ -130,6 +252,15 @@ export const shoppingItems = pgTable(
     createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
     sort: integer("sort").notNull().default(0),
   },
+  (t) => [
+    unique("shopping_items_trip_name_uq").on(t.tripId, t.name),
+    unique("shopping_items_trip_id_uq").on(t.tripId, t.id),
+    foreignKey({
+      name: "shopping_items_category_fk",
+      columns: [t.tripId, t.categoryId],
+      foreignColumns: [shoppingCategories.tripId, shoppingCategories.id],
+    }).onDelete("cascade"),
+  ],
 );
 
 /* ------------------------------------------------------------------ meals */
@@ -138,26 +269,41 @@ export const meals = pgTable(
   "meals",
   {
     id: serial("id").primaryKey(),
+    tripId: tripId(),
     date: date("date", { mode: "string" }).notNull(),
     slot: mealSlot("slot").notNull(),
     title: text("title").notNull(),
     description: text("description"),
     sort: integer("sort").notNull().default(0),
   },
-  (t) => [unique("meals_date_slot_uq").on(t.date, t.slot)],
+  (t) => [
+    unique("meals_trip_date_slot_uq").on(t.tripId, t.date, t.slot),
+    unique("meals_trip_id_uq").on(t.tripId, t.id),
+  ],
 );
 
 export const mealShoppingItems = pgTable(
   "meal_shopping_items",
   {
-    mealId: integer("meal_id")
-      .notNull()
-      .references(() => meals.id, { onDelete: "cascade" }),
-    shoppingItemId: integer("shopping_item_id")
-      .notNull()
-      .references(() => shoppingItems.id, { onDelete: "cascade" }),
+    tripId: tripId(),
+    mealId: integer("meal_id").notNull(),
+    shoppingItemId: integer("shopping_item_id").notNull(),
   },
-  (t) => [primaryKey({ columns: [t.mealId, t.shoppingItemId] })],
+  (t) => [
+    primaryKey({ columns: [t.mealId, t.shoppingItemId] }),
+    // Both sides must be in the link's own trip, so a meal can never list
+    // another group's groceries.
+    foreignKey({
+      name: "meal_shopping_items_meal_fk",
+      columns: [t.tripId, t.mealId],
+      foreignColumns: [meals.tripId, meals.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "meal_shopping_items_item_fk",
+      columns: [t.tripId, t.shoppingItemId],
+      foreignColumns: [shoppingItems.tripId, shoppingItems.id],
+    }).onDelete("cascade"),
+  ],
 );
 
 /* ------------------------------------------------------------- comments */
@@ -176,11 +322,10 @@ export const comments = pgTable(
   "comments",
   {
     id: serial("id").primaryKey(),
-    gearItemId: integer("gear_item_id").references(() => gearItems.id, { onDelete: "cascade" }),
-    shoppingItemId: integer("shopping_item_id").references(() => shoppingItems.id, {
-      onDelete: "cascade",
-    }),
-    mealId: integer("meal_id").references(() => meals.id, { onDelete: "cascade" }),
+    tripId: tripId(),
+    gearItemId: integer("gear_item_id"),
+    shoppingItemId: integer("shopping_item_id"),
+    mealId: integer("meal_id"),
     userId: integer("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
@@ -192,6 +337,24 @@ export const comments = pgTable(
       "comments_one_subject",
       sql`num_nonnulls(${t.gearItemId}, ${t.shoppingItemId}, ${t.mealId}) <= 1`,
     ),
+    unique("comments_trip_id_uq").on(t.tripId, t.id),
+    // Composite FKs with a nullable second column: Postgres skips the check
+    // when the subject is null, which is exactly a general chat message.
+    foreignKey({
+      name: "comments_gear_item_fk",
+      columns: [t.tripId, t.gearItemId],
+      foreignColumns: [gearItems.tripId, gearItems.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "comments_shopping_item_fk",
+      columns: [t.tripId, t.shoppingItemId],
+      foreignColumns: [shoppingItems.tripId, shoppingItems.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "comments_meal_fk",
+      columns: [t.tripId, t.mealId],
+      foreignColumns: [meals.tripId, meals.id],
+    }).onDelete("cascade"),
   ],
 );
 
@@ -235,6 +398,7 @@ export const notifications = pgTable(
   "notifications",
   {
     id: serial("id").primaryKey(),
+    tripId: tripId(),
     userId: integer("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
@@ -243,12 +407,24 @@ export const notifications = pgTable(
     actorId: integer("actor_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    commentId: integer("comment_id").references(() => comments.id, { onDelete: "cascade" }),
-    gearItemId: integer("gear_item_id").references(() => gearItems.id, { onDelete: "cascade" }),
+    commentId: integer("comment_id"),
+    gearItemId: integer("gear_item_id"),
     readAt: timestamp("read_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("notifications_user_idx").on(t.userId, t.id)],
+  (t) => [
+    index("notifications_user_idx").on(t.userId, t.id),
+    foreignKey({
+      name: "notifications_comment_fk",
+      columns: [t.tripId, t.commentId],
+      foreignColumns: [comments.tripId, comments.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "notifications_gear_item_fk",
+      columns: [t.tripId, t.gearItemId],
+      foreignColumns: [gearItems.tripId, gearItems.id],
+    }).onDelete("cascade"),
+  ],
 );
 
 /* ------------------------------------------------------- push subscriptions */
@@ -278,8 +454,10 @@ export const pushSubscriptions = pgTable(
 
 /* -------------------------------------------------------- personal items */
 
+/** A packing list per person per trip: next year's bag starts empty. */
 export const personalItems = pgTable("personal_items", {
   id: serial("id").primaryKey(),
+  tripId: tripId(),
   userId: integer("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
@@ -304,6 +482,7 @@ export const expenses = pgTable(
   "expenses",
   {
     id: serial("id").primaryKey(),
+    tripId: tripId(),
     description: text("description").notNull(),
     amount: integer("amount").notNull(),
     paidBy: integer("paid_by")
@@ -342,6 +521,7 @@ export const settlements = pgTable(
   "settlements",
   {
     id: serial("id").primaryKey(),
+    tripId: tripId(),
     fromUser: integer("from_user")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
@@ -365,6 +545,28 @@ export const settlements = pgTable(
 export const usersRelations = relations(users, ({ many }) => ({
   claims: many(gearClaims),
   personalItems: many(personalItems),
+  groupMemberships: many(groupMembers),
+  tripMemberships: many(tripMembers),
+}));
+
+export const groupsRelations = relations(groups, ({ many }) => ({
+  members: many(groupMembers),
+  trips: many(trip),
+}));
+
+export const groupMembersRelations = relations(groupMembers, ({ one }) => ({
+  group: one(groups, { fields: [groupMembers.groupId], references: [groups.id] }),
+  user: one(users, { fields: [groupMembers.userId], references: [users.id] }),
+}));
+
+export const tripRelations = relations(trip, ({ one, many }) => ({
+  group: one(groups, { fields: [trip.groupId], references: [groups.id] }),
+  members: many(tripMembers),
+}));
+
+export const tripMembersRelations = relations(tripMembers, ({ one }) => ({
+  trip: one(trip, { fields: [tripMembers.tripId], references: [trip.id] }),
+  user: one(users, { fields: [tripMembers.userId], references: [users.id] }),
 }));
 
 export const gearCategoriesRelations = relations(gearCategories, ({ many }) => ({
@@ -450,3 +652,7 @@ export type Expense = typeof expenses.$inferSelect;
 export type Settlement = typeof settlements.$inferSelect;
 export type PersonalItem = typeof personalItems.$inferSelect;
 export type Trip = typeof trip.$inferSelect;
+export type Group = typeof groups.$inferSelect;
+export type GroupMember = typeof groupMembers.$inferSelect;
+export type TripMember = typeof tripMembers.$inferSelect;
+export type MemberRole = (typeof memberRole.enumValues)[number];
