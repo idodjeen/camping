@@ -8,18 +8,20 @@
 
 ### Where this fits with `docs/groups-and-trips.md`
 
-`docs/groups-and-trips.md` (agreed Oct 6, not yet committed) turns the app into many groups with many
-trips. Its phase 1 is already being built in another session, with migration `0008_groups_and_trips`.
-It goes first, and this roadmap follows its rules:
+`docs/groups-and-trips.md` (agreed Oct 6) turns the app into many groups with many trips. Its phase 1
+is on `main` since [PR #5](https://github.com/idodjeen/camping/pull/5): migration `0008_groups_and_trips`
+adds groups, trip members, and `trip_id` with composite foreign keys on every content table
+(`DEFAULT 1` for now, so today's code keeps inserting unchanged). It goes first, and this roadmap
+follows its rules:
 
 - **Item 0 is its phase 3.** Section 0 below is the detailed design for that phase.
 - **Item 10 is its phases 4-5.** Section 10 lists what those phases must also check.
 - **Items 5, 6-7 and 8 come after its phase 3** and are built trip-aware: `requireTrip()` instead of
   `requireUser()`, `trip_id` on new rows, routes under `/api/t/[tripId]/`, mentions resolved against
   the trip's people. Each section says what that changes.
-- **Item 9 can go right after its phase 1**, before phase 2. It's small, and editing expenses is most
-  useful now, while the trip is being settled. It can't go before phase 1, because phase 1 already owns
-  migration number 0008. Phase 2 then moves one more route.
+- **Item 9 can go now**, before phase 2. It's small, and editing expenses is most useful now, while the
+  trip is being settled. Its migration takes the next number after `0008`, and phase 2 then moves one
+  more route.
 
 ### Scope
 
@@ -94,8 +96,9 @@ Neon integration's own variables carry a `check_env_` prefix (below), and the ap
 `DATABASE_URL`, so the integration's per-preview branches would never be used. Per-PR branches would also
 add nothing while only one migration PR is open at a time.
 
-- Create `dev` from `main` in the Neon console. Set `DATABASE_URL` for **Preview** and
-  **Development** to it on Vercel (Config type), and put it in `.env.local`.
+- Done on Oct 6 with phase 1: the `dev` branch exists and `.env.local` points at it. Still to do: set
+  `DATABASE_URL` for **Preview** and **Development** to it on Vercel (Config type). Today it's one entry
+  scoped to both Preview and Production, so take Preview off that entry and add a separate one.
 - Run migrations on `dev` from your machine (`npm run db:migrate`). If a PR is abandoned, use "Reset
   from parent" on `dev`.
 - Production migrations stay manual and explicit: `CONFIRM_PROD=1 DATABASE_URL="<prod url>" npm run
@@ -108,7 +111,7 @@ add nothing while only one migration PR is open at a time.
 
 | Variable | Production | Preview | Development | What it means |
 |---|---|---|---|---|
-| `DATABASE_URL` | prod, Config | **the same prod database** | - | Every preview writes real trip data today. Group A moves Preview and Development to `dev`. |
+| `DATABASE_URL` | prod, Config | **the same prod database** | - | Every preview writes real trip data today (still true after phase 1, rechecked Oct 6). Until group A moves Preview and Development to `dev`, test locally, not on previews. |
 | `ALLOWED_USERS` | yes | yes | - | Members can sign in on previews. Retired by groups-and-trips phase 2. |
 | `VIEWER_USERS` | yes, Secret | **missing** | - | A viewer can't sign in on a preview, so the viewer 403 checks can't run there. Group A adds it to Preview. |
 | `VAPID_*` | yes, Secret | missing | - | Previews can't send push at all (`sendPush` does nothing without keys), so they can't buzz real phones. To test group E's push on a preview, add a **new** key pair to Preview. Never copy production's: with `dev`'s copied subscriptions, it would reach friends' phones. |
@@ -120,7 +123,7 @@ add nothing while only one migration PR is open at a time.
 | `AUTH_TRUST_HOST` | Secret | Secret | - | Redundant: `auth.config.ts` sets `trustHost: true`. |
 
 Nothing exists for Development, so `vercel env pull` writes an almost empty file; local dev runs on
-whatever `.env.local` holds. Add new variables as **Config** (this project's Secret-typed variables have
+whatever `.env.local` holds (the `dev` branch since phase 1). Add new variables as **Config** (this project's Secret-typed variables have
 failed to reach the runtime before; `VAPID_*` and `GMAIL_*` seem to work, but verify any new one).
 
 ### Deploying a migration
@@ -321,7 +324,10 @@ Option B: fold `comment_mentions` into `notifications` as `kind = 'mention'`. **
 to 11). One id sequence, one read path, grouping in one query, and items 5 and 8 each land in one place.
 
 Migration `00NN_unify_notifications`, expand only. The DDL is generated; the backfill goes in a custom file
-from `drizzle-kit generate --custom`. groups-and-trips phase 1 has already added `trip_id` to both tables.
+from `drizzle-kit generate --custom`. Phase 1 already gave `notifications` a `trip_id` and composite
+foreign keys (`(trip_id, comment_id)` and `(trip_id, gear_item_id)`); `comment_mentions` is scoped
+through its comment. The new references follow the same pattern, which needs a `(trip_id, id)` key on
+`expenses` and `settlements` first (`shopping_items` already has one).
 
 ```sql
 -- kind: enum -> text + CHECK (see "No new Postgres enums")
@@ -331,12 +337,21 @@ ALTER TABLE notifications ADD CONSTRAINT notifications_kind_ck CHECK (kind IN (
   'mention','message','covered','uncovered','gear_added','shopping_added','bought',
   'expense_added','expense_edited','expense_deleted','settlement','reminder'));
 
+ALTER TABLE expenses ADD CONSTRAINT expenses_trip_id_uq UNIQUE (trip_id, id);
+ALTER TABLE settlements ADD CONSTRAINT settlements_trip_id_uq UNIQUE (trip_id, id);
+
 ALTER TABLE notifications
   ADD COLUMN thread_key text,
-  ADD COLUMN shopping_item_id integer REFERENCES shopping_items(id) ON DELETE CASCADE,
-  ADD COLUMN expense_id integer REFERENCES expenses(id) ON DELETE CASCADE,
-  ADD COLUMN settlement_id integer REFERENCES settlements(id) ON DELETE CASCADE,
-  ADD COLUMN data jsonb;  -- snapshots, e.g. a deleted expense's name and amount
+  ADD COLUMN shopping_item_id integer,
+  ADD COLUMN expense_id integer,
+  ADD COLUMN settlement_id integer,
+  ADD COLUMN data jsonb,  -- snapshots, e.g. a deleted expense's name and amount
+  ADD CONSTRAINT notifications_shopping_item_fk FOREIGN KEY (trip_id, shopping_item_id)
+    REFERENCES shopping_items (trip_id, id) ON DELETE CASCADE,
+  ADD CONSTRAINT notifications_expense_fk FOREIGN KEY (trip_id, expense_id)
+    REFERENCES expenses (trip_id, id) ON DELETE CASCADE,
+  ADD CONSTRAINT notifications_settlement_fk FOREIGN KEY (trip_id, settlement_id)
+    REFERENCES settlements (trip_id, id) ON DELETE CASCADE;
 
 CREATE UNIQUE INDEX notifications_mention_uq
   ON notifications (comment_id, user_id) WHERE kind = 'mention';
@@ -575,7 +590,7 @@ balances (still summing to zero) and the payments update. A member who didn't cr
 gets 403 from the API. The admin can edit. The viewer gets 403. The legend lines up on the right on an
 iPhone.
 
-**Size / dependencies.** M. After A and groups-and-trips phase 1 (which owns migration 0008); before or
+**Size / dependencies.** M. After A and groups-and-trips phase 1 (merged, migration 0008); before or
 after phase 2. Migration: `category` and `edited_at`. Group F hooks the edit
 notification into this PATCH later.
 
@@ -623,7 +638,7 @@ route; a new member whose email collides with an existing slug signs in fine.
 
 | Order | Group | Branch | Items | Size | Migration | Needs |
 |---|---|---|---|---|---|---|
-| 1 | - | (groups-and-trips plan, in progress) | phase 1 | L | yes: `0008_groups_and_trips` | - |
+| 1 | - | done: [PR #5](https://github.com/idodjeen/camping/pull/5) | groups-and-trips phase 1 | L | yes: `0008_groups_and_trips` | - |
 | 2 | A | `claude/safety-rails` | none: `dev` database, reload guard, error boundaries | S | no | lands before phase 2 |
 | 3 | B | `claude/expenses-edit-chart` | 9 | M | yes: `category`, `edited_at` | A, phase 1 |
 | 4 | - | (groups-and-trips plan) | phase 2 | L | maybe | A |
@@ -636,7 +651,7 @@ route; a new member whose email collides with an existing slug signs in fine.
 
 ```mermaid
 flowchart LR
-  P1["groups-and-trips phase 1 (in progress)"] --> B["B expenses (9)"]
+  P1["groups-and-trips phase 1 (merged)"] --> B["B expenses (9)"]
   A["A safety rails"] --> B
   P1 --> P2["groups-and-trips phase 2"]
   A --> P2
@@ -661,7 +676,7 @@ flowchart LR
   removes the one-release adapters (the old notification and mark-read endpoints, `unreadMentions` in
   `/api/me`, and the old pref keys). Its PR title carries `[no-popup]`.
 
-Why this order: phase 1 is already under way and owns migration 0008. A must land before phase 2, because
+Why this order: phase 1 is merged and owns migration 0008. A must land before phase 2, because
 phase 2 (every route and URL moving at once) is exactly the change that breaks open phones without the
 reload guard and the error boundaries. B goes after phase 1, because it's small, useful right now, and a
 gentle first run of the `dev` workflow. Then the rest of groups-and-trips, as agreed.
@@ -672,7 +687,7 @@ because tags change tables.
 
 ## Opening prompts
 
-Merge this roadmap and commit `docs/groups-and-trips.md` first: every prompt points at both files on `main`.
+Merge this roadmap first: every prompt points at it and at `docs/groups-and-trips.md` (already on `main`).
 Paste a prompt as the first message of a new session in `/Users/idodwek/camping`.
 
 ### A. Safety rails
@@ -691,7 +706,7 @@ Build:
 
 Don't change features, and don't add migrations. Gates: npm run typecheck && npm run build. On the PR preview: a forced throw in a page shows error.tsx with the bottom nav still there; a forced throw in MentionBanner leaves the app usable; pushing a second commit reloads an open tab on the branch URL once.
 
-Put the console steps for me in the PR body as a checklist (groups-and-trips phase 1 may already have done the first two; check before repeating them): create the Neon `dev` branch; set DATABASE_URL for Preview and Development to it (Config) and in .env.local; add VIEWER_USERS to Preview; keep VAPID_* and GMAIL_* Production-only; check that the preview URL is an authorized redirect URI in Google Cloud.
+Put the console steps for me in the PR body as a checklist (the Neon `dev` branch already exists and .env.local points at it, since phase 1): take Preview off the shared DATABASE_URL entry and add a Preview and Development DATABASE_URL for `dev` (Config); add VIEWER_USERS to Preview; keep VAPID_* and GMAIL_* Production-only; check that the preview URL is an authorized redirect URI in Google Cloud.
 
 Deliver: branch claude/safety-rails from the latest main, small commits, push, gh pr create with "[no-popup]" in the title. Don't merge.
 ```
@@ -699,7 +714,7 @@ Deliver: branch claude/safety-rails from the latest main, small commits, push, g
 ### B. Expenses: edit and charts (item 9)
 
 ```text
-Repo /Users/idodwek/camping (GitHub idodjeen/camping). Implement item 9 from docs/roadmap.md (group B). groups-and-trips phase 1 is already on main: expenses carry trip_id, and the app still reads trip 1 everywhere. Keep it that way; phase 2 moves the routes later.
+Repo /Users/idodwek/camping (GitHub idodjeen/camping). Implement item 9 from docs/roadmap.md (group B). groups-and-trips phase 1 is already on main: expenses carry trip_id (DEFAULT 1 for now), and the app still reads trip 1 everywhere. Keep it that way; phase 2 moves the routes later. Your migration takes the next number after 0008.
 
 Read first: AGENTS.md (check node_modules/next/dist/docs/ before using any Next API), the Overview and section 9 of docs/roadmap.md, then src/app/(app)/expenses/page.tsx, src/lib/expenses.ts, src/app/api/expenses/route.ts, src/app/api/expenses/[id]/route.ts and src/db/schema.ts. Load the dataviz skill before writing the chart.
 
