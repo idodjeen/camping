@@ -9,15 +9,17 @@
 ### Where this fits with `docs/groups-and-trips.md`
 
 `docs/groups-and-trips.md` (agreed Oct 6, not yet committed) turns the app into many groups with many
-trips. It goes first, and this roadmap follows its rules:
+trips. Its phase 1 is already being built in another session, with migration `0008_groups_and_trips`.
+It goes first, and this roadmap follows its rules:
 
 - **Item 0 is its phase 3.** Section 0 below is the detailed design for that phase.
 - **Item 10 is its phases 4-5.** Section 10 lists what those phases must also check.
 - **Items 5, 6-7 and 8 come after its phase 3** and are built trip-aware: `requireTrip()` instead of
   `requireUser()`, `trip_id` on new rows, routes under `/api/t/[tripId]/`, mentions resolved against
   the trip's people. Each section says what that changes.
-- **Item 9 may go before it.** It's small, and editing expenses is most useful now, while the trip is
-  being settled. Its phase 2 then moves one more route.
+- **Item 9 can go right after its phase 1**, before phase 2. It's small, and editing expenses is most
+  useful now, while the trip is being settled. It can't go before phase 1, because phase 1 already owns
+  migration number 0008. Phase 2 then moves one more route.
 
 ### Scope
 
@@ -573,7 +575,8 @@ balances (still summing to zero) and the payments update. A member who didn't cr
 gets 403 from the API. The admin can edit. The viewer gets 403. The legend lines up on the right on an
 iPhone.
 
-**Size / dependencies.** M. After A. Migration: `category` and `edited_at`. Group F hooks the edit
+**Size / dependencies.** M. After A and groups-and-trips phase 1 (which owns migration 0008); before or
+after phase 2. Migration: `category` and `edited_at`. Group F hooks the edit
 notification into this PATCH later.
 
 ## 10. Admin page: add and remove people
@@ -620,23 +623,26 @@ route; a new member whose email collides with an existing slug signs in fine.
 
 | Order | Group | Branch | Items | Size | Migration | Needs |
 |---|---|---|---|---|---|---|
-| 1 | A | `claude/safety-rails` | none: `dev` database, reload guard, error boundaries | S | no | - |
-| 2 | B | `claude/expenses-edit-chart` | 9 | M | yes: `category`, `edited_at` | A |
-| 3 | - | (groups-and-trips plan) | phases 1-2 | L | yes | A |
-| 4 | C | `claude/nav-header` | 0 (= phase 3) | M | no | phase 2 |
-| 5 | D | (groups-and-trips plan) | 10 (= phases 4-5) | M + M | maybe | phase 2 |
-| 6 | E | `claude/notifications-core` | 6, 7, and two parts of 2 | L | yes: unify | phase 3 |
-| 7 | F | `claude/notifications-more` | 8 | L | yes: `notify_prefs` | E, B |
-| 8 | G | `claude/edit-messages` | 5 | M | yes: `edited_at` | E |
-| 9 | H | `claude/cleanup` | dropping the old pieces | S | yes: drops | E, F, G live for a week |
+| 1 | - | (groups-and-trips plan, in progress) | phase 1 | L | yes: `0008_groups_and_trips` | - |
+| 2 | A | `claude/safety-rails` | none: `dev` database, reload guard, error boundaries | S | no | lands before phase 2 |
+| 3 | B | `claude/expenses-edit-chart` | 9 | M | yes: `category`, `edited_at` | A, phase 1 |
+| 4 | - | (groups-and-trips plan) | phase 2 | L | maybe | A |
+| 5 | C | `claude/nav-header` | 0 (= phase 3) | M | no | phase 2 |
+| 6 | D | (groups-and-trips plan) | 10 (= phases 4-5) | M + M | maybe | phase 2 |
+| 7 | E | `claude/notifications-core` | 6, 7, and two parts of 2 | L | yes: unify | phase 3 |
+| 8 | F | `claude/notifications-more` | 8 | L | yes: `notify_prefs` | E, B |
+| 9 | G | `claude/edit-messages` | 5 | M | yes: `edited_at` | E |
+| 10 | H | `claude/cleanup` | dropping the old pieces | S | yes: drops | E, F, G live for a week |
 
 ```mermaid
 flowchart LR
-  A["A safety rails"] --> B["B expenses (9)"]
-  A --> P12["groups-and-trips phases 1-2"]
-  B -.-> P12
-  P12 --> C["C nav (0) = phase 3"]
-  P12 --> D["D people (10) = phases 4-5"]
+  P1["groups-and-trips phase 1 (in progress)"] --> B["B expenses (9)"]
+  A["A safety rails"] --> B
+  P1 --> P2["groups-and-trips phase 2"]
+  A --> P2
+  B -.-> P2
+  P2 --> C["C nav (0) = phase 3"]
+  P2 --> D["D people (10) = phases 4-5"]
   C --> E["E notifications (6-7)"]
   E --> F["F more kinds (8)"]
   B --> F
@@ -645,19 +651,20 @@ flowchart LR
   G --> H
 ```
 
-- Migrations run one at a time in this order: B, phases 1-2, E, F, G, H, with whatever phases 4-7 add slotted
-  in wherever they land. The file numbers are assigned when each is generated.
-- B can also wait until after phase 2 and be built under `/api/t/[tripId]/`. Going first is recommended
-  only because settling this trip's expenses is happening now.
+- Migrations run one at a time in this order: phase 1 (`0008`), B, phase 2, E, F, G, H, with whatever
+  phases 4-7 add slotted in wherever they land. The file numbers are assigned when each is generated.
+- B can also wait until after phase 2 and be built under `/api/t/[tripId]/`. Going before phase 2 is
+  recommended only because settling this trip's expenses is happening now.
 - Phases 4-7 of groups-and-trips can interleave with E, F and G, as long as only one migration PR is open
   at a time.
 - **H** drops `comment_mentions` and `users.notify_mentions`, `notify_covered` and `notify_messages`, and
   removes the one-release adapters (the old notification and mark-read endpoints, `unreadMentions` in
   `/api/me`, and the old pref keys). Its PR title carries `[no-popup]`.
 
-Why this order: A first, because it makes every later PR safe to test and safe to deploy, and phase 2 (every
-route and URL moving at once) is exactly the change that breaks open phones without it. B next, because it's
-small, useful right now, and a gentle first run of the new `dev` workflow. Then groups-and-trips, as agreed.
+Why this order: phase 1 is already under way and owns migration 0008. A must land before phase 2, because
+phase 2 (every route and URL moving at once) is exactly the change that breaks open phones without the
+reload guard and the error boundaries. B goes after phase 1, because it's small, useful right now, and a
+gentle first run of the `dev` workflow. Then the rest of groups-and-trips, as agreed.
 E waits for phase 3, so the bell it rewrites is already in the header and already trip-scoped. G waits for E,
 because tags change tables.
 
@@ -684,7 +691,7 @@ Build:
 
 Don't change features, and don't add migrations. Gates: npm run typecheck && npm run build. On the PR preview: a forced throw in a page shows error.tsx with the bottom nav still there; a forced throw in MentionBanner leaves the app usable; pushing a second commit reloads an open tab on the branch URL once.
 
-Put the console steps for me in the PR body as a checklist: create the Neon `dev` branch; set DATABASE_URL for Preview and Development to it (Config) and in .env.local; add VIEWER_USERS to Preview; keep VAPID_* and GMAIL_* Production-only; check that the preview URL is an authorized redirect URI in Google Cloud.
+Put the console steps for me in the PR body as a checklist (groups-and-trips phase 1 may already have done the first two; check before repeating them): create the Neon `dev` branch; set DATABASE_URL for Preview and Development to it (Config) and in .env.local; add VIEWER_USERS to Preview; keep VAPID_* and GMAIL_* Production-only; check that the preview URL is an authorized redirect URI in Google Cloud.
 
 Deliver: branch claude/safety-rails from the latest main, small commits, push, gh pr create with "[no-popup]" in the title. Don't merge.
 ```
@@ -692,7 +699,7 @@ Deliver: branch claude/safety-rails from the latest main, small commits, push, g
 ### B. Expenses: edit and charts (item 9)
 
 ```text
-Repo /Users/idodwek/camping (GitHub idodjeen/camping). Implement item 9 from docs/roadmap.md (group B).
+Repo /Users/idodwek/camping (GitHub idodjeen/camping). Implement item 9 from docs/roadmap.md (group B). groups-and-trips phase 1 is already on main: expenses carry trip_id, and the app still reads trip 1 everywhere. Keep it that way; phase 2 moves the routes later.
 
 Read first: AGENTS.md (check node_modules/next/dist/docs/ before using any Next API), the Overview and section 9 of docs/roadmap.md, then src/app/(app)/expenses/page.tsx, src/lib/expenses.ts, src/app/api/expenses/route.ts, src/app/api/expenses/[id]/route.ts and src/db/schema.ts. Load the dataviz skill before writing the chart.
 
