@@ -57,6 +57,13 @@
       "when": 1790441264692,
       "tag": "0007_push_subscriptions",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791314607575,
+      "tag": "0008_groups_and_trips",
+      "breakpoints": true
     }
   ]
 }

@@ -26,6 +26,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
       avatarUrl: null,
       isAdmin: false,
       isShopper: false,
+      isSuperAdmin: false,
       onboardedAt: new Date(0),
       notifyMentions: false,
       notifyCovered: false,

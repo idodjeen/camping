@@ -16,12 +16,20 @@ import { config } from "dotenv";
 config({ path: ".env.local" });
 config({ path: ".env" });
 
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import { parseAllowlist } from "../lib/allowlist.js";
-import { GEAR, MEALS, ROSTER, SHOPPING, TRIP } from "./seed-data.js";
+import { GEAR, GROUP, MEALS, ROSTER, SHOPPING, TRIP } from "./seed-data.js";
 
 const RESET = process.argv.includes("--reset");
+
+/**
+ * The seed fills the original group's first trip and nothing else. Other groups
+ * and trips are created from the app, which copies GEAR and SHOPPING as their
+ * starting template.
+ */
+const GROUP_ID = 1;
+const TRIP_ID = 1;
 
 async function main() {
   const { db } = await import("./index.js");
@@ -33,17 +41,31 @@ async function main() {
       TRUNCATE TABLE
         ${s.mealShoppingItems}, ${s.meals}, ${s.shoppingItems}, ${s.shoppingCategories},
         ${s.gearClaims}, ${s.gearItems}, ${s.gearCategories},
-        ${s.personalItems}, ${s.users}, ${s.trip}
+        ${s.personalItems}, ${s.users}, ${s.trip}, ${s.groups}
       RESTART IDENTITY CASCADE
     `);
   }
 
   await db.transaction(async (tx) => {
-    /* ---------------------------------------------------------------- trip */
+    /* -------------------------------------------------------- group + trip */
+    await tx
+      .insert(s.groups)
+      .values({ id: GROUP_ID, ...GROUP })
+      // Do nothing on conflict: the name may since have been changed in the app.
+      .onConflictDoNothing();
     await tx
       .insert(s.trip)
-      .values({ id: 1, ...TRIP })
+      .values({ id: TRIP_ID, groupId: GROUP_ID, ...TRIP })
       .onConflictDoUpdate({ target: s.trip.id, set: { ...TRIP } });
+
+    // An explicit id does not advance a serial's sequence, so without this the
+    // first group or trip created from the app would also be given id 1.
+    for (const table of ["groups", "trip"]) {
+      await tx.execute(sql`
+        SELECT setval(pg_get_serial_sequence(${table}, 'id'),
+                      (SELECT max(id) FROM ${sql.identifier(table)}))
+      `);
+    }
 
     /* --------------------------------------------------------------- users */
     const allowed = parseAllowlist();
@@ -66,7 +88,7 @@ async function main() {
         );
       }
 
-      await tx
+      const [user] = await tx
         .insert(s.users)
         .values({
           email: entry.email,
@@ -75,6 +97,7 @@ async function main() {
           avatarUrl: `/avatars/${slug}.jpg`,
           isAdmin: role?.isAdmin ?? false,
           isShopper: role?.isShopper ?? false,
+          isSuperAdmin: role?.isAdmin ?? false,
         })
         .onConflictDoUpdate({
           target: s.users.email,
@@ -87,7 +110,19 @@ async function main() {
             isAdmin: role?.isAdmin ?? false,
             isShopper: role?.isShopper ?? false,
           },
-        });
+        })
+        .returning({ id: s.users.id });
+
+      // Memberships are only ever inserted, never updated: once the group admin
+      // has changed a role or a shopper in the app, re-seeding must not undo it.
+      await tx
+        .insert(s.groupMembers)
+        .values({ groupId: GROUP_ID, userId: user.id, role: role?.isAdmin ? "admin" : "editor" })
+        .onConflictDoNothing();
+      await tx
+        .insert(s.tripMembers)
+        .values({ tripId: TRIP_ID, userId: user.id, isShopper: role?.isShopper ?? false })
+        .onConflictDoNothing();
     }
 
     /* ---------------------------------------------------------------- gear */
@@ -95,14 +130,18 @@ async function main() {
     for (const [catIndex, cat] of GEAR.entries()) {
       const [category] = await tx
         .insert(s.gearCategories)
-        .values({ name: cat.name, sort: catIndex })
-        .onConflictDoUpdate({ target: s.gearCategories.name, set: { sort: catIndex } })
+        .values({ tripId: TRIP_ID, name: cat.name, sort: catIndex })
+        .onConflictDoUpdate({
+          target: [s.gearCategories.tripId, s.gearCategories.name],
+          set: { sort: catIndex },
+        })
         .returning();
 
       for (const item of cat.items) {
         await tx
           .insert(s.gearItems)
           .values({
+            tripId: TRIP_ID,
             categoryId: category.id,
             name: item.name,
             qtyNeeded: item.qtyNeeded,
@@ -130,14 +169,18 @@ async function main() {
     for (const [catIndex, cat] of SHOPPING.entries()) {
       const [category] = await tx
         .insert(s.shoppingCategories)
-        .values({ name: cat.name, sort: catIndex })
-        .onConflictDoUpdate({ target: s.shoppingCategories.name, set: { sort: catIndex } })
+        .values({ tripId: TRIP_ID, name: cat.name, sort: catIndex })
+        .onConflictDoUpdate({
+          target: [s.shoppingCategories.tripId, s.shoppingCategories.name],
+          set: { sort: catIndex },
+        })
         .returning();
 
       for (const [i, item] of cat.items.entries()) {
         await tx
           .insert(s.shoppingItems)
           .values({
+            tripId: TRIP_ID,
             categoryId: category.id,
             name: item.name,
             quantityText: item.quantityText ?? null,
@@ -145,7 +188,7 @@ async function main() {
             sort: i,
           })
           .onConflictDoUpdate({
-            target: s.shoppingItems.name,
+            target: [s.shoppingItems.tripId, s.shoppingItems.name],
             // isBought / boughtBy / boughtAt are intentionally absent: re-seeding
             // must never un-buy something a shopper has already picked up.
             set: {
@@ -162,7 +205,8 @@ async function main() {
     /* --------------------------------------------------------------- meals */
     const shoppingRows = await tx
       .select({ id: s.shoppingItems.id, name: s.shoppingItems.name })
-      .from(s.shoppingItems);
+      .from(s.shoppingItems)
+      .where(eq(s.shoppingItems.tripId, TRIP_ID));
     const byName = new Map(shoppingRows.map((r) => [r.name, r.id]));
 
     // Fail loudly on a typo between MEALS[].links and SHOPPING[].items[].name,
@@ -179,6 +223,7 @@ async function main() {
       const [row] = await tx
         .insert(s.meals)
         .values({
+          tripId: TRIP_ID,
           date: meal.date,
           slot: meal.slot,
           title: meal.title,
@@ -186,7 +231,7 @@ async function main() {
           sort: i,
         })
         .onConflictDoUpdate({
-          target: [s.meals.date, s.meals.slot],
+          target: [s.meals.tripId, s.meals.date, s.meals.slot],
           set: { title: meal.title, description: meal.description ?? null, sort: i },
         })
         .returning();
@@ -194,7 +239,7 @@ async function main() {
       for (const name of meal.links) {
         await tx
           .insert(s.mealShoppingItems)
-          .values({ mealId: row.id, shoppingItemId: byName.get(name)! })
+          .values({ tripId: TRIP_ID, mealId: row.id, shoppingItemId: byName.get(name)! })
           .onConflictDoNothing();
         linkCount++;
       }

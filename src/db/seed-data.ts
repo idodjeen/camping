@@ -218,6 +218,9 @@ export const MEALS: MealSeed[] = [
   },
 ];
 
+/** The original group. Its name can be changed in the app; re-seeding leaves it alone. */
+export const GROUP = { name: "מחנאות" };
+
 export const TRIP = {
   name: "מחנאות 2026",
   startDate: "2026-10-01",
