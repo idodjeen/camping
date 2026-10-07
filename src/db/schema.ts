@@ -144,11 +144,11 @@ export const tripMembers = pgTable(
 /**
  * The trip a content row belongs to.
  *
- * DEFAULT 1 is temporary. Since groups phase 2 every insert names its trip
- * explicitly; the default only remains so code still running from the phase 1
- * deploy keeps working. It must be dropped before a second trip can be created
- * (groups phase 4), so a forgotten trip id fails loudly instead of quietly
- * landing in the original group's trip.
+ * No default, on purpose. Phase 1 had a temporary DEFAULT 1 so the code of the
+ * day kept inserting unchanged; groups phase 4 dropped it, because once a
+ * second trip can exist, an insert that forgot its trip must fail loudly
+ * instead of quietly landing in the original group's trip. TypeScript makes
+ * `tripId` required on every insert for the same reason.
  *
  * Rows that point at other trip-scoped rows also carry a composite foreign key
  * on (trip_id, x_id), so the database itself refuses a link across trips.
@@ -156,7 +156,6 @@ export const tripMembers = pgTable(
 const tripId = () =>
   integer("trip_id")
     .notNull()
-    .default(1)
     .references(() => trip.id, { onDelete: "cascade" });
 
 /* ------------------------------------------------------------------- gear */
