@@ -6,6 +6,7 @@ import useSWR from "swr";
 
 import { Modal } from "@/components/modal";
 import { fetcher } from "@/lib/api";
+import { isOutdated, reloadOnce, useReloadGuard } from "@/lib/reload-guard";
 
 type Release = { sha: string; title: string; body: string; silent: boolean };
 
@@ -33,6 +34,10 @@ const write = (sha: string) => {
  * user is already getting the onboarding cards and has nothing "new" to catch
  * up on. Polling means someone with the app open sees it when a deploy lands,
  * not only on their next cold start.
+ *
+ * The same poll tells an open tab it's running an old bundle. The sheet's
+ * button then reloads; with no sheet (a [no-popup] commit, or one already
+ * seen) the reload guard waits for a calm moment.
  */
 export function WhatsNew() {
   const { data } = useSWR<Release>("/api/release", fetcher, {
@@ -41,14 +46,27 @@ export function WhatsNew() {
     shouldRetryOnError: false,
   });
   const [release, setRelease] = useState<Release | null>(null);
+  // The deployed commit, while it isn't the one this tab is running.
+  const [outdated, setOutdated] = useState<string | null>(null);
 
   useEffect(() => {
     if (!data || data.sha === "local") return;
     const seen = read();
-    if (seen === data.sha) return;
-    write(data.sha);
-    if (seen !== null && !data.silent && data.title) setRelease(data);
+    if (seen !== data.sha) {
+      write(data.sha);
+      if (seen !== null && !data.silent && data.title) setRelease(data);
+    }
+    // Same pass as setRelease, so the guard never sees an outdated tab
+    // before it knows whether the sheet is about to open.
+    setOutdated(isOutdated(data.sha) ? data.sha : null);
   }, [data]);
+
+  useReloadGuard(release ? null : outdated);
+
+  const acknowledge = () => {
+    setRelease(null);
+    if (outdated) reloadOnce(outdated);
+  };
 
   return (
     <Modal open={release !== null} onClose={() => setRelease(null)} title="חדש באפליקציה">
@@ -65,7 +83,7 @@ export function WhatsNew() {
           </p>
         )}
         <button
-          onClick={() => setRelease(null)}
+          onClick={acknowledge}
           className="tap mt-5 w-full rounded-2xl bg-gradient-to-l from-brand-500 to-ocean-500 px-5 text-sm font-bold text-white shadow-lg transition active:scale-[0.98]"
         >
           הבנתי
