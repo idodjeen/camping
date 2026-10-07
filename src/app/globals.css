@@ -29,6 +29,26 @@
   --radius-glass: 1.25rem;
 }
 
+/* Chart series, in this fixed order and never cycled: slot N always means
+   the Nth thing (a category, a trip member), so a color follows its entity.
+   In slot order every neighboring pair stays apart for color-blind readers
+   (validated on the glass card, #0d0d18: deltaE >= 8.4 simulated, >= 19.3
+   unsimulated, all >= 3:1). A donut sorts by size, so any two can touch;
+   there the gaps and the legend carry identity, not color alone.
+   `static`: charts read these as var(--color-series-N) from inline styles,
+   which Tailwind can't see, and it drops theme variables no class uses. */
+@theme static {
+  --color-series-1: #3987e5;
+  --color-series-2: #d95926;
+  --color-series-3: #199e70;
+  --color-series-4: #c98500;
+  --color-series-5: #d55181;
+  --color-series-6: #008300;
+  --color-series-7: #9085e9;
+  --color-series-8: #e66767;
+  --color-series-rest: #6b6b80;
+}
+
 /* The app is dark-only by design, but keeping the class-based variant means a
    light theme could be added later without rewriting every utility. */
 @custom-variant dark (&:where(.dark, .dark *));
