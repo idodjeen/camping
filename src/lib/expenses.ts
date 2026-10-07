@@ -77,3 +77,37 @@ export function formatMoney(agorot: number): string {
   const shekels = agorot / 100;
   return `₪${Number.isInteger(shekels) ? shekels : shekels.toFixed(2)}`;
 }
+
+/** agorot -> what the amount field shows: "45", "45.50". The inverse of parseAmount. */
+export function amountToInput(agorot: number): string {
+  return agorot % 100 === 0 ? String(agorot / 100) : (agorot / 100).toFixed(2);
+}
+
+/**
+ * Stored as text and checked by the API, not the database, so this list can
+ * change without a migration. The order is the chip order in the form and the
+ * color slot in the chart.
+ */
+export const EXPENSE_CATEGORIES = [
+  { key: "food", label: "אוכל ושתייה" },
+  { key: "fuel", label: "דלק ונסיעות" },
+  { key: "lodging", label: "לינה" },
+  { key: "gear", label: "ציוד" },
+  { key: "activities", label: "פעילויות" },
+  { key: "other", label: "אחר" },
+] as const;
+
+export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number]["key"];
+
+export function isCategory(value: unknown): value is ExpenseCategory {
+  return EXPENSE_CATEGORIES.some((c) => c.key === value);
+}
+
+/** A stored value read back: anything this build doesn't know shows as "other". */
+export function categoryOf(value: string): ExpenseCategory {
+  return isCategory(value) ? value : "other";
+}
+
+export function categoryLabel(value: string): string {
+  return EXPENSE_CATEGORIES.find((c) => c.key === categoryOf(value))!.label;
+}

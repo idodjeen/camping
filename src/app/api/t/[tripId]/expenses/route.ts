@@ -3,17 +3,16 @@ import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { expenseShares, expenses, settlements } from "@/db/schema";
 import { tripRoute, type TripParams } from "@/lib/access";
+import { parseExpenseInput } from "@/lib/expense-input";
 import { computeBalances, simplifyDebts, splitEqually } from "@/lib/expenses";
-import { handle, HttpError } from "@/lib/session";
+import { handle } from "@/lib/session";
 import { tripPeople } from "@/lib/trips";
 
 export const dynamic = "force-dynamic";
 
-const MAX_AMOUNT = 10_000_000; // ₪100,000 - a typo guard, not a real limit
-
 export function GET(_req: Request, ctx: TripParams) {
   return handle(async () => {
-    const { trip, user: me, isAdmin } = await tripRoute(ctx);
+    const { trip, user: me, isAdmin, canWrite } = await tripRoute(ctx);
 
     const tripExpenses = db
       .select({ id: expenses.id })
@@ -49,9 +48,12 @@ export function GET(_req: Request, ctx: TripParams) {
       paidBy: e.paidBy,
       createdBy: e.createdBy,
       createdAt: e.createdAt,
+      category: e.category,
+      editedAt: e.editedAt,
       shares: sharesByExpense.get(e.id) ?? [],
-      // Presentation only; the DELETE handler enforces the same rule.
+      // Presentation only; the DELETE and PATCH handlers enforce the same rules.
       canDelete: isAdmin || e.createdBy === me.id || e.paidBy === me.id,
+      canEdit: canWrite && (isAdmin || e.createdBy === me.id),
     }));
 
     const balances = computeBalances(full, settlementRows);
@@ -75,45 +77,28 @@ export function GET(_req: Request, ctx: TripParams) {
   });
 }
 
-/**
- * Add an expense. `amount` is integer agorot; the client parses "45.50" so the
- * server never has to guess at locale-specific decimal separators.
- */
+/** Add an expense. Validation lives in parseExpenseInput, shared with PATCH. */
 export function POST(req: Request, ctx: TripParams) {
   return handle(async () => {
     const { trip, user: me } = await tripRoute(ctx, "write");
-    const body = (await req.json()) as {
-      description?: string;
-      amount?: number;
-      paidBy?: number;
-      sharedWith?: number[];
-    };
+    const input = await parseExpenseInput(await req.json().catch(() => null), {
+      tripId: trip.id,
+      me: me.id,
+    });
 
-    const description = body.description?.trim();
-    if (!description) throw new HttpError(400, "צריך לתאר את ההוצאה");
-    if (description.length > 100) throw new HttpError(400, "התיאור ארוך מדי");
-
-    const amount = body.amount;
-    if (!Number.isInteger(amount) || amount! < 1 || amount! > MAX_AMOUNT) {
-      throw new HttpError(400, "סכום לא תקין");
-    }
-
-    const sharedWith = [...new Set(body.sharedWith ?? [])];
-    if (sharedWith.length === 0) throw new HttpError(400, "צריך לבחור עם מי לחלק");
-
-    const paidBy = body.paidBy ?? me.id;
-    // Everyone named must be on this trip; ids from the request are never trusted.
-    const onTrip = new Set((await tripPeople(trip.id)).map((p) => p.id));
-    if (![paidBy, ...sharedWith].every((id) => onTrip.has(id))) {
-      throw new HttpError(400, "אחד המשתתפים לא נמצא");
-    }
-
-    const shares = splitEqually(amount!, sharedWith);
+    const shares = splitEqually(input.amount, input.sharedWith);
 
     const expense = await db.transaction(async (tx) => {
       const [created] = await tx
         .insert(expenses)
-        .values({ tripId: trip.id, description, amount: amount!, paidBy, createdBy: me.id })
+        .values({
+          tripId: trip.id,
+          description: input.description,
+          amount: input.amount,
+          paidBy: input.paidBy,
+          category: input.category,
+          createdBy: me.id,
+        })
         .returning();
       await tx
         .insert(expenseShares)
