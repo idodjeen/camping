@@ -31,7 +31,8 @@ export function Toaster() {
   }, []);
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-3 z-50 flex flex-col items-center gap-2 px-4">
+    // Clears the status bar: the app draws under it (black-translucent).
+    <div className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top,0px)+0.75rem)] z-50 flex flex-col items-center gap-2 px-4">
       <AnimatePresence>
         {items.map((t) => (
           <motion.div
