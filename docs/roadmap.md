@@ -98,9 +98,12 @@ Neon integration's own variables carry a `check_env_` prefix (below), and the ap
 `DATABASE_URL`, so the integration's per-preview branches would never be used. Per-PR branches would also
 add nothing while only one migration PR is open at a time.
 
-- Done on Oct 6 with phase 1: the `dev` branch exists and `.env.local` points at it. Still to do: set
-  `DATABASE_URL` for **Preview** and **Development** to it on Vercel (Config type). Today it's one entry
-  scoped to both Preview and Production, so take Preview off that entry and add a separate one.
+- Done: the `dev` branch exists, `.env.local` points at it (Oct 6), and Vercel's Preview and
+  Development `DATABASE_URL` point at it too (Oct 7). Previews are now a safe place to test.
+- Preview sign-in works through `AUTH_REDIRECT_PROXY_URL=https://camping-rosy.vercel.app/api/auth`
+  (Config, Production and Preview, same `AUTH_SECRET`): every preview's Google sign-in is relayed
+  through production's registered callback, so no per-preview redirect URI is needed. Sign in on the
+  branch alias (`camping-git-<branch>-idodjeen.vercel.app`). Redeploy Production after changing it.
 - Run migrations on `dev` from your machine (`npm run db:migrate`). If a PR is abandoned, use "Reset
   from parent" on `dev`.
 - Production migrations stay manual and explicit: `CONFIRM_PROD=1 DATABASE_URL="<prod url>" npm run
@@ -109,17 +112,18 @@ add nothing while only one migration PR is open at a time.
 - `dev` copies everyone's push subscriptions and emails. That's safe only while previews can't send
   either (see `VAPID_*` and `GMAIL_*` below).
 
-### Environment variables (checked Oct 6, names and scopes only)
+### Environment variables (checked Oct 6, updated Oct 8; names and scopes only)
 
 | Variable | Production | Preview | Development | What it means |
 |---|---|---|---|---|
-| `DATABASE_URL` | prod, Config | **the same prod database** | - | Every preview writes real trip data today (still true after phase 1, rechecked Oct 6). Until group A moves Preview and Development to `dev`, test locally, not on previews. |
+| `DATABASE_URL` | prod, Config | `dev` branch | `dev` branch | Fixed Oct 7: previews read and write the `dev` copy, not real trip data. |
 | `ALLOWED_USERS` | yes | yes | - | Members can sign in on previews. Retired by groups-and-trips phase 2. |
-| `VIEWER_USERS` | yes, Secret | **missing** | - | A viewer can't sign in on a preview, so the viewer 403 checks can't run there. Group A adds it to Preview. |
+| `VIEWER_USERS` | yes, Secret | yes | - | Added to Preview Oct 7. Only imported on a viewer's first sign-in; deleted in groups phase 7. |
 | `VAPID_*` | yes, Secret | missing | - | Previews can't send push at all (`sendPush` does nothing without keys), so they can't buzz real phones. To test group E's push on a preview, add a **new** key pair to Preview. Never copy production's: with `dev`'s copied subscriptions, it would reach friends' phones. |
 | `GMAIL_*` | yes, Secret | missing | - | Previews can't email anyone. Keep it that way. |
 | `AUTH_URL` | yes | missing | - | Keep it out of Preview: it would send preview sign-ins to production. |
-| `AUTH_SECRET`, `AUTH_GOOGLE_*` | yes | yes | - | Preview sign-in also needs the preview URL as an authorized redirect URI in Google Cloud. Check once in group A. |
+| `AUTH_SECRET`, `AUTH_GOOGLE_*` | yes | yes | - | Same `AUTH_SECRET` on both, which the redirect proxy requires. |
+| `AUTH_REDIRECT_PROXY_URL` | yes, Config | yes, Config | - | `https://camping-rosy.vercel.app/api/auth` on both. Relays preview sign-ins through production (added Oct 7, Preview value fixed Oct 8). |
 | `CLOUDINARY_*` (3) | yes, Config | - | - | Unused while photos are deferred. Remove them, or keep them for later. |
 | `check_env_*` (19) | yes, Secret | yes, Secret | - | The Neon integration's own variables (database URLs, passwords, Neon Auth). Nothing in the code reads them. Leave them unless you remove the integration. |
 | `AUTH_TRUST_HOST` | Secret | Secret | - | Redundant: `auth.config.ts` sets `trustHost: true`. |
@@ -615,7 +619,7 @@ second sign-in fail.
 - **Slug collisions.** `getOrCreateUser()` makes the slug unique (`-2`, `-3`), or `user-<id>` when the
   email has no usable Latin letters. The avatar already falls back to the gradient initial without a file.
 - **Names stay usable as tags.** A display name has 1-20 characters, no spaces, and isn't used by anyone
-  else on the same trip. Tags match "@name", so two ניר would both be tagged, and the @ picker stops at a
+  else in the same group (phase 4 enforces it per group). Tags match "@name", so two ניר would both be tagged, and the @ picker stops at a
   space.
 - **Removal applies at once.** `getCurrentUser()` already reads the database on every request; it must also
   check membership there, so removing someone takes effect despite a 30-day session. Pages then send them
@@ -642,11 +646,11 @@ route; a new member whose email collides with an existing slug signs in fine.
 | Order | Group | Branch | Items | Size | Migration | Needs |
 |---|---|---|---|---|---|---|
 | 1 | - | done: [PR #5](https://github.com/idodjeen/camping/pull/5) | groups-and-trips phase 1 | L | yes: `0008_groups_and_trips` | - |
-| 2 | A | `claude/safety-rails` (in progress) | none: `dev` database, reload guard, error boundaries | S | no | lands before phase 2 |
-| 3 | - | `claude/groups-phase-2` (in progress) | groups-and-trips phase 2 | L | no: its drops wait (see below) | A |
-| 4 | B | `claude/expenses-edit-chart` | 9 | M | yes: `category`, `edited_at` | A, phase 2 |
-| 5 | C | `claude/nav-header` | 0 (= phase 3) | M | no | phase 2 |
-| 6 | D | (groups-and-trips plan) | 10 (= phases 4-5) | M + M | yes: drops `trip_id DEFAULT 1` first | phase 2 |
+| 2 | A | done: [PR #6](https://github.com/idodjeen/camping/pull/6), [#8](https://github.com/idodjeen/camping/pull/8) | none: `dev` database, reload guard, error boundaries | S | no | lands before phase 2 |
+| 3 | - | done: [PR #7](https://github.com/idodjeen/camping/pull/7) | groups-and-trips phase 2 | L | no: its drops wait (see below) | A |
+| 4 | B | done: [PR #10](https://github.com/idodjeen/camping/pull/10) | 9 | M | yes: `0009_expense_category` | A, phase 2 |
+| 5 | C | done: [PR #9](https://github.com/idodjeen/camping/pull/9), fixes [#11](https://github.com/idodjeen/camping/pull/11), [#12](https://github.com/idodjeen/camping/pull/12) | 0 (= phase 3) | M | no | phase 2 |
+| 6 | D | phase 4 done: [PR #13](https://github.com/idodjeen/camping/pull/13); phase 5 next | 10 (= phases 4-5) | M + M | phase 4: `0010_drop_trip_default` | phase 2 |
 | 7 | E | `claude/notifications-core` | 6, 7, and two parts of 2 | L | yes: unify | phase 3 |
 | 8 | F | `claude/notifications-more` | 8 | L | yes: `notify_prefs` | E, B |
 | 9 | G | `claude/edit-messages` | 5 | M | yes: `edited_at` | E |
