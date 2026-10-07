@@ -1,7 +1,7 @@
 /**
  * The production check shared by every script that writes to DATABASE_URL:
- * db:migrate, db:push, db:seed and db:reset. Each refuses the production
- * database unless CONFIRM_PROD=1.
+ * db:migrate, db:seed and db:reset. Each refuses the production database
+ * unless CONFIRM_PROD=1.
  *
  * Production is recognised by host: PROD_DB_HOST, which lives only in
  * .env.local. Without it a script can't tell production from dev, so it
@@ -10,7 +10,7 @@
  * Two ways in:
  *   - import { guardProd } and call it first (scripts/db-migrate.mjs)
  *   - run it ahead of a command that can't import it, in package.json:
- *       node scripts/prod-guard.mjs db:push && drizzle-kit push
+ *       node scripts/prod-guard.mjs db:seed && tsx src/db/seed.ts
  *     It exits 1 on refusal, so the `&&` never reaches the command.
  */
 import { resolve } from "node:path";

@@ -10,7 +10,6 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/db-migrate.mjs",
-    "db:push": "node scripts/prod-guard.mjs db:push && drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:seed": "node scripts/prod-guard.mjs db:seed && tsx src/db/seed.ts",
     "db:reset": "node scripts/prod-guard.mjs db:reset && tsx src/db/seed.ts --reset"

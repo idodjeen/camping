@@ -2,8 +2,8 @@
  * `npm run db:migrate`: applies ./drizzle to DATABASE_URL, and refuses the
  * production database unless CONFIRM_PROD=1.
  *
- * The check itself lives in scripts/prod-guard.mjs, shared with db:push,
- * db:seed and db:reset.
+ * The check itself lives in scripts/prod-guard.mjs, shared with db:seed and
+ * db:reset.
  *
  * Uses drizzle-orm's neon-serverless migrator, not `drizzle-kit migrate`,
  * which exits silently over its websocket. Same journal and the same
