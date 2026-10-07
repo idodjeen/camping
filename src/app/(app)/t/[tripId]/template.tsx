@@ -32,10 +32,14 @@ export default function Template({ children }: { children: React.ReactNode }) {
 
   const idx = ORDER.indexOf(navHref(pathname));
   const dir = !hydrated || idx === -1 || idx === lastIndex ? 0 : idx > lastIndex ? -1 : 1;
-  if (idx !== -1 && typeof window !== "undefined") lastIndex = idx;
+  // Updated after commit, never during render: React may render this twice
+  // (Strict Mode in dev, retried transitions anywhere), and a second render
+  // would read the new tab as "last" and lose the slide. Effects also never
+  // run on the server, so its copy of lastIndex is never touched.
   useEffect(() => {
     hydrated = true;
-  }, []);
+    if (idx !== -1) lastIndex = idx;
+  }, [idx]);
 
   if (reduce) return <>{children}</>;
 
