@@ -107,6 +107,10 @@ npm run dev          # http://localhost:3000
 | `npm run db:reset` | ⚠️ Truncates everything, then reseeds |
 | `npm run db:studio` | Drizzle Studio (browse the data) |
 
+`db:migrate`, `db:push`, `db:seed` and `db:reset` refuse the production database unless
+`CONFIRM_PROD=1`, and refuse to run at all until `PROD_DB_HOST` is set in `.env.local`
+(see `.env.example`). The check is `scripts/prod-guard.mjs`.
+
 ### About the seed
 
 `npm run db:seed` can be run any number of times against the live database. Re-running

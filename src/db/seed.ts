@@ -4,6 +4,9 @@
  *   npm run db:seed     -- safe to re-run; never touches claims or purchases
  *   npm run db:reset    -- hard wipe, then reseed
  *
+ * Both npm scripts run scripts/prod-guard.mjs first, which refuses the
+ * production database unless CONFIRM_PROD=1. Calling tsx directly skips it.
+ *
  * Re-running updates seeded *content* (names, quantities, meal links) while
  * deliberately preserving *state* the group has created: gear claims, packed
  * flags, personal lists, who bought what, and onboarding progress.
