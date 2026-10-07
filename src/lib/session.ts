@@ -2,20 +2,21 @@ import { NextResponse } from "next/server";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
-import { findUserByEmail } from "@/lib/user";
+import { findActiveUser } from "@/lib/user";
 import type { User } from "@/db/schema";
 
 /**
- * The signed-in person's row, re-read from the database on every call.
+ * The signed-in person's row, re-read from the database on every call, and
+ * null once they belong to no group (see findActiveUser).
  *
- * Who they are, not what they may do: permissions depend on which trip a
- * request is about, and live in lib/access.ts.
+ * Who they are, not what they may do: permissions depend on which trip or
+ * group a request is about, and live in lib/access.ts.
  */
 export async function getCurrentUser(): Promise<User | null> {
   const session = await auth();
   const email = session?.user?.email;
   if (!email) return null;
-  return findUserByEmail(email);
+  return findActiveUser(email);
 }
 
 export class HttpError extends Error {
@@ -48,14 +49,15 @@ export async function requireSuperAdmin(): Promise<User> {
 }
 
 /**
- * The same, for pages. A valid session whose row has gone (removed from every
- * group) goes to /no-access rather than /login: the login page bounces anyone
- * with a session straight back here, which would loop forever.
+ * The same, for pages. A valid session whose person belongs to no group any
+ * more (removed from the last one) goes to /no-access rather than /login: the
+ * login page bounces anyone with a session straight back here, which would
+ * loop forever.
  */
 export async function requirePageUser(): Promise<User> {
   const session = await auth();
   if (!session?.user?.email) redirect("/login");
-  const user = await findUserByEmail(session.user.email);
+  const user = await findActiveUser(session.user.email);
   if (!user) redirect("/no-access?error=AccessDenied");
   return user;
 }

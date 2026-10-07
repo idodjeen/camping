@@ -10,6 +10,27 @@ export async function findUserByEmail(rawEmail: string) {
 }
 
 /**
+ * The person behind a session, but only while they still belong somewhere:
+ * the super admin, or a member of at least one group. One query.
+ *
+ * Sessions last 30 days, so this is what makes a removal take effect on the
+ * very next request: someone removed from their last group has a valid
+ * cookie but no longer counts as signed in (401 from the API, /no-access on
+ * pages), exactly like canSignIn would answer for a fresh sign-in.
+ */
+export async function findActiveUser(rawEmail: string) {
+  const [row] = await db
+    .select({
+      user: users,
+      member: sql<boolean>`exists (select 1 from ${groupMembers} where ${groupMembers.userId} = ${users.id})`,
+    })
+    .from(users)
+    .where(eq(users.email, rawEmail.toLowerCase()));
+  if (!row) return null;
+  return row.user.isSuperAdmin || row.member ? row.user : null;
+}
+
+/**
  * The sign-in gate: a super admin, or anyone who belongs to at least one group.
  *
  * Rows are created by whoever adds a person to a group, never by signing in,
