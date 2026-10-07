@@ -1,6 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
 import { ORDER, navHref } from "@/lib/nav";
@@ -9,6 +10,11 @@ import { startSign } from "@/lib/utils";
 
 // Survives remounts (a template is re-created on every navigation).
 let lastIndex = 0;
+// False until the first page has hydrated. The server renders with its own
+// copy of lastIndex, shared by every request, so a direction computed there
+// can disagree with the browser's and break hydration. The first render
+// therefore never slides; only in-app navigations do.
+let hydrated = false;
 
 /**
  * Unlike a layout, a template remounts on each navigation, so the enter
@@ -25,8 +31,11 @@ export default function Template({ children }: { children: React.ReactNode }) {
   const reduce = useReducedMotion();
 
   const idx = ORDER.indexOf(navHref(pathname));
-  const dir = idx === -1 || idx === lastIndex ? 0 : idx > lastIndex ? -1 : 1;
-  if (idx !== -1) lastIndex = idx;
+  const dir = !hydrated || idx === -1 || idx === lastIndex ? 0 : idx > lastIndex ? -1 : 1;
+  if (idx !== -1 && typeof window !== "undefined") lastIndex = idx;
+  useEffect(() => {
+    hydrated = true;
+  }, []);
 
   if (reduce) return <>{children}</>;
 
