@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, ChevronDown, ChevronLeft, Menu } from "lucide-react";
+import type { Route } from "next";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -10,14 +11,14 @@ import { Modal } from "@/components/modal";
 import { NotificationsBell } from "@/components/notifications";
 import { SideSheet } from "@/components/side-sheet";
 import { fetcher, swrConfig } from "@/lib/api";
-import { SECONDARY, badgeFor, isActive, menuBadge, type Unread } from "@/lib/nav";
+import { SECONDARY, badgeFor, canSee, isActive, menuBadge, type MenuRoles, type Unread } from "@/lib/nav";
 import { useTrip } from "@/lib/trip-client";
 import { cn } from "@/lib/utils";
 
 /** A trip the switcher can open; the layout loads the list on the server. */
 export type TripOption = { id: number; name: string; groupId: number; groupName: string };
 
-type Me = { user: { isAdmin: boolean }; unreadMentions: Unread };
+type Me = { user: { isAdmin: boolean; isSuperAdmin: boolean }; unreadMentions: Unread };
 
 /**
  * The header on every trip screen: the menu at the start edge, the group and
@@ -34,8 +35,11 @@ export function AppHeader({ trips }: { trips: TripOption[] }) {
   // Same key the bottom nav polls, so the badge costs no extra request.
   const { data } = useSWR<Me>(api("/me"), fetcher, swrConfig);
   const [menu, setMenu] = useState(false);
-  const isAdmin = data?.user.isAdmin ?? false;
-  const waiting = menuBadge(data?.unreadMentions, isAdmin);
+  const roles: MenuRoles = {
+    isAdmin: data?.user.isAdmin ?? false,
+    isSuperAdmin: data?.user.isSuperAdmin ?? false,
+  };
+  const waiting = menuBadge(data?.unreadMentions, roles);
 
   return (
     <>
@@ -65,7 +69,7 @@ export function AppHeader({ trips }: { trips: TripOption[] }) {
       </header>
 
       <SideSheet open={menu} onClose={() => setMenu(false)} title="תפריט">
-        <NavMenu data={data} isAdmin={isAdmin} onPick={() => setMenu(false)} />
+        <NavMenu data={data} roles={roles} onPick={() => setMenu(false)} />
       </SideSheet>
     </>
   );
@@ -74,11 +78,11 @@ export function AppHeader({ trips }: { trips: TripOption[] }) {
 /** The screens that are not bottom tabs, each with its own badge. */
 function NavMenu({
   data,
-  isAdmin,
+  roles,
   onPick,
 }: {
   data: Me | undefined;
-  isAdmin: boolean;
+  roles: MenuRoles;
   onPick: () => void;
 }) {
   const { page, local } = useTrip();
@@ -86,13 +90,13 @@ function NavMenu({
 
   return (
     <nav className="space-y-1">
-      {SECONDARY.filter((n) => isAdmin || !n.adminOnly).map(({ href, label, Icon }) => {
-        const active = isActive(href, pathname);
+      {SECONDARY.filter((n) => canSee(n, roles)).map(({ href, label, Icon, outsideTrip }) => {
+        const active = !outsideTrip && isActive(href, pathname);
         const badge = badgeFor(href, data?.unreadMentions);
         return (
           <Link
             key={href}
-            href={page(href)}
+            href={outsideTrip ? (href as Route) : page(href)}
             // Closes from the tap itself, not on a pathname change, so tapping
             // the screen you are already on closes the menu too.
             onClick={onPick}

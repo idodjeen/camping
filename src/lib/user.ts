@@ -50,26 +50,7 @@ async function importEnvViewer(email: string): Promise<boolean> {
   if (!viewer) return false;
 
   await db.transaction(async (tx) => {
-    const base = email.split("@")[0].replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "guest";
-    // Slugs are globally unique; the first free numeric suffix settles a clash.
-    const taken = new Set(
-      (
-        await tx
-          .select({ slug: users.slug })
-          .from(users)
-          .where(sql`${users.slug} = ${base} or ${users.slug} like ${base + "-%"}`)
-      ).map((r) => r.slug),
-    );
-    let slug = base;
-    for (let n = 2; taken.has(slug); n++) slug = `${base}-${n}`;
-
-    const [row] = await tx
-      .insert(users)
-      .values({ email, name: viewer.name, slug, avatarUrl: `/avatars/${slug}.jpg` })
-      // Two first sign-ins racing: the loser simply reuses the winner's row.
-      .onConflictDoUpdate({ target: users.email, set: { email } })
-      .returning({ id: users.id });
-
+    const row = await createUser(tx, { email, name: viewer.name });
     await tx
       .insert(groupMembers)
       .values({ groupId: ORIGINAL_GROUP_ID, userId: row.id, role: "viewer" })
@@ -78,4 +59,50 @@ async function importEnvViewer(email: string): Promise<boolean> {
 
   console.info(`imported VIEWER_USERS entry as a viewer of group ${ORIGINAL_GROUP_ID}`);
   return true;
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * A new person's row, with a slug no one else has.
+ *
+ * The slug is the email's local part in Latin letters ("dana.levi" ->
+ * "dana-levi"), with the first free "-2", "-3" on a clash: `users.slug` is
+ * unique, so two "dana@" addresses would otherwise fail the second insert.
+ * When the local part has no Latin letter at all ("0541234567@..."), it's
+ * "user-<id>" instead. No avatar: the five photos in /public/avatars are the
+ * founders', and everyone else gets the gradient initial.
+ *
+ * If the email already has a row (two inserts racing), that row comes back
+ * unchanged, name included: a person has one name everywhere.
+ */
+export async function createUser(tx: Tx, { email, name }: { email: string; name: string }) {
+  const [{ id }] = (
+    await tx.execute<{ id: number }>(sql`select nextval(pg_get_serial_sequence('users', 'id'))::int as id`)
+  ).rows;
+
+  const base = email
+    .split("@")[0]
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  let slug = /[a-z]/.test(base) ? base : `user-${id}`;
+
+  const taken = new Set(
+    (
+      await tx
+        .select({ slug: users.slug })
+        .from(users)
+        .where(sql`${users.slug} = ${slug} or ${users.slug} like ${slug + "-%"}`)
+    ).map((r) => r.slug),
+  );
+  for (let n = 2, root = slug; taken.has(slug); n++) slug = `${root}-${n}`;
+
+  const [row] = await tx
+    .insert(users)
+    .values({ id, email: email.toLowerCase(), name: name.trim(), slug })
+    // Updating email to itself is a no-op that still returns the existing row.
+    .onConflictDoUpdate({ target: users.email, set: { email: sql`excluded.email` } })
+    .returning();
+  return row;
 }
