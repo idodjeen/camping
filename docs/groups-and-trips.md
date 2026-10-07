@@ -124,7 +124,8 @@ not deploy before the column exists.
 
 ## Phases
 
-Each phase is its own PR, and the app keeps working after each one.
+Each phase is its own PR, and the app keeps working after each one. Status on 2026-10-08: phases
+1-4 are live (PRs #5, #7, #9, #13); phase 5 is next. See `docs/handoff.md`.
 
 1. **Dev database and schema.** The Neon branch, the new tables, `trip_id` on every content table,
    and the backfill. The app still reads trip 1 everywhere, so nothing visible changes.
@@ -152,9 +153,8 @@ Each phase is its own PR, and the app keeps working after each one.
 ## Things only Ido can do
 
 - ~~Neon dev branch~~ Done 2026-10-06. Local `.env.local` points at the `dev` branch, and the
-  production lines are commented out. Vercel's `DATABASE_URL` is a single value shared by Preview
-  and Production, managed by the Neon integration, so preview deploys still use production. Test
-  locally rather than on previews until that's split.
+  production lines are commented out. Since 2026-10-07 Vercel's Preview and Development also use
+  `dev`, and preview sign-in works through `AUTH_REDIRECT_PROXY_URL`.
 - **Google sign-in for new people (before phase 4).** The OAuth consent screen is in *Testing*,
   so only listed test users can sign in. Switch it to *In production*. With only the email and
   profile scopes, Google doesn't require verification.
