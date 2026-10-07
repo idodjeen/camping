@@ -94,7 +94,7 @@ const threadOf = (m: Mention): OpenThread | null =>
 
 /* --------------------------------------------------------------- the bell */
 
-/** Bell + unread count, opening the pane. Lives in the page headers. */
+/** Bell + unread count, opening the pane. Lives in the app header. */
 export function NotificationsBell() {
   const { data } = useMentions();
   const [open, setOpen] = useState(false);
@@ -386,7 +386,8 @@ export function MentionBanner() {
 
   return (
     <>
-      <div className="pointer-events-none fixed inset-x-0 top-3 z-[60] flex justify-center px-4">
+      {/* Clears the status bar: the app draws under it (black-translucent). */}
+      <div className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top,0px)+0.75rem)] z-[60] flex justify-center px-4">
         <AnimatePresence>
           {shown && (
             <motion.div

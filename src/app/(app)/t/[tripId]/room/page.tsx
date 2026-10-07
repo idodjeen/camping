@@ -12,6 +12,7 @@ import { ApiError, fetcher, send, swrConfig } from "@/lib/api";
 import { formatRelative } from "@/lib/dates";
 import type { ChatMessage } from "@/lib/comments";
 import { useTrip } from "@/lib/trip-client";
+import { useKeyboardFlag } from "@/lib/use-keyboard";
 import { cn } from "@/lib/utils";
 
 type Person = { id: number; name: string; slug: string; avatarUrl: string | null };
@@ -45,6 +46,7 @@ export default function RoomPage() {
   const boxRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastId = useRef<number | null>(null);
+  useKeyboardFlag();
 
   const messages = data?.messages ?? [];
   const people = me?.people ?? [];
@@ -106,7 +108,8 @@ export default function RoomPage() {
 
   return (
     <>
-      <header className="sticky top-0 z-10 -mx-5 mb-3 flex items-center gap-3 border-b border-white/10 bg-night-950/85 px-5 py-2.5 backdrop-blur-xl">
+      {/* Parks right under the app header. */}
+      <header className="sticky top-(--app-header-h) z-10 -mx-5 mb-3 flex items-center gap-3 border-b border-white/10 bg-night-950/85 px-5 py-2.5 backdrop-blur-xl">
         <Link
           href={page("/chat")}
           aria-label="חזרה לצ׳אט"
@@ -201,10 +204,12 @@ export default function RoomPage() {
 
       <div ref={bottomRef} className="scroll-mb-40" />
 
-      {/* Rides just above the bottom nav (its height + the home indicator). */}
+      {/* Rides just above the bottom nav. With the keyboard up the nav hides
+          and --bottom-nav-h is 0 (lib/use-keyboard.ts), so it sits on the
+          keyboard instead. */}
       <form
         onSubmit={submit}
-        className="sticky bottom-[calc(env(safe-area-inset-bottom,0px)+4.25rem)] z-20 -mx-5 mt-4 border-t border-white/10 bg-night-950/90 px-5 py-2.5 backdrop-blur-xl"
+        className="sticky bottom-(--bottom-nav-h) z-20 -mx-5 mt-4 border-t border-white/10 bg-night-950/90 px-5 py-2.5 backdrop-blur-xl"
       >
         <div className="flex items-end gap-2">
           <div className="min-w-0 flex-1">

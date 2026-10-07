@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { AppHeader } from "@/components/app-header";
 import { BottomNav } from "@/components/bottom-nav";
 import { MentionBanner } from "@/components/notifications";
 import { OnboardingGate } from "@/components/onboarding";
@@ -9,6 +10,7 @@ import { WhatsNew } from "@/components/whats-new";
 import { WidgetBoundary } from "@/components/widget-boundary";
 import { loadTripAccess } from "@/lib/access";
 import { requirePageUser } from "@/lib/session";
+import { accessibleTrips } from "@/lib/trips";
 
 /**
  * Shell for every screen of one trip. The proxy only checks that a session
@@ -27,7 +29,10 @@ export default async function TripLayout({
   params: Promise<{ tripId: string }>;
 }) {
   const me = await requirePageUser();
-  const access = await loadTripAccess(me, Number((await params).tripId));
+  const [access, trips] = await Promise.all([
+    loadTripAccess(me, Number((await params).tripId)),
+    accessibleTrips(me),
+  ]);
   if (!access) notFound();
 
   return (
@@ -52,13 +57,22 @@ export default async function TripLayout({
       <WidgetBoundary name="WhatsNew">
         <WhatsNew />
       </WidgetBoundary>
+      {/* Outside template.tsx on purpose: the template's transform would make
+          it the containing block of anything fixed inside the header. */}
+      <WidgetBoundary name="AppHeader">
+        <AppHeader
+          trips={trips.map((t) => ({ id: t.id, name: t.name, groupId: t.groupId, groupName: t.groupName }))}
+        />
+      </WidgetBoundary>
+      {/* Below the header, so it is never under the status bar; it scrolls away. */}
       {!access.canWrite && (
         <div className="bg-white/10 px-4 py-1.5 text-center text-xs font-semibold text-white/70">
           👀 מצב צפייה בלבד - אפשר לראות הכול, אי אפשר לערוך
         </div>
       )}
-      {/* pb clears the fixed bottom nav plus the home indicator. */}
-      <div className="mx-auto w-full max-w-md px-5 pt-7 pb-[calc(env(safe-area-inset-bottom,0px)+5.5rem)]">
+      {/* The header is sticky and in the flow, so the top needs no inset; the
+          bottom clears the fixed nav (its height includes the home indicator). */}
+      <div className="mx-auto w-full max-w-md px-5 pt-5 pb-[calc(var(--bottom-nav-h)+2rem)]">
         {children}
       </div>
       <WidgetBoundary name="BottomNav">

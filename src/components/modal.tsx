@@ -2,8 +2,9 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
-import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+
+import { useOverlay } from "@/lib/use-overlay";
 
 /**
  * Centred modal sheet.
@@ -25,21 +26,7 @@ export function Modal({
   title: string;
   children: React.ReactNode;
 }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prev;
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [open, onClose]);
-
+  const mounted = useOverlay(open, onClose);
   if (!mounted) return null;
 
   return createPortal(
