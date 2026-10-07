@@ -71,6 +71,13 @@
       "when": 1791400680752,
       "tag": "0009_expense_category",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791408565943,
+      "tag": "0010_drop_trip_default",
+      "breakpoints": true
     }
   ]
 }

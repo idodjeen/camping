@@ -38,6 +38,16 @@ export async function requireSignedIn(): Promise<User> {
 }
 
 /**
+ * The super admin, for /admin and /api/admin. Everyone else gets 403, group
+ * admins included: they run their own group at /g/[groupId], not every group.
+ */
+export async function requireSuperAdmin(): Promise<User> {
+  const user = await requireSignedIn();
+  if (!user.isSuperAdmin) throw new HttpError(403, "רק למנהל המערכת");
+  return user;
+}
+
+/**
  * The same, for pages. A valid session whose row has gone (removed from every
  * group) goes to /no-access rather than /login: the login page bounces anyone
  * with a session straight back here, which would loop forever.

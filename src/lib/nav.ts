@@ -3,6 +3,7 @@ import {
   Backpack,
   Home,
   MessageCircle,
+  ShieldCheck,
   ShoppingCart,
   Trophy,
   User,
@@ -31,7 +32,17 @@ export type NavItem = {
   primary: boolean;
   /** Menu rows only group admins and super admins see (the admin pages, later). */
   adminOnly?: boolean;
+  /** Menu rows only the super admin sees. */
+  superAdminOnly?: boolean;
+  /** An app-wide page such as /admin: the href is used as is, not inside the trip. */
+  outsideTrip?: boolean;
 };
+
+/** Who is looking at the menu, for the rows above. */
+export type MenuRoles = { isAdmin: boolean; isSuperAdmin: boolean };
+
+export const canSee = (n: NavItem, v: MenuRoles) =>
+  (!n.adminOnly || v.isAdmin || v.isSuperAdmin) && (!n.superAdminOnly || v.isSuperAdmin);
 
 /** `P` itself when "/t/<id>P" is a real page under typedRoutes, else never. */
 type Screen<P extends string> =
@@ -45,6 +56,12 @@ const item = <P extends string>(href: P & Screen<P>, rest: Omit<NavItem, "href">
   ...rest,
 });
 
+/** A page outside the trip; also checked against the real routes. */
+const appItem = <P extends string>(
+  href: Route<P>,
+  rest: Omit<NavItem, "href" | "outsideTrip">,
+): NavItem => ({ href, outsideTrip: true, ...rest });
+
 // Order is the slide order: the tabs first, right to left in Hebrew, then the
 // menu from top to bottom.
 export const NAV: readonly NavItem[] = [
@@ -56,6 +73,7 @@ export const NAV: readonly NavItem[] = [
   item("/expenses", { label: "הוצאות", Icon: Wallet, primary: false }),
   item("/leaderboard", { label: "לוח התורמים", Icon: Trophy, primary: false }),
   item("/me", { label: "חשבון", Icon: User, primary: false }),
+  appItem("/admin", { label: "ניהול קבוצות", Icon: ShieldCheck, primary: false, superAdminOnly: true }),
 ];
 
 export const PRIMARY = NAV.filter((n) => n.primary);
@@ -70,7 +88,7 @@ export const navHref = (path: string) => PARENT[path] ?? path;
 export const isActive = (href: string, path: string) => navHref(path) === href;
 
 /** Position in the slide order, or -1 for a screen outside the nav. */
-export const ORDER = NAV.map((n) => n.href);
+export const ORDER = NAV.filter((n) => !n.outsideTrip).map((n) => n.href);
 
 /** Unread tags waiting behind one nav row. */
 export function badgeFor(href: string, unread: Unread | undefined): number {
@@ -91,5 +109,5 @@ export function badgeFor(href: string, unread: Unread | undefined): number {
 }
 
 /** What the menu button shows: everything waiting on the rows it hides. */
-export const menuBadge = (unread: Unread | undefined, isAdmin = false) =>
-  SECONDARY.filter((n) => isAdmin || !n.adminOnly).reduce((sum, n) => sum + badgeFor(n.href, unread), 0);
+export const menuBadge = (unread: Unread | undefined, roles: MenuRoles) =>
+  SECONDARY.filter((n) => canSee(n, roles)).reduce((sum, n) => sum + badgeFor(n.href, unread), 0);
