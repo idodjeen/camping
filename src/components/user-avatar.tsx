@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 
 import { celebrate } from "@/lib/confetti";
 import { gradientFor, initialFor } from "@/lib/gradient";
+import { useOverlay } from "@/lib/use-overlay";
 import { cn } from "@/lib/utils";
 
 /**
@@ -126,22 +127,8 @@ function Lightbox({
   name: string;
   slug: string;
 }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
   // Escape to close, and lock background scrolling while the overlay is up.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prev;
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [open, onClose]);
-
+  const mounted = useOverlay(open, onClose);
   if (!mounted) return null;
 
   // Portalled to <body> so the overlay is never clipped by a card's
