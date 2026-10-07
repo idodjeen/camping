@@ -37,8 +37,9 @@
   its singular name because drizzle-kit can only rename a table through an interactive prompt.
 - `trip_members`: trip_id, user_id, is_shopper. Primary key (trip_id, user_id).
 
-**`users`** gets `is_super_admin`. `is_admin` and `is_shopper` move into the membership tables
-and are dropped at the end of phase 2. Name and slug stay global, so a person has one name
+**`users`** gets `is_super_admin`. `is_admin` and `is_shopper` move into the membership tables.
+Since phase 2 no code reads them; the columns are dropped in the roadmap's cleanup PR (H), because
+drops only ship after the code that used them is gone. Name and slug stay global, so a person has one name
 everywhere. Viewers become real rows, which removes the synthetic `id: 0` user in
 `src/lib/session.ts`.
 
@@ -101,15 +102,17 @@ One migration, run on the Neon dev branch first:
 1. Create `groups`, `group_members` and `trip_members`. Add `group_id` to `trip`.
 2. Insert group 1 (its name is set later in the UI) and attach trip 1 to it.
 3. Add `trip_id NOT NULL DEFAULT 1` to every content table, then swap the unique constraints and
-   foreign keys. The default is temporary: it lets today's code keep inserting unchanged. Phase 2
-   drops it, so any insert that forgets its trip fails instead of landing in trip 1.
+   foreign keys. The default is temporary: it let the phase 1 code keep inserting unchanged. Since
+   phase 2 every insert names its trip. The default **must be dropped before a second trip can be
+   created (phase 4)**, so an insert that forgets its trip fails instead of landing in trip 1.
 4. Every existing user becomes an editor in group 1 and a member of trip 1. `is_admin` becomes
    group admin and super admin. `is_shopper` becomes `trip_members.is_shopper`.
 5. Fix the `trip` id sequence. The old seed inserted trip 1 with an explicit id, so the sequence
    never moved, and the first trip created from the app would have collided with it.
-6. Viewers have no rows today, and a SQL migration can't read env vars. In phase 2, before the env
-   lists are retired, a one-off script (`scripts/import-env-members.ts`) reads `VIEWER_USERS` and
-   adds those people as group 1 viewers.
+6. Viewers had no rows, and nobody can read `VIEWER_USERS` back (Vercel marks it Sensitive). Since
+   phase 2, each person on it is imported as a group 1 viewer on their first sign-in, and only
+   then: if an admin later removes them, signing in again doesn't bring them back. The variable
+   and the import are deleted in phase 7.
 
 Verified on the dev branch (2026-10-06): every table's row count matches production, all content
 rows are in trip 1, balances match production to the agora, and links between trips are refused
@@ -127,7 +130,13 @@ Each phase is its own PR, and the app keeps working after each one.
    and the backfill. The app still reads trip 1 everywhere, so nothing visible changes.
 2. **Access layer and URLs.** `requireTrip`, routes moved under `/t/[tripId]`, sign-in checked
    against the database, the env allowlist retired, and old URLs redirected. Your group sees the
-   same app at new URLs.
+   same app at new URLs. **No migration**, following the roadmap's rules (`docs/roadmap.md`, PR #4):
+   - Old `/api/*` paths stay as one thin adapter (`src/app/api/[...legacy]/route.ts`) for a release,
+     so a phone that had the app open during the deploy keeps working. Removed in H.
+   - Old screen paths (`/gear`, push notifications already on phones) redirect to the same screen
+     in the last trip opened.
+   - Lands after the roadmap's group A (safety rails), which wraps the widgets of the app layout.
+     That layout moves to `src/app/(app)/t/[tripId]/layout.tsx` here, so its wrappers move with it.
 3. **Header and nav (roadmap item 0).** A sticky header holding the group/trip switcher, the bell
    and the menu. Three primary tabs, with the rest in a drawer. One nav config shared by the tabs,
    the drawer and `template.tsx`.
@@ -152,6 +161,8 @@ Each phase is its own PR, and the app keeps working after each one.
 
 ## Defaults, unless decided otherwise
 
+- Anyone in a group can open all of its trips. Only the people on a trip, plus group admins and
+  the super admin, can change it; an editor who skipped a trip sees it read-only.
 - Trip details, categories and meals can be edited by the group admin. Editors keep exactly what
   they can do today.
 - A person has one name across all groups and can change it on their own profile.

@@ -643,10 +643,10 @@ route; a new member whose email collides with an existing slug signs in fine.
 |---|---|---|---|---|---|---|
 | 1 | - | done: [PR #5](https://github.com/idodjeen/camping/pull/5) | groups-and-trips phase 1 | L | yes: `0008_groups_and_trips` | - |
 | 2 | A | `claude/safety-rails` (in progress) | none: `dev` database, reload guard, error boundaries | S | no | lands before phase 2 |
-| 3 | - | `claude/groups-phase-2` (in progress) | groups-and-trips phase 2 | L | yes: drops `is_admin`, `is_shopper`, `DEFAULT 1` | A |
+| 3 | - | `claude/groups-phase-2` (in progress) | groups-and-trips phase 2 | L | no: its drops wait (see below) | A |
 | 4 | B | `claude/expenses-edit-chart` | 9 | M | yes: `category`, `edited_at` | A, phase 2 |
 | 5 | C | `claude/nav-header` | 0 (= phase 3) | M | no | phase 2 |
-| 6 | D | (groups-and-trips plan) | 10 (= phases 4-5) | M + M | maybe | phase 2 |
+| 6 | D | (groups-and-trips plan) | 10 (= phases 4-5) | M + M | yes: drops `trip_id DEFAULT 1` first | phase 2 |
 | 7 | E | `claude/notifications-core` | 6, 7, and two parts of 2 | L | yes: unify | phase 3 |
 | 8 | F | `claude/notifications-more` | 8 | L | yes: `notify_prefs` | E, B |
 | 9 | G | `claude/edit-messages` | 5 | M | yes: `edited_at` | E |
@@ -667,19 +667,23 @@ flowchart LR
   G --> H
 ```
 
-- Migrations run one at a time in this order: phase 1 (`0008`), phase 2, B, E, F, G, H, with whatever
+- Migrations run one at a time in this order: phase 1 (`0008`), B, E, F, G, H, with whatever
   phases 4-7 add slotted in wherever they land. The file numbers are assigned when each is generated.
+- Phase 2 has no migration. Nothing reads `users.is_admin`, `users.is_shopper` or `trip_id DEFAULT 1`
+  after it, but code from the previous deploy still does, so the drops wait. `DEFAULT 1` goes in
+  phase 4's first migration, before the app can create a second trip; the two columns go in H.
 - B and C both start once phase 2 is merged. C has no migration, so the two can run side by side.
 - Phases 4-7 of groups-and-trips can interleave with E, F and G, as long as only one migration PR is open
   at a time.
-- **H** drops `comment_mentions` and `users.notify_mentions`, `notify_covered` and `notify_messages`, and
-  removes the one-release adapters (the old notification and mark-read endpoints, `unreadMentions` in
-  `/api/me`, and the old pref keys). Its PR title carries `[no-popup]`.
+- **H** drops `comment_mentions`, `users.notify_mentions`, `notify_covered`, `notify_messages`,
+  `is_admin` and `is_shopper`, and removes the one-release adapters (the old notification and
+  mark-read endpoints, `unreadMentions` in `/me`, the old pref keys, and phase 2's pre-trip API paths
+  in `src/app/api/[...legacy]/route.ts`). Its PR title carries `[no-popup]`.
 
 Why this order: phase 1 is merged and owns migration 0008. A must land before phase 2, because
 phase 2 (every route and URL moving at once) is exactly the change that breaks open phones without the
-reload guard and the error boundaries. B goes right after phase 2: it needs phase 2's routes and
-migration number, and it's small, useful while this trip is being settled, and a gentle first feature on
+reload guard and the error boundaries. B goes right after phase 2: it needs phase 2's routes, and
+it's small, useful while this trip is being settled, and a gentle first feature on
 the new trip routes. Then the rest of groups-and-trips, as agreed.
 E waits for phase 3, so the bell it rewrites is already in the header and already trip-scoped. G waits for E,
 because tags change tables.
