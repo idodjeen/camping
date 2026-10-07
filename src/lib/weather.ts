@@ -21,8 +21,10 @@ type Daily = {
  * hourly at best. Extracted here so the countdown email and the /api/weather
  * route use one implementation rather than two that can drift.
  */
-export async function getForecast(): Promise<{ available: boolean; days: WeatherDay[] }> {
-  const [t] = await db.select().from(trip).where(eq(trip.id, 1));
+export async function getForecast(
+  tripId: number,
+): Promise<{ available: boolean; days: WeatherDay[] }> {
+  const [t] = await db.select().from(trip).where(eq(trip.id, tripId));
   if (!t) return { available: false, days: [] };
 
   const url = new URL("https://api.open-meteo.com/v1/forecast");

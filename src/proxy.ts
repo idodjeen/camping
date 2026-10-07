@@ -2,8 +2,8 @@ import NextAuth from "next-auth";
 
 import { authConfig } from "./auth.config";
 
-// Note: `authConfig`, not the full `auth.ts`. The proxy runs on the Edge
-// runtime, which cannot load the Neon driver.
+// Note: `authConfig`, not the full `auth.ts`: the proxy runs on every request,
+// so it only checks that a session exists and never queries the database.
 export default NextAuth(authConfig).auth;
 
 export const config = {

@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import { toast } from "@/components/toast";
 import { ApiError, fetcher, send } from "@/lib/api";
+import { useTrip } from "@/lib/trip-client";
 import { cn } from "@/lib/utils";
 
 const TYPES = [
@@ -26,6 +27,7 @@ type Preview = {
  * these land in four other people's inboxes and there is no undo.
  */
 export function AdminNotify() {
+  const { api } = useTrip();
   const [type, setType] = useState<string | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [loading, setLoading] = useState(false);
@@ -41,7 +43,7 @@ export function AdminNotify() {
     setPreview(null);
     setLoading(true);
     try {
-      setPreview(await fetcher<Preview>(`/api/admin/notify?type=${key}`));
+      setPreview(await fetcher<Preview>(api(`/admin/notify?type=${key}`)));
     } catch (err) {
       toast(err instanceof ApiError ? err.message : "לא הצלחנו להכין תצוגה מקדימה");
       setType(null);
@@ -54,7 +56,7 @@ export function AdminNotify() {
     if (!type || !preview) return;
     setSending(true);
     try {
-      const res = await send<{ sent: number; failed?: number }>("/api/admin/notify", "POST", { type });
+      const res = await send<{ sent: number; failed?: number }>(api("/admin/notify"), "POST", { type });
       toast(
         res.failed ? `נשלחו ${res.sent}, נכשלו ${res.failed}` : `נשלחו ${res.sent} מיילים ✓`,
         res.failed ? "error" : "ok",

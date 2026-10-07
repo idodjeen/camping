@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import useSWR from "swr";
 
 import { fetcher, swrConfig } from "@/lib/api";
+import { useTrip } from "@/lib/trip-client";
 import { cn } from "@/lib/utils";
 
 type Unread = { gear: number; shopping: number; meals: number; general: number };
@@ -23,10 +24,12 @@ const TABS = [
 ] as const;
 
 export function BottomNav() {
-  const pathname = usePathname();
+  const { api, page, local } = useTrip();
+  // Tabs are compared as short paths ("/gear"), whatever trip this is.
+  const pathname = local(usePathname());
   // Same SWR key the dashboard and profile already poll, so this is free there
   // and one shared request elsewhere.
-  const { data } = useSWR<{ unreadMentions: Unread }>("/api/me", fetcher, swrConfig);
+  const { data } = useSWR<{ unreadMentions: Unread }>(api("/me"), fetcher, swrConfig);
   const unread = data?.unreadMentions;
   const badgeFor = (href: string) =>
     href === "/gear" ? unread?.gear
@@ -49,7 +52,7 @@ export function BottomNav() {
           return (
             <Link
               key={href}
-              href={href}
+              href={page(href)}
               aria-current={active ? "page" : undefined}
               className={cn(
                 "tap relative flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 py-1.5 transition-colors",

@@ -37,11 +37,11 @@ type SubjectColumn =
   | typeof comments.shoppingItemId
   | typeof comments.mealId;
 
-async function commentCounts(column: SubjectColumn) {
+async function commentCounts(tripId: number, column: SubjectColumn) {
   const rows = await db
     .select({ id: column, n: count() })
     .from(comments)
-    .where(isNotNull(column))
+    .where(and(eq(comments.tripId, tripId), isNotNull(column)))
     .groupBy(column);
   return new Map(rows.map((r) => [r.id as number, r.n]));
 }
@@ -56,7 +56,7 @@ async function commentCounts(column: SubjectColumn) {
  * viewerId is optional because the email jobs call these read models with no
  * one looking; an absent viewer simply has nothing unread.
  */
-async function unreadCounts(column: SubjectColumn, viewerId?: number) {
+async function unreadCounts(tripId: number, column: SubjectColumn, viewerId?: number) {
   if (viewerId === undefined) return new Map<number, number>();
 
   const rows = await db
@@ -65,6 +65,7 @@ async function unreadCounts(column: SubjectColumn, viewerId?: number) {
     .innerJoin(comments, eq(comments.id, commentMentions.commentId))
     .where(
       and(
+        eq(comments.tripId, tripId),
         eq(commentMentions.userId, viewerId),
         isNull(commentMentions.readAt),
         isNotNull(column),
@@ -92,10 +93,13 @@ export type GearItemView = {
   unreadMentions: number;
 };
 
-export async function getGear(viewerId?: number) {
-  const counts = await commentCounts(comments.gearItemId);
-  const unread = await unreadCounts(comments.gearItemId, viewerId);
+export async function getGear(tripId: number, viewerId?: number) {
+  const counts = await commentCounts(tripId, comments.gearItemId);
+  const unread = await unreadCounts(tripId, comments.gearItemId, viewerId);
+  // Items hang off their category, and a composite FK keeps both in one trip,
+  // so filtering the categories is enough to scope the whole tree.
   const rows = await db.query.gearCategories.findMany({
+    where: eq(gearCategories.tripId, tripId),
     orderBy: [asc(gearCategories.sort)],
     with: {
       items: {
@@ -145,10 +149,11 @@ export async function getGear(viewerId?: number) {
   }));
 }
 
-export async function getShopping(viewerId?: number) {
-  const counts = await commentCounts(comments.shoppingItemId);
-  const unread = await unreadCounts(comments.shoppingItemId, viewerId);
+export async function getShopping(tripId: number, viewerId?: number) {
+  const counts = await commentCounts(tripId, comments.shoppingItemId);
+  const unread = await unreadCounts(tripId, comments.shoppingItemId, viewerId);
   const rows = await db.query.shoppingCategories.findMany({
+    where: eq(shoppingCategories.tripId, tripId),
     orderBy: [asc(shoppingCategories.sort)],
     with: {
       items: {
@@ -194,10 +199,14 @@ export type MealView = {
   unreadMentions: number;
 };
 
-export async function getMeals(viewerId?: number): Promise<{ date: string; meals: MealView[] }[]> {
-  const counts = await commentCounts(comments.mealId);
-  const unread = await unreadCounts(comments.mealId, viewerId);
+export async function getMeals(
+  tripId: number,
+  viewerId?: number,
+): Promise<{ date: string; meals: MealView[] }[]> {
+  const counts = await commentCounts(tripId, comments.mealId);
+  const unread = await unreadCounts(tripId, comments.mealId, viewerId);
   const rows = await db.query.meals.findMany({
+    where: eq(meals.tripId, tripId),
     orderBy: [asc(meals.sort)],
     with: { shoppingLinks: { with: { shoppingItem: true } } },
   });

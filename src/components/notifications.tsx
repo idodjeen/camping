@@ -10,8 +10,9 @@ import { useRouter } from "next/navigation";
 import { Modal } from "@/components/modal";
 import { toast } from "@/components/toast";
 import { UserAvatar } from "@/components/user-avatar";
-import { ApiError, NOTIFICATIONS_KEY, fetcher, send, swrConfig } from "@/lib/api";
+import { ApiError, fetcher, send, swrConfig } from "@/lib/api";
 import { formatRelative } from "@/lib/dates";
+import { useTrip } from "@/lib/trip-client";
 import { cn } from "@/lib/utils";
 
 type Mention = {
@@ -78,11 +79,12 @@ const where = (m: Mention) =>
  * The one subscription behind the bell, the pane and the banner.
  *
  * All three call this, and SWR collapses them into a single request per poll
- * because the key is the same string — the same reason the bottom nav can read
- * /api/me for free while the dashboard is also polling it.
+ * because the key is the same string (this trip's /notifications), the same reason
+ * the bottom nav can read /me for free while the dashboard is also polling it.
  */
 function useMentions() {
-  return useSWR<Feed>(NOTIFICATIONS_KEY, fetcher, swrConfig);
+  const { api } = useTrip();
+  return useSWR<Feed>(api("/notifications"), fetcher, swrConfig);
 }
 
 /** What CommentsSheet needs to open a thread from a mention row. */
@@ -129,6 +131,7 @@ export function NotificationsBell() {
 /* --------------------------------------------------------------- the pane */
 
 function NotificationsPane({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { api, page } = useTrip();
   const { data, isLoading, mutate } = useMentions();
   const { mutate: globalMutate } = useSWRConfig();
   const router = useRouter();
@@ -144,8 +147,8 @@ function NotificationsPane({ open, onClose }: { open: boolean; onClose: () => vo
     try {
       await mutate(
         async () => {
-          await send(NOTIFICATIONS_KEY, "POST");
-          return fetcher<Feed>(NOTIFICATIONS_KEY);
+          await send(api("/notifications"), "POST");
+          return fetcher<Feed>(api("/notifications"));
         },
         {
           // Every row loses its unread styling on tap rather than after Neon
@@ -159,7 +162,7 @@ function NotificationsPane({ open, onClose }: { open: boolean; onClose: () => vo
         },
       );
       // The nav badges read their counts from /api/me, not from this feed.
-      await globalMutate("/api/me");
+      await globalMutate(api("/me"));
     } catch (err) {
       toast(err instanceof ApiError ? err.message : "לא הצלחנו לעדכן");
     } finally {
@@ -174,14 +177,14 @@ function NotificationsPane({ open, onClose }: { open: boolean; onClose: () => vo
     // Tags are cleared by opening their thread; the other rows have no thread
     // state of their own, so the tap itself is what reads them.
     if (r.eventId !== null && !r.m.readAt) {
-      void send(NOTIFICATIONS_KEY, "PATCH", { id: r.eventId })
-        .then(() => Promise.all([mutate(), globalMutate("/api/me")]))
+      void send(api("/notifications"), "PATCH", { id: r.eventId })
+        .then(() => Promise.all([mutate(), globalMutate(api("/me"))]))
         .catch(() => {});
     }
     // A general message has no sheet of its own — it lives in the chat room.
     const t = threadOf(r.m);
     if (t) setThread(t);
-    else router.push("/room");
+    else router.push(page("/room"));
   }
 
   return (
@@ -317,6 +320,7 @@ function saveMark(key: string, id: number) {
  * without a page change.
  */
 export function MentionBanner() {
+  const { api, page } = useTrip();
   const { data } = useMentions();
   const { mutate: globalMutate } = useSWRConfig();
   const [shown, setShown] = useState<{ row: Row; extra: number } | null>(null);
@@ -370,13 +374,13 @@ export function MentionBanner() {
     // Same rule as the pane: a tag is read by opening its thread, the other
     // kinds are read by this tap.
     if (row.eventId !== null) {
-      void send(NOTIFICATIONS_KEY, "PATCH", { id: row.eventId })
-        .then(() => Promise.all([globalMutate(NOTIFICATIONS_KEY), globalMutate("/api/me")]))
+      void send(api("/notifications"), "PATCH", { id: row.eventId })
+        .then(() => Promise.all([globalMutate(api("/notifications")), globalMutate(api("/me"))]))
         .catch(() => {});
     }
     const t = threadOf(row.m);
     if (t) setThread(t);
-    else router.push("/room");
+    else router.push(page("/room"));
     setShown(null);
   }
 

@@ -18,7 +18,7 @@ config({ path: ".env" });
 
 import { eq, sql } from "drizzle-orm";
 
-import { parseAllowlist } from "../lib/allowlist.js";
+import { parseEmailList } from "../lib/allowlist.js";
 import { GEAR, GROUP, MEALS, ROSTER, SHOPPING, TRIP } from "./seed-data.js";
 
 const RESET = process.argv.includes("--reset");
@@ -68,7 +68,9 @@ async function main() {
     }
 
     /* --------------------------------------------------------------- users */
-    const allowed = parseAllowlist();
+    // The app no longer reads ALLOWED_USERS (access lives in group_members);
+    // it only names the original five here, so their emails stay out of the repo.
+    const allowed = parseEmailList(process.env.ALLOWED_USERS);
     if (allowed.length === 0) {
       console.warn(
         "⚠️  ALLOWED_USERS is empty — no users seeded. Set it and re-run `npm run db:seed`.",
@@ -95,8 +97,6 @@ async function main() {
           name: entry.name,
           slug,
           avatarUrl: `/avatars/${slug}.jpg`,
-          isAdmin: role?.isAdmin ?? false,
-          isShopper: role?.isShopper ?? false,
           isSuperAdmin: role?.isAdmin ?? false,
         })
         .onConflictDoUpdate({
@@ -107,8 +107,6 @@ async function main() {
             name: entry.name,
             slug,
             avatarUrl: `/avatars/${slug}.jpg`,
-            isAdmin: role?.isAdmin ?? false,
-            isShopper: role?.isShopper ?? false,
           },
         })
         .returning({ id: s.users.id });

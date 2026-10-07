@@ -3,9 +3,9 @@
 import { ErrorCard } from "@/components/error-card";
 
 /**
- * A page that threw. This renders inside (app)/layout.tsx, so the bottom nav
- * and the rest of the shell stay, and the other tabs keep working. The
- * layout's own widgets are covered by WidgetBoundary instead.
+ * A page outside any trip that threw (/, /trips, an old link's redirect).
+ * Trip screens have their own error.tsx inside the trip layout, which keeps
+ * the bottom nav; this one is the fallback above it.
  */
 export default function AppError({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
   return (

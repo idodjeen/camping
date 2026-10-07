@@ -1,15 +1,12 @@
 import type { NextAuthConfig } from "next-auth";
 import Google from "next-auth/providers/google";
 
-import { isAllowed, isViewer } from "@/lib/allowlist";
-
 /**
- * EDGE-SAFE auth config.
+ * The database-free half of the auth config, which `src/proxy.ts` loads.
  *
- * `middleware.ts` loads this into the Edge runtime, so nothing here may import
- * the database, `node:` builtins, or anything that pulls them in transitively.
- * The DB-aware half of the config lives in `src/auth.ts`, which only ever runs
- * in Node route handlers. Mixing the two is the classic Auth.js v5 build break.
+ * The proxy runs on every request, so it stays a cheap "is there a session at
+ * all?" check. Who may sign in, and what they may see, needs the database and
+ * lives in `src/auth.ts` and `src/lib/access.ts`.
  */
 export const authConfig = {
   providers: [Google],
@@ -32,16 +29,7 @@ export const authConfig = {
     error: "/no-access",
   },
   callbacks: {
-    /**
-     * The allowlist gate. Returning false sends the user to `pages.error`
-     * (/no-access) instead of creating a session.
-     */
-    signIn({ user, profile }) {
-      const email = profile?.email ?? user?.email;
-      return isAllowed(email) || isViewer(email);
-    },
-
-    /** Route protection for middleware. */
+    /** Route protection for the proxy. */
     authorized({ auth, request }) {
       const { pathname } = request.nextUrl;
       if (pathname === "/login" || pathname === "/no-access") return true;

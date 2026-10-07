@@ -5,13 +5,15 @@ import useSWR from "swr";
 
 import { fetcher } from "@/lib/api";
 import { formatTripDay } from "@/lib/dates";
+import { useTrip } from "@/lib/trip-client";
 
 type Day = { date: string; max: number; min: number; rain: number; wind: number };
 type Payload = { available: boolean; days: Day[] };
 
 export function WeatherCard() {
+  const { api } = useTrip();
   // Hourly on the server; no need to poll this one on the 15s cadence.
-  const { data, isLoading } = useSWR<Payload>("/api/weather", fetcher, {
+  const { data, isLoading } = useSWR<Payload>(api("/weather"), fetcher, {
     refreshInterval: 0,
     revalidateOnFocus: false,
   });

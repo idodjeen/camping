@@ -8,6 +8,7 @@ import useSWR from "swr";
 import { UserAvatar } from "@/components/user-avatar";
 import { fetcher, swrConfig } from "@/lib/api";
 import type { LeaderRow, Title } from "@/lib/leaderboard";
+import { useTrip } from "@/lib/trip-client";
 
 type Payload = { rows: LeaderRow[]; titles: NonNullable<Title>[] };
 
@@ -26,7 +27,8 @@ const HEIGHTS = ["h-16", "h-11", "h-8"];
  * boolean rather than an href because typedRoutes wants the route literal.
  */
 export function Podium({ linked = false }: { linked?: boolean }) {
-  const { data } = useSWR<Payload>("/api/leaderboard", fetcher, swrConfig);
+  const { api, page } = useTrip();
+  const { data } = useSWR<Payload>(api("/leaderboard"), fetcher, swrConfig);
   const top = data?.rows?.slice(0, 3) ?? [];
 
   const inner = (
@@ -78,7 +80,7 @@ export function Podium({ linked = false }: { linked?: boolean }) {
   if (linked) {
     return (
       <Link
-        href="/leaderboard"
+        href={page("/leaderboard")}
         className="glass block rounded-glass p-4 transition active:scale-[0.99]"
       >
         {inner}
