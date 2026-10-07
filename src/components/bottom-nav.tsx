@@ -1,28 +1,22 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Backpack, Home, MessageCircle, ShoppingCart, Trophy, User, UtensilsCrossed, Wallet } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import useSWR from "swr";
 
 import { fetcher, swrConfig } from "@/lib/api";
+import { PRIMARY, badgeFor, isActive, type Unread } from "@/lib/nav";
 import { useTrip } from "@/lib/trip-client";
 import { cn } from "@/lib/utils";
 
-type Unread = { gear: number; shopping: number; meals: number; general: number };
-
-const TABS = [
-  { href: "/", label: "בית", Icon: Home },
-  { href: "/meals", label: "ארוחות", Icon: UtensilsCrossed },
-  { href: "/gear", label: "ציוד", Icon: Backpack },
-  { href: "/shopping", label: "קניות", Icon: ShoppingCart },
-  { href: "/expenses", label: "הוצאות", Icon: Wallet },
-  { href: "/chat", label: "צ׳אט", Icon: MessageCircle },
-  { href: "/leaderboard", label: "לוח התורמים", Icon: Trophy },
-  { href: "/me", label: "חשבון", Icon: User },
-] as const;
-
+/**
+ * The primary tabs from lib/nav.ts; the other screens are in the header's menu.
+ *
+ * Its height is --bottom-nav-h (globals.css), which the layout's padding and
+ * the room composer also read. The room sets data-keyboard="open" on <html>
+ * while the keyboard is up, which hides the bar and zeroes that variable.
+ */
 export function BottomNav() {
   const { api, page, local } = useTrip();
   // Tabs are compared as short paths ("/gear"), whatever trip this is.
@@ -31,31 +25,24 @@ export function BottomNav() {
   // and one shared request elsewhere.
   const { data } = useSWR<{ unreadMentions: Unread }>(api("/me"), fetcher, swrConfig);
   const unread = data?.unreadMentions;
-  const badgeFor = (href: string) =>
-    href === "/gear" ? unread?.gear
-    : href === "/shopping" ? unread?.shopping
-    : href === "/meals" ? unread?.meals
-    // The chat holds every thread and the general room, so its badge is every unread tag.
-    : href === "/chat" ? (unread ? unread.gear + unread.shopping + unread.meals + unread.general : 0)
-    : 0;
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-night-950/80 backdrop-blur-xl">
+    <nav className="fixed inset-x-0 bottom-0 z-40 h-(--bottom-nav-h) border-t border-white/10 bg-night-950/80 backdrop-blur-xl in-data-[keyboard=open]:hidden">
       <div
-        className="mx-auto flex max-w-md items-stretch justify-between px-1 pt-1.5"
+        className="mx-auto flex h-full max-w-md items-stretch justify-between px-3 pt-1.5"
         // Clears the iPhone home indicator; harmless zero on other devices.
         style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.375rem)" }}
       >
-        {TABS.map(({ href, label, Icon }) => {
-          // The chat room hangs off the comments tab, so it keeps that tab lit.
-          const active = pathname === href || (href === "/chat" && pathname === "/room");
+        {PRIMARY.map(({ href, label, Icon }) => {
+          const active = isActive(href, pathname);
+          const badge = badgeFor(href, unread);
           return (
             <Link
               key={href}
               href={page(href)}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "tap relative flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 py-1.5 transition-colors",
+                "tap relative flex flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 transition-colors",
                 active ? "text-brand-300" : "text-white/45 active:text-white/70",
               )}
             >
@@ -68,17 +55,17 @@ export function BottomNav() {
                 />
               )}
               <span className="relative">
-                <Icon className="size-[18px]" strokeWidth={active ? 2.5 : 1.9} />
-                {(badgeFor(href) ?? 0) > 0 && (
+                <Icon className="size-5" strokeWidth={active ? 2.5 : 1.9} />
+                {badge > 0 && (
                   <span
                     aria-label="יש תגובה שמחכה לך"
-                    className="absolute -end-1.5 -top-1 grid size-4 place-items-center rounded-full bg-brand-500 text-[9px] font-bold text-white ring-2 ring-night-950"
+                    className="absolute -end-2 -top-1 grid size-4 place-items-center rounded-full bg-brand-500 text-[9px] font-bold text-white ring-2 ring-night-950"
                   >
-                    {badgeFor(href)}
+                    {badge}
                   </span>
                 )}
               </span>
-              <span className="relative text-[10px] font-medium leading-none">{label}</span>
+              <span className="relative text-[11px] font-medium leading-none">{label}</span>
             </Link>
           );
         })}

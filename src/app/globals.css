@@ -35,6 +35,23 @@
 
 :root {
   color-scheme: dark;
+  /* The two fixed bars, each the only source of its own height: the bar sets
+     its height from this, and whatever must clear or park against it (the
+     layout's padding, /chat's filters, /room's header and composer) reads the
+     same variable. Each includes its safe-area inset. */
+  --app-header-h: calc(env(safe-area-inset-top, 0px) + 3.5rem);
+  --bottom-nav-h: calc(env(safe-area-inset-bottom, 0px) + 3.5rem);
+}
+
+/* Set by /room while the on-screen keyboard is up: the bottom nav hides, so
+   the composer drops to the bottom edge, right above the keyboard. */
+:root[data-keyboard="open"] {
+  --bottom-nav-h: 0px;
+}
+
+html {
+  /* Focusing a field or scrolling to an element stops short of the header. */
+  scroll-padding-top: var(--app-header-h);
 }
 
 html,

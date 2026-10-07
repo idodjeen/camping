@@ -1,14 +1,12 @@
 "use client";
 
-import { BookOpen, LogOut, Map as MapIcon } from "lucide-react";
-import Link from "next/link";
+import { BookOpen, LogOut } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 
 import { AdminNotify } from "@/components/admin-notify";
 import { NotificationPrefs, type NotifyPrefs } from "@/components/notification-prefs";
-import { NotificationsBell } from "@/components/notifications";
 import { Onboarding } from "@/components/onboarding";
 import { PushToggle } from "@/components/push-toggle";
 import { PageTitle, SkeletonList } from "@/components/skeletons";
@@ -73,7 +71,6 @@ export default function MePage() {
             {data.user.isViewer && <Badge>צפייה בלבד</Badge>}
           </div>
         </div>
-        <NotificationsBell />
       </header>
 
       {/* Reminders go out from Ido's Gmail, so only the super admin sends them. */}
@@ -97,15 +94,6 @@ export default function MePage() {
       </button>
 
       <Onboarding open={guide} onDone={() => setGuide(false)} />
-
-      {/* Until the header's trip switcher (groups phase 3), this is the way out. */}
-      <Link
-        href="/trips"
-        className="tap mb-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 text-sm font-semibold text-white/60 transition active:scale-[0.98]"
-      >
-        <MapIcon className="size-4" />
-        כל הטיולים שלי
-      </Link>
 
       <button
         onClick={() => signOut({ callbackUrl: "/login" })}

@@ -5,8 +5,8 @@ import { requirePageUser } from "@/lib/session";
 import { accessibleTrips } from "@/lib/trips";
 
 /**
- * Every trip you can open, by group. A stand-in until the header's trip
- * switcher (groups phase 3); reachable from the profile screen.
+ * Every trip you can open, by group. Where `/` lands when there are several
+ * trips and none remembered; inside a trip, the header's switcher does this.
  */
 export default async function TripsPage() {
   const user = await requirePageUser();
