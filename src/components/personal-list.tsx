@@ -10,6 +10,7 @@ import { toast } from "@/components/toast";
 import { ApiError, fetcher, send, swrConfig } from "@/lib/api";
 import { burstFrom } from "@/lib/confetti";
 import { PERSONAL_TEMPLATE } from "@/lib/personal-template";
+import { useTrip } from "@/lib/trip-client";
 import { cn } from "@/lib/utils";
 
 type Personal = { id: number; name: string; isPacked: boolean; qty: number | null };
@@ -21,7 +22,8 @@ type Payload = { personal: Personal[] } & Record<string, unknown>;
  * instantly visible in the other.
  */
 export function PersonalList() {
-  const { data, mutate } = useSWR<Payload>("/api/me", fetcher, swrConfig);
+  const { api } = useTrip();
+  const { data, mutate } = useSWR<Payload>(api("/me"), fetcher, swrConfig);
   const [draft, setDraft] = useState("");
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -41,8 +43,8 @@ export function PersonalList() {
     setDraft("");
     try {
       await mutate(async () => {
-        await send("/api/personal", "POST", { name });
-        return fetcher<Payload>("/api/me");
+        await send(api("/personal"), "POST", { name });
+        return fetcher<Payload>(api("/me"));
       }, { revalidate: false });
     } catch (err) {
       toast(err instanceof ApiError ? err.message : "לא הצלחנו להוסיף");
@@ -75,8 +77,8 @@ export function PersonalList() {
     try {
       await mutate(
         async () => {
-          await send(`/api/personal/${id}`, "PATCH", { isPacked: next, ...(qty ? { qty } : {}) });
-          return fetcher<Payload>("/api/me");
+          await send(api(`/personal/${id}`), "PATCH", { isPacked: next, ...(qty ? { qty } : {}) });
+          return fetcher<Payload>(api("/me"));
         },
         {
           optimisticData: optimistic((p) => ({
@@ -98,8 +100,8 @@ export function PersonalList() {
     setLoadingTemplate(true);
     try {
       await mutate(async () => {
-        await send("/api/personal", "POST", { names });
-        return fetcher<Payload>("/api/me");
+        await send(api("/personal"), "POST", { names });
+        return fetcher<Payload>(api("/me"));
       }, { revalidate: false });
     } catch (err) {
       toast(err instanceof ApiError ? err.message : "לא הצלחנו להוסיף");
@@ -121,8 +123,8 @@ export function PersonalList() {
     try {
       await mutate(
         async () => {
-          await send(`/api/personal/${id}`, "PATCH", { name });
-          return fetcher<Payload>("/api/me");
+          await send(api(`/personal/${id}`), "PATCH", { name });
+          return fetcher<Payload>(api("/me"));
         },
         {
           optimisticData: optimistic((p) => ({
@@ -142,8 +144,8 @@ export function PersonalList() {
     try {
       await mutate(
         async () => {
-          await send(`/api/personal/${id}`, "DELETE");
-          return fetcher<Payload>("/api/me");
+          await send(api(`/personal/${id}`), "DELETE");
+          return fetcher<Payload>(api("/me"));
         },
         {
           optimisticData: optimistic((p) => ({

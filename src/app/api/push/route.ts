@@ -1,14 +1,14 @@
 import type { PushSubscription } from "web-push";
 
 import { getPublicKey, removeSubscription, saveSubscription, sendPush } from "@/lib/push";
-import { handle, HttpError, requireReader, requireUser } from "@/lib/session";
+import { handle, HttpError, requireSignedIn } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 /** The public VAPID key the browser needs to subscribe. Not a secret. */
 export function GET() {
   return handle(async () => {
-    await requireReader();
+    await requireSignedIn();
     return { publicKey: getPublicKey() };
   });
 }
@@ -16,7 +16,7 @@ export function GET() {
 /** Register this device for my pushes. The user comes from the session, never the body. */
 export function POST(req: Request) {
   return handle(async () => {
-    const me = await requireUser();
+    const me = await requireSignedIn();
     const { subscription, test } = (await req.json()) as {
       subscription?: PushSubscription;
       test?: boolean;
@@ -39,7 +39,7 @@ export function POST(req: Request) {
 
 export function DELETE(req: Request) {
   return handle(async () => {
-    const me = await requireUser();
+    const me = await requireSignedIn();
     const { endpoint } = (await req.json()) as { endpoint?: string };
     if (!endpoint) throw new HttpError(400, "חסר endpoint");
     await removeSubscription(me.id, endpoint);

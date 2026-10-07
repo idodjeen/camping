@@ -32,9 +32,13 @@ export const users = pgTable("users", {
   /** Latin slug — drives the avatar filename at /avatars/{slug}.jpg */
   slug: text("slug").notNull().unique(),
   avatarUrl: text("avatar_url"),
-  /** Moving to `group_members.role`; dropped in phase 2 of docs/groups-and-trips.md. */
+  /**
+   * Unused since groups phase 2: the role is `group_members.role`. Kept until
+   * the cleanup PR (H in docs/roadmap.md), because code still running from the
+   * previous deploy reads it. Drops only ever ship after the code stops using them.
+   */
   isAdmin: boolean("is_admin").notNull().default(false),
-  /** Moving to `trip_members.is_shopper`; dropped in phase 2 of docs/groups-and-trips.md. */
+  /** Unused since groups phase 2: shopping is `trip_members.is_shopper`. Dropped in H. */
   isShopper: boolean("is_shopper").notNull().default(false),
   /**
    * Sees and manages every group. Set in the database only: no screen in the
@@ -140,10 +144,11 @@ export const tripMembers = pgTable(
 /**
  * The trip a content row belongs to.
  *
- * DEFAULT 1 is temporary (phase 1 of docs/groups-and-trips.md): it lets the
- * current single-trip code keep inserting unchanged. Phase 2 passes the trip
- * explicitly everywhere and drops the default, so a forgotten trip id fails
- * loudly instead of quietly landing in someone else's trip.
+ * DEFAULT 1 is temporary. Since groups phase 2 every insert names its trip
+ * explicitly; the default only remains so code still running from the phase 1
+ * deploy keeps working. It must be dropped before a second trip can be created
+ * (groups phase 4), so a forgotten trip id fails loudly instead of quietly
+ * landing in the original group's trip.
  *
  * Rows that point at other trip-scoped rows also carry a composite foreign key
  * on (trip_id, x_id), so the database itself refuses a link across trips.

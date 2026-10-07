@@ -13,6 +13,7 @@ import {
 import { notifyMessage } from "@/lib/notifications";
 import { EVERYONE } from "@/lib/mention-all";
 import { HttpError } from "@/lib/session";
+import { tripPeople } from "@/lib/trips";
 
 export const SUBJECTS = ["gear", "shopping", "meal"] as const;
 export type Subject = (typeof SUBJECTS)[number];
@@ -23,6 +24,10 @@ const generalOnly = and(
   isNull(comments.shoppingItemId),
   isNull(comments.mealId),
 );
+
+/** The ids of one trip's comments, for scoping tables that hang off a comment. */
+const commentsOf = (tripId: number) =>
+  db.select({ id: comments.id }).from(comments).where(eq(comments.tripId, tripId));
 
 /** Maps a subject name onto the one column that holds it. */
 const COLUMN = {
@@ -46,9 +51,13 @@ export type CommentView = {
   mentions: string[];
 };
 
-export async function getThread(subject: Subject, subjectId: number): Promise<CommentView[]> {
+export async function getThread(
+  tripId: number,
+  subject: Subject,
+  subjectId: number,
+): Promise<CommentView[]> {
   const rows = await db.query.comments.findMany({
-    where: eq(COLUMN[subject], subjectId),
+    where: and(eq(comments.tripId, tripId), eq(COLUMN[subject], subjectId)),
     orderBy: [asc(comments.createdAt), asc(comments.id)],
     with: { author: true, mentions: { with: { user: true } } },
   });
@@ -91,6 +100,7 @@ export function findMentions(body: string, people: { id: number; name: string }[
 }
 
 export async function createComment(
+  tripId: number,
   authorId: number,
   /** null posts to the general chat, which belongs to no item. */
   subject: Subject | null,
@@ -101,13 +111,19 @@ export async function createComment(
   if (!body) throw new HttpError(400, "אי אפשר לשלוח תגובה ריקה");
   if (body.length > 1000) throw new HttpError(400, "התגובה ארוכה מדי");
 
-  const people = await db.select().from(users);
+  // A comment on an item from another trip would be refused by the composite
+  // FK anyway; checking first turns that 500 into a clean 404.
+  if (subject) await subjectLabel(tripId, subject, subjectId!);
+
+  // Only this trip's people can be tagged, and only they hear about it.
+  const people = await tripPeople(tripId);
   // Mentioning yourself is allowed in the text but never notifies you.
   const mentioned = findMentions(body, people).filter((p) => p.id !== authorId);
 
   const [created] = await db
     .insert(comments)
     .values({
+      tripId,
       // At most one of these is set (none = general chat); the CHECK constraint enforces it.
       gearItemId: subject === "gear" ? subjectId : null,
       shoppingItemId: subject === "shopping" ? subjectId : null,
@@ -135,11 +151,16 @@ export async function createComment(
 }
 
 /** Marks my own unread mentions in one thread as read. */
-export async function markThreadRead(userId: number, subject: Subject, subjectId: number) {
+export async function markThreadRead(
+  userId: number,
+  tripId: number,
+  subject: Subject,
+  subjectId: number,
+) {
   const ids = await db
     .select({ id: comments.id })
     .from(comments)
-    .where(eq(COLUMN[subject], subjectId));
+    .where(and(eq(comments.tripId, tripId), eq(COLUMN[subject], subjectId)));
   if (ids.length === 0) return { marked: 0 };
 
   const updated = await db
@@ -208,14 +229,21 @@ export type MentionView = {
  * not an inbox you empty.
  *
  */
-export async function listMentions(userId: number, limit = 40): Promise<MentionView[]> {
+export async function listMentions(
+  userId: number,
+  tripId: number,
+  limit = 40,
+): Promise<MentionView[]> {
   // Tags switched off in חשבון: the bell stops showing them. The rows are still
   // written, so switching back on brings the history back rather than a gap.
   const [me] = await db.select({ on: users.notifyMentions }).from(users).where(eq(users.id, userId));
   if (!me?.on) return [];
 
   const rows = await db.query.commentMentions.findMany({
-    where: eq(commentMentions.userId, userId),
+    where: and(
+      eq(commentMentions.userId, userId),
+      inArray(commentMentions.commentId, commentsOf(tripId)),
+    ),
     orderBy: [desc(commentMentions.id)],
     limit,
     with: {
@@ -260,9 +288,13 @@ export type NotificationView = {
 };
 
 /** Newest first. The prefs are applied when rows are written, so this reads all of mine. */
-export async function listNotifications(userId: number, limit = 40): Promise<NotificationView[]> {
+export async function listNotifications(
+  userId: number,
+  tripId: number,
+  limit = 40,
+): Promise<NotificationView[]> {
   const rows = await db.query.notifications.findMany({
-    where: eq(notifications.userId, userId),
+    where: and(eq(notifications.userId, userId), eq(notifications.tripId, tripId)),
     orderBy: [desc(notifications.id)],
     limit,
     with: {
@@ -324,12 +356,13 @@ export type ChatMessage = {
  * the right end of history) and reversed for display.
  */
 export async function listChat(
+  tripId: number,
   userId: number,
   room: "items" | "general" = "items",
   limit = 150,
 ): Promise<ChatMessage[]> {
   const rows = await db.query.comments.findMany({
-    where: room === "general" ? generalOnly : not(generalOnly!),
+    where: and(eq(comments.tripId, tripId), room === "general" ? generalOnly : not(generalOnly!)),
     orderBy: [desc(comments.id)],
     limit,
     with: {
@@ -365,11 +398,11 @@ export async function listChat(
 }
 
 /** Marks my unread tags in the general chat as read — what opening the chat tab does. */
-export async function markGeneralRead(userId: number) {
+export async function markGeneralRead(userId: number, tripId: number) {
   const general = await db
     .select({ id: comments.id })
     .from(comments)
-    .where(generalOnly);
+    .where(and(eq(comments.tripId, tripId), generalOnly));
   if (general.length === 0) return { marked: 0 };
 
   const updated = await db
@@ -391,18 +424,24 @@ export async function markGeneralRead(userId: number) {
 }
 
 /** Clears every unread mention of mine at once, from the pane's "mark all read". */
-export async function markAllMentionsRead(userId: number) {
+export async function markAllMentionsRead(userId: number, tripId: number) {
   const updated = await db
     .update(commentMentions)
     .set({ readAt: new Date() })
-    .where(and(eq(commentMentions.userId, userId), isNull(commentMentions.readAt)))
+    .where(
+      and(
+        eq(commentMentions.userId, userId),
+        isNull(commentMentions.readAt),
+        inArray(commentMentions.commentId, commentsOf(tripId)),
+      ),
+    )
     .returning();
 
   return { marked: updated.length };
 }
 
 /** Unread mentions per list, for the dot on the bottom nav. */
-export async function unreadMentions(userId: number) {
+export async function unreadMentions(userId: number, tripId: number) {
   const rows = await db
     .select({
       gear: comments.gearItemId,
@@ -411,7 +450,13 @@ export async function unreadMentions(userId: number) {
     })
     .from(commentMentions)
     .innerJoin(comments, eq(comments.id, commentMentions.commentId))
-    .where(and(eq(commentMentions.userId, userId), isNull(commentMentions.readAt)));
+    .where(
+      and(
+        eq(comments.tripId, tripId),
+        eq(commentMentions.userId, userId),
+        isNull(commentMentions.readAt),
+      ),
+    );
 
   return {
     gear: rows.filter((r) => r.gear !== null).length,
@@ -421,26 +466,54 @@ export async function unreadMentions(userId: number) {
   };
 }
 
-export async function deleteComment(userId: number, isAdmin: boolean, commentId: number) {
-  const [row] = await db.select().from(comments).where(eq(comments.id, commentId));
+export async function deleteComment(
+  tripId: number,
+  userId: number,
+  isAdmin: boolean,
+  commentId: number,
+) {
+  const [row] = await db
+    .select()
+    .from(comments)
+    .where(and(eq(comments.id, commentId), eq(comments.tripId, tripId)));
   if (!row) throw new HttpError(404, "התגובה לא נמצאה");
-  // Your own, or anyone's if you're the admin.
+  // Your own, or anyone's if you're a group admin.
   if (row.userId !== userId && !isAdmin) throw new HttpError(403, "אפשר למחוק רק תגובות שלך");
 
   await db.delete(comments).where(eq(comments.id, commentId));
   return { deleted: true };
 }
 
-/** What the item is called, for the email subject line and the thread header. */
-export async function subjectLabel(subject: Subject, subjectId: number): Promise<string> {
-  if (subject === "gear") {
-    const [r] = await db.select().from(gearItems).where(eq(gearItems.id, subjectId));
-    return r?.name ?? "פריט";
-  }
-  if (subject === "shopping") {
-    const [r] = await db.select().from(shoppingItems).where(eq(shoppingItems.id, subjectId));
-    return r?.name ?? "פריט";
-  }
-  const [r] = await db.select().from(meals).where(eq(meals.id, subjectId));
-  return r?.title ?? "ארוחה";
+/**
+ * What the item is called, for the email subject line and the thread header.
+ * Also the proof that the item is in this trip: anything else is a 404.
+ */
+export async function subjectLabel(
+  tripId: number,
+  subject: Subject,
+  subjectId: number,
+): Promise<string> {
+  const label =
+    subject === "gear"
+      ? (
+          await db
+            .select({ label: gearItems.name })
+            .from(gearItems)
+            .where(and(eq(gearItems.id, subjectId), eq(gearItems.tripId, tripId)))
+        )[0]?.label
+      : subject === "shopping"
+        ? (
+            await db
+              .select({ label: shoppingItems.name })
+              .from(shoppingItems)
+              .where(and(eq(shoppingItems.id, subjectId), eq(shoppingItems.tripId, tripId)))
+          )[0]?.label
+        : (
+            await db
+              .select({ label: meals.title })
+              .from(meals)
+              .where(and(eq(meals.id, subjectId), eq(meals.tripId, tripId)))
+          )[0]?.label;
+  if (label === undefined) throw new HttpError(404, "הפריט לא נמצא");
+  return label;
 }

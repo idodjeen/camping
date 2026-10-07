@@ -1,13 +1,14 @@
-import { asc, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 
 import { db } from "@/db";
-import { gearClaims, gearItems, shoppingItems, users } from "@/db/schema";
+import { gearClaims, gearItems, shoppingItems } from "@/db/schema";
+import { tripPeople } from "@/lib/trips";
 
 /**
- * Contribution scoring for מחנאות 2026.
+ * Contribution scoring, per trip.
  *
  * ── Fairness ────────────────────────────────────────────────────────────────
- * Only `is_shopper` users (עידו, ניר) may set `shopping_items.bought_by`, so
+ * Only a trip's shoppers (`trip_members.is_shopper`) may set `bought_by`, so
  * "items bought" is an action three of the five friends are forbidden from
  * taking. Ranking everyone on it would be a grievance generator. The headline
  * score therefore counts ONLY universally-available actions — claiming gear,
@@ -66,9 +67,10 @@ export type Title = {
   avatarUrl: string | null;
 } | null;
 
-export async function getLeaderboard() {
+/** One trip's board: only the people on it, scored only on that trip's lists. */
+export async function getLeaderboard(tripId: number) {
   const [people, claims, bought, gearAdded, shopAdded] = await Promise.all([
-    db.select().from(users).orderBy(asc(users.id)),
+    tripPeople(tripId),
     db
       .select({
         userId: gearClaims.userId,
@@ -76,19 +78,21 @@ export async function getLeaderboard() {
         isPacked: gearClaims.isPacked,
         createdAt: gearClaims.createdAt,
       })
-      .from(gearClaims),
+      .from(gearClaims)
+      .innerJoin(gearItems, eq(gearItems.id, gearClaims.gearItemId))
+      .where(eq(gearItems.tripId, tripId)),
     db
       .select({ userId: shoppingItems.boughtBy })
       .from(shoppingItems)
-      .where(isNotNull(shoppingItems.boughtBy)),
+      .where(and(eq(shoppingItems.tripId, tripId), isNotNull(shoppingItems.boughtBy))),
     db
       .select({ userId: gearItems.createdBy })
       .from(gearItems)
-      .where(isNotNull(gearItems.createdBy)),
+      .where(and(eq(gearItems.tripId, tripId), isNotNull(gearItems.createdBy))),
     db
       .select({ userId: shoppingItems.createdBy })
       .from(shoppingItems)
-      .where(isNotNull(shoppingItems.createdBy)),
+      .where(and(eq(shoppingItems.tripId, tripId), isNotNull(shoppingItems.createdBy))),
   ]);
 
   const rows: LeaderRow[] = people.map((u) => {

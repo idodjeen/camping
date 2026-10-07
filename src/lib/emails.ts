@@ -1,11 +1,12 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
-import { gearClaims, trip, users } from "@/db/schema";
+import { gearItems, trip } from "@/db/schema";
 import { daysUntil, formatTripDay } from "@/lib/dates";
 import { formatGearList, formatMyList, formatShoppingList } from "@/lib/format-lists";
 import type { Outgoing } from "@/lib/mailer";
 import { getGear, getShopping } from "@/lib/queries";
+import { tripPeople } from "@/lib/trips";
 import { getForecast } from "@/lib/weather";
 
 export const NOTIFY_TYPES = ["unclaimed", "countdown", "packing", "shopping"] as const;
@@ -33,12 +34,12 @@ function escapeHtml(s: string) {
  * because the formatters produce newline-separated plain text — the same text
  * the in-app copy buttons hand to WhatsApp.
  */
-function wrap(heading: string, body: string) {
+function wrap(heading: string, body: string, link = APP_URL) {
   return `<div dir="rtl" style="background:#0a0a14;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#e7e7f2">
   <div style="max-width:560px;margin:0 auto;background:#11111f;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:24px">
     <h1 style="margin:0 0 16px;font-size:20px;color:#a78bfa">${escapeHtml(heading)}</h1>
     <div style="white-space:pre-wrap;font-size:14px;line-height:1.7;color:#d7d7e6">${escapeHtml(body)}</div>
-    <a href="${APP_URL}" style="display:inline-block;margin-top:20px;padding:10px 18px;background:#7c3aed;color:#fff;border-radius:10px;text-decoration:none;font-weight:bold">לפתוח את האפליקציה</a>
+    <a href="${link}" style="display:inline-block;margin-top:20px;padding:10px 18px;background:#7c3aed;color:#fff;border-radius:10px;text-decoration:none;font-weight:bold">לפתוח את האפליקציה</a>
   </div>
 </div>`;
 }
@@ -46,17 +47,19 @@ function wrap(heading: string, body: string) {
 /**
  * Builds the messages for one notification type.
  *
- * Recipients are derived here from the users table — never from a request
+ * Recipients are derived here from the trip's members, never from a request
  * body. A publicly-reachable route that emails whoever it is told to is an
  * open relay running off a personal Gmail account.
  */
-export async function buildMessages(type: NotifyType): Promise<Outgoing[]> {
-  const people = await db.select().from(users);
-  const [t] = await db.select().from(trip).where(eq(trip.id, 1));
+export async function buildMessages(type: NotifyType, tripId: number): Promise<Outgoing[]> {
+  // Only the people on this trip, and links that open this trip.
+  const people = await tripPeople(tripId);
+  const [t] = await db.select().from(trip).where(eq(trip.id, tripId));
+  const w = (heading: string, body: string) => wrap(heading, body, `${APP_URL}/t/${tripId}`);
   const tripName = t?.name ?? "מחנאות 2026";
 
   if (type === "unclaimed") {
-    const gear = await getGear();
+    const gear = await getGear(tripId);
     const missing = gear
       .flatMap((c) => c.items)
       .filter((i) => !i.isFull && !i.isOptional).length;
@@ -68,12 +71,16 @@ export async function buildMessages(type: NotifyType): Promise<Outgoing[]> {
       to: u.email,
       subject,
       text: `היי ${u.name},\n\n${body}`,
-      html: wrap(subject, `היי ${u.name},\n\n${body}`),
+      html: w(subject, `היי ${u.name},\n\n${body}`),
     }));
   }
 
   if (type === "countdown") {
-    const [gear, shopping, forecast] = await Promise.all([getGear(), getShopping(), getForecast()]);
+    const [gear, shopping, forecast] = await Promise.all([
+      getGear(tripId),
+      getShopping(tripId),
+      getForecast(tripId),
+    ]);
     const required = gear.flatMap((c) => c.items).filter((i) => !i.isOptional);
     const shopItems = shopping.flatMap((c) => c.items);
     const left = t ? daysUntil(t.startDate) : null;
@@ -105,12 +112,17 @@ export async function buildMessages(type: NotifyType): Promise<Outgoing[]> {
       to: u.email,
       subject,
       text: `היי ${u.name},\n\n${body}`,
-      html: wrap(subject, `היי ${u.name},\n\n${body}`),
+      html: w(subject, `היי ${u.name},\n\n${body}`),
     }));
   }
 
   if (type === "packing") {
     const claims = await db.query.gearClaims.findMany({
+      where: (c) =>
+        inArray(
+          c.gearItemId,
+          db.select({ id: gearItems.id }).from(gearItems).where(eq(gearItems.tripId, tripId)),
+        ),
       with: { item: { with: { category: true } } },
     });
 
@@ -134,13 +146,13 @@ export async function buildMessages(type: NotifyType): Promise<Outgoing[]> {
         to: u.email,
         subject,
         text: `היי ${u.name},\n\n${body}`,
-        html: wrap(subject, `היי ${u.name},\n\n${body}`),
+        html: w(subject, `היי ${u.name},\n\n${body}`),
       }];
     });
   }
 
   // shopping — only the people who are allowed to buy
-  const shopping = await getShopping();
+  const shopping = await getShopping(tripId);
   const remaining = shopping.flatMap((c) => c.items).filter((i) => !i.isBought).length;
   const body = formatShoppingList(shopping, { onlyRemaining: true });
   const subject = `${tripName} — נשארו ${remaining} פריטים לקנות`;
@@ -151,7 +163,7 @@ export async function buildMessages(type: NotifyType): Promise<Outgoing[]> {
       to: u.email,
       subject,
       text: `היי ${u.name},\n\n${body}`,
-      html: wrap(subject, `היי ${u.name},\n\n${body}`),
+      html: w(subject, `היי ${u.name},\n\n${body}`),
     }));
 }
 
@@ -161,6 +173,7 @@ export async function buildMessages(type: NotifyType): Promise<Outgoing[]> {
  * server derived from the message text, never from a request body.
  */
 export function buildMentionEmails(
+  tripId: number,
   author: string,
   itemName: string,
   body: string,
@@ -169,6 +182,6 @@ export function buildMentionEmails(
   const subject = `${author} שאל אותך על ${itemName}`;
   return recipients.map((r) => {
     const text = `היי ${r.name},\n\n${author} כתב לך על «${itemName}»:\n\n${body}`;
-    return { to: r.email, subject, text, html: wrap(subject, text) };
+    return { to: r.email, subject, text, html: wrap(subject, text, `${APP_URL}/t/${tripId}/chat`) };
   });
 }

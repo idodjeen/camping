@@ -8,9 +8,10 @@ import useSWR, { useSWRConfig } from "swr";
 import { Modal } from "@/components/modal";
 import { toast } from "@/components/toast";
 import { UserAvatar } from "@/components/user-avatar";
-import { ApiError, NOTIFICATIONS_KEY, fetcher, send, swrConfig } from "@/lib/api";
+import { ApiError, fetcher, send, swrConfig } from "@/lib/api";
 import { formatRelative } from "@/lib/dates";
 import { EVERYONE } from "@/lib/mention-all";
+import { useTrip } from "@/lib/trip-client";
 import { cn } from "@/lib/utils";
 
 type Person = { id: number; name: string; slug: string; avatarUrl: string | null };
@@ -107,9 +108,10 @@ export function CommentsSheet({
   id: number;
   name: string;
 }) {
-  const key = open ? `/api/comments?subject=${subject}&id=${id}` : null;
+  const { api } = useTrip();
+  const key = open ? api(`/comments?subject=${subject}&id=${id}`) : null;
   const { data, isLoading, mutate } = useSWR<Thread>(key, fetcher, swrConfig);
-  const { data: me, mutate: mutateMe } = useSWR<Me>("/api/me", fetcher, swrConfig);
+  const { data: me, mutate: mutateMe } = useSWR<Me>(api("/me"), fetcher, swrConfig);
   const { mutate: globalMutate } = useSWRConfig();
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -120,8 +122,8 @@ export function CommentsSheet({
   // revalidated once the server has stamped read_at.
   useEffect(() => {
     if (!open) return;
-    void send("/api/comments/read", "POST", { subject, id })
-      .then(() => Promise.all([mutateMe(), globalMutate(NOTIFICATIONS_KEY)]))
+    void send(api("/comments/read"), "POST", { subject, id })
+      .then(() => Promise.all([mutateMe(), globalMutate(api("/notifications"))]))
       .catch(() => {});
   }, [open, subject, id, mutateMe, globalMutate]);
 
@@ -131,7 +133,7 @@ export function CommentsSheet({
     if (!body) return;
     setBusy(true);
     try {
-      const res = await send<{ notified: string[] }>("/api/comments", "POST", {
+      const res = await send<{ notified: string[] }>(api("/comments"), "POST", {
         subject,
         id,
         body,
@@ -139,7 +141,7 @@ export function CommentsSheet({
       setDraft("");
       await mutate();
       await mutateMe();
-      await globalMutate(NOTIFICATIONS_KEY);
+      await globalMutate(api("/notifications"));
       if (res.notified.length > 0) toast(`נשלח מייל ל${res.notified.join(", ")}`, "ok");
     } catch (err) {
       toast(err instanceof ApiError ? err.message : "לא הצלחנו לשלוח");
@@ -150,7 +152,7 @@ export function CommentsSheet({
 
   async function remove(commentId: number) {
     try {
-      await send(`/api/comments/${commentId}`, "DELETE");
+      await send(api(`/comments/${commentId}`), "DELETE");
       await mutate();
     } catch (err) {
       toast(err instanceof ApiError ? err.message : "לא הצלחנו למחוק");

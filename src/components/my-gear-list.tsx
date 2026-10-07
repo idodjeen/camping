@@ -8,6 +8,7 @@ import { CheckBox } from "@/components/personal-list";
 import { toast } from "@/components/toast";
 import { ApiError, fetcher, send, swrConfig } from "@/lib/api";
 import { burstFrom } from "@/lib/confetti";
+import { useTrip } from "@/lib/trip-client";
 import { cn } from "@/lib/utils";
 
 export type MyClaim = {
@@ -27,15 +28,16 @@ type Payload = { claims: MyClaim[] } & Record<string, unknown>;
  * the main list, which is where the quantities are visible.
  */
 export function MyGearList() {
-  const { data, mutate } = useSWR<Payload>("/api/me", fetcher, swrConfig);
+  const { api, page } = useTrip();
+  const { data, mutate } = useSWR<Payload>(api("/me"), fetcher, swrConfig);
 
   async function togglePacked(itemId: number, next: boolean, el: Element | null) {
     if (next) burstFrom(el);
     try {
       await mutate(
         async () => {
-          await send(`/api/gear/${itemId}/claim`, "PATCH", { isPacked: next });
-          return fetcher<Payload>("/api/me");
+          await send(api(`/gear/${itemId}/claim`), "PATCH", { isPacked: next });
+          return fetcher<Payload>(api("/me"));
         },
         {
           optimisticData: data && {
@@ -64,7 +66,7 @@ export function MyGearList() {
         <p className="glass rounded-2xl px-4 py-5 text-center text-sm text-white/45">
           עוד לא התחייבת על ציוד.
           <br />
-          <Link href="/gear" className="text-brand-300 underline underline-offset-2">
+          <Link href={page("/gear")} className="text-brand-300 underline underline-offset-2">
             חזור לרשימה המלאה
           </Link>{" "}
           ותפוס משהו.

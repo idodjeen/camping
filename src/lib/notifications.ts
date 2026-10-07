@@ -1,7 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
-import { notifications, users, type Comment, type User } from "@/db/schema";
+import { notifications, tripMembers, users, type Comment, type User } from "@/db/schema";
 import { sendPush } from "@/lib/push";
 import { HttpError } from "@/lib/session";
 
@@ -30,17 +30,19 @@ export async function notifyMessage(
   );
   const author = people.find((p) => p.id === authorId);
   const preview = comment.body.length > 120 ? `${comment.body.slice(0, 117)}…` : comment.body;
-  const url = comment.gearItemId
+  const page = comment.gearItemId
     ? "/gear"
     : comment.shoppingItemId
       ? "/shopping"
       : comment.mealId
         ? "/meals"
         : "/chat";
+  const url = `/t/${comment.tripId}${page}`;
 
   if (recipients.length > 0) {
     await db.insert(notifications).values(
       recipients.map((p) => ({
+        tripId: comment.tripId,
         userId: p.id,
         kind: "message" as const,
         actorId: authorId,
@@ -63,18 +65,28 @@ export async function notifyMessage(
   ]);
 }
 
-/** An item just reached full coverage; `actorId` is whoever took the last unit. */
-export async function notifyCovered(tx: Writer, itemId: number, actorId: number): Promise<number[]> {
+/**
+ * An item just reached full coverage; `actorId` is whoever took the last unit.
+ * Only the people on this trip hear about it.
+ */
+export async function notifyCovered(
+  tx: Writer,
+  tripId: number,
+  itemId: number,
+  actorId: number,
+): Promise<number[]> {
   const recipients = await tx
     .select({ id: users.id })
-    .from(users)
-    .where(eq(users.notifyCovered, true));
+    .from(tripMembers)
+    .innerJoin(users, eq(users.id, tripMembers.userId))
+    .where(and(eq(tripMembers.tripId, tripId), eq(users.notifyCovered, true)));
 
   const others = recipients.filter((r) => r.id !== actorId);
   if (others.length === 0) return [];
 
   await tx.insert(notifications).values(
     others.map((r) => ({
+      tripId,
       userId: r.id,
       kind: "covered" as const,
       actorId,
@@ -84,21 +96,34 @@ export async function notifyCovered(tx: Writer, itemId: number, actorId: number)
   return others.map((r) => r.id);
 }
 
-export async function markAllNotificationsRead(userId: number) {
+export async function markAllNotificationsRead(userId: number, tripId: number) {
   const updated = await db
     .update(notifications)
     .set({ readAt: new Date() })
-    .where(and(eq(notifications.userId, userId), isNull(notifications.readAt)))
+    .where(
+      and(
+        eq(notifications.userId, userId),
+        eq(notifications.tripId, tripId),
+        isNull(notifications.readAt),
+      ),
+    )
     .returning({ id: notifications.id });
   return { marked: updated.length };
 }
 
 /** One row, and only ever mine — the `userId` in the WHERE is the permission check. */
-export async function markNotificationRead(userId: number, id: number) {
+export async function markNotificationRead(userId: number, tripId: number, id: number) {
   const updated = await db
     .update(notifications)
     .set({ readAt: new Date() })
-    .where(and(eq(notifications.id, id), eq(notifications.userId, userId), isNull(notifications.readAt)))
+    .where(
+      and(
+        eq(notifications.id, id),
+        eq(notifications.userId, userId),
+        eq(notifications.tripId, tripId),
+        isNull(notifications.readAt),
+      ),
+    )
     .returning({ id: notifications.id });
   return { marked: updated.length };
 }

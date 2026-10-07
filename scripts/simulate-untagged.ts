@@ -25,11 +25,14 @@ async function main() {
       g.__campingDb = tx;
 
       const body = "בדיקה — הודעה בלי תיוג";
-      await createComment(author.id, "gear", item.id, body);
+      await createComment(item.tripId, author.id, "gear", item.id, body);
 
       console.log(`author: ${author.name}; comment tags nobody\n`);
       for (const u of all) {
-        const [n, m] = await Promise.all([listNotifications(u.id), listMentions(u.id)]);
+        const [n, m] = await Promise.all([
+          listNotifications(u.id, item.tripId),
+          listMentions(u.id, item.tripId),
+        ]);
         const got = n.filter((x) => x.kind === "message" && x.body === body).length;
         console.log(
           `${u.name.padEnd(10)} notifyMessages=${String(u.notifyMessages).padEnd(5)} ` +

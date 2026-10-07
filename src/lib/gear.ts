@@ -18,8 +18,9 @@ import { HttpError } from "@/lib/session";
  * claimed 4 times. The lock serialises the two transactions so the second one
  * observes the first's claim and is refused.
  */
-export async function setClaim(userId: number, itemId: number, qty: number) {
+export async function setClaim(tripId: number, userId: number, itemId: number, qty: number) {
   if (qty <= 0) {
+    await assertGearItem(tripId, itemId);
     await db
       .delete(gearClaims)
       .where(and(eq(gearClaims.gearItemId, itemId), eq(gearClaims.userId, userId)));
@@ -31,7 +32,7 @@ export async function setClaim(userId: number, itemId: number, qty: number) {
     const [item] = await tx
       .select()
       .from(gearItems)
-      .where(eq(gearItems.id, itemId))
+      .where(and(eq(gearItems.id, itemId), eq(gearItems.tripId, tripId)))
       .for("update");
     if (!item) throw new HttpError(404, "הפריט לא נמצא");
 
@@ -76,7 +77,7 @@ export async function setClaim(userId: number, itemId: number, qty: number) {
     const capacity = item.qtyNeeded ?? 1;
     let covered: { name: string; ids: number[] } | null = null;
     if (announces && othersTotal + (before?.qty ?? 0) < capacity && othersTotal + qty >= capacity) {
-      covered = { name: item.name, ids: await notifyCovered(tx, itemId, userId) };
+      covered = { name: item.name, ids: await notifyCovered(tx, tripId, itemId, userId) };
     }
 
     return { claim, covered };
@@ -89,9 +90,24 @@ export async function setClaim(userId: number, itemId: number, qty: number) {
     await sendPush(covered.ids, {
       title: "פריט כוסה 🎉",
       body: `${actor?.name ?? "מישהו"} לקח את האחרון: ${covered.name}`,
-      url: "/gear",
+      url: `/t/${tripId}/gear`,
       tag: `covered-${itemId}`,
     });
   }
   return result;
+}
+
+/**
+ * Proves a gear item is in this trip, or 404s.
+ *
+ * `gear_claims` has no trip_id of its own: the item is what scopes a claim,
+ * so every claim write checks the item first. Otherwise a member of one trip
+ * could reach a claim in another by guessing an item id.
+ */
+export async function assertGearItem(tripId: number, itemId: number) {
+  const [item] = await db
+    .select({ id: gearItems.id })
+    .from(gearItems)
+    .where(and(eq(gearItems.id, itemId), eq(gearItems.tripId, tripId)));
+  if (!item) throw new HttpError(404, "הפריט לא נמצא");
 }

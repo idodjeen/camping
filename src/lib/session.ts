@@ -1,46 +1,22 @@
 import { NextResponse } from "next/server";
+import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
-import { isViewer, viewerNameFor } from "@/lib/allowlist";
-import { getOrCreateUser } from "@/lib/user";
+import { findUserByEmail } from "@/lib/user";
 import type { User } from "@/db/schema";
 
 /**
- * The current user, re-read from the database on every call so role changes
- * (admin / shopper) apply immediately rather than being frozen into the JWT.
+ * The signed-in person's row, re-read from the database on every call.
+ *
+ * Who they are, not what they may do: permissions depend on which trip a
+ * request is about, and live in lib/access.ts.
  */
-export async function getCurrentUser(): Promise<SessionUser | null> {
+export async function getCurrentUser(): Promise<User | null> {
   const session = await auth();
   const email = session?.user?.email;
   if (!email) return null;
-
-  if (isViewer(email)) {
-    const name = viewerNameFor(email) ?? email.split("@")[0];
-    // id 0 matches no row, so every "mine" query (claims, unread, notifications)
-    // comes back empty for a viewer instead of needing a special case.
-    return {
-      id: 0,
-      email: email.toLowerCase(),
-      name,
-      slug: "viewer",
-      avatarUrl: null,
-      isAdmin: false,
-      isShopper: false,
-      isSuperAdmin: false,
-      onboardedAt: new Date(0),
-      notifyMentions: false,
-      notifyCovered: false,
-      notifyMessages: false,
-      createdAt: new Date(0),
-      isViewer: true,
-    };
-  }
-
-  return { ...(await getOrCreateUser(email)), isViewer: false };
+  return findUserByEmail(email);
 }
-
-/** A member's row, or a synthetic read-only stand-in for a viewer. */
-export type SessionUser = User & { isViewer: boolean };
 
 export class HttpError extends Error {
   constructor(
@@ -52,22 +28,25 @@ export class HttpError extends Error {
 }
 
 /**
- * Any signed-in person, viewers included. Only for handlers that never change
- * anything — every GET that just reads.
+ * Any signed-in person, for the few routes that are about the person rather
+ * than a trip: notification preferences, push devices, onboarding.
  */
-export async function requireReader(): Promise<SessionUser> {
+export async function requireSignedIn(): Promise<User> {
   const user = await getCurrentUser();
   if (!user) throw new HttpError(401, "לא מחובר");
   return user;
 }
 
 /**
- * A full member. Use at the top of every handler that writes: viewers get a
- * 403 here, so read-only is enforced on the server, not just hidden in the UI.
+ * The same, for pages. A valid session whose row has gone (removed from every
+ * group) goes to /no-access rather than /login: the login page bounces anyone
+ * with a session straight back here, which would loop forever.
  */
-export async function requireUser(): Promise<User> {
-  const user = await requireReader();
-  if (user.isViewer) throw new HttpError(403, "מצב צפייה בלבד");
+export async function requirePageUser(): Promise<User> {
+  const session = await auth();
+  if (!session?.user?.email) redirect("/login");
+  const user = await findUserByEmail(session.user.email);
+  if (!user) redirect("/no-access?error=AccessDenied");
   return user;
 }
 
