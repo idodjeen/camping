@@ -64,6 +64,13 @@
       "when": 1791314607575,
       "tag": "0008_groups_and_trips",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791400680752,
+      "tag": "0009_expense_category",
+      "breakpoints": true
     }
   ]
 }

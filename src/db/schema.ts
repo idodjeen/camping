@@ -497,6 +497,14 @@ export const expenses = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * One of EXPENSE_CATEGORIES in lib/expenses.ts. Plain text checked by the
+     * API, not the database, so the list can change without a migration; an
+     * unknown value reads as "other".
+     */
+    category: text("category").notNull().default("other"),
+    /** Set on every edit; null for an expense that was never changed. */
+    editedAt: timestamp("edited_at", { withTimezone: true }),
   },
   (t) => [check("expenses_amount_positive", sql`${t.amount} > 0`)],
 );
