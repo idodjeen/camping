@@ -69,7 +69,7 @@ export function parsePeople(text: string): ParsedLine[] {
 
 /**
  * The same email twice anywhere in the form, or two people with the same
- * name. Returns one message per clash; empty when the lists are clean.
+ * name. Returns each distinct problem once; empty when the lists are clean.
  */
 export function clashes(people: PersonInput[]): string[] {
   const out: string[] = [];
@@ -83,7 +83,8 @@ export function clashes(people: PersonInput[]): string[] {
     if (other && other !== p.email) out.push(`השם ${p.name} כבר תפוס בקבוצה (${other})`);
     else names.set(key, p.email);
   }
-  return out;
+  // A name taken three times would otherwise say so twice.
+  return [...new Set(out)];
 }
 
 export const ROLE_LABEL = { admin: "מנהל/ת", editor: "חבר/ה", viewer: "צפייה" } as const;

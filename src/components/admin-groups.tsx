@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown, Plus, Users } from "lucide-react";
+import { Check, ChevronDown, Plus, Users, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import useSWR from "swr";
 
@@ -239,9 +239,12 @@ function PeopleField({
             <li key={i} className="flex items-center gap-2">
               {p.error ? (
                 <>
-                  <span className="text-rose-300">{p.error}:</span>
-                  <span dir="ltr" className="min-w-0 truncate text-white/40">
-                    {p.line}
+                  <X className="size-3.5 shrink-0 text-rose-300" />
+                  <span className="min-w-0">
+                    <span dir="ltr" className="block truncate text-start text-white/40">
+                      {p.line}
+                    </span>
+                    <span className="block text-rose-300">{p.error}</span>
                   </span>
                 </>
               ) : (
@@ -311,7 +314,7 @@ function GroupCard({ group, link }: { group: GroupSummary; link: string }) {
         <span className="min-w-0 flex-1">
           <span className="block truncate font-semibold">{group.name}</span>
           <span className="block truncate text-xs text-white/50">
-            {group.members.length} אנשים · {group.trips === 1 ? "טיול אחד" : `${group.trips} טיולים`}
+            {group.members.length} אנשים · {group.trips === 0 ? "עוד בלי טיול" : group.trips === 1 ? "טיול אחד" : `${group.trips} טיולים`}
             {admins.length > 0 && ` · מנהל/ת: ${admins.map((a) => a.name).join(", ")}`}
           </span>
         </span>
