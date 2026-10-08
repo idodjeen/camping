@@ -3,6 +3,7 @@ import {
   Backpack,
   Home,
   MessageCircle,
+  Settings2,
   ShieldCheck,
   ShoppingCart,
   Trophy,
@@ -73,6 +74,7 @@ export const NAV: readonly NavItem[] = [
   item("/expenses", { label: "הוצאות", Icon: Wallet, primary: false }),
   item("/leaderboard", { label: "לוח התורמים", Icon: Trophy, primary: false }),
   item("/me", { label: "חשבון", Icon: User, primary: false }),
+  item("/manage", { label: "ניהול הטיול", Icon: Settings2, primary: false, adminOnly: true }),
   appItem("/admin", { label: "ניהול קבוצות", Icon: ShieldCheck, primary: false, superAdminOnly: true }),
 ];
 
