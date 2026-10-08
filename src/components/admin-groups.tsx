@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown, Plus, UserCog, Users, X } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, Plus, Tent, UserCog, Users, X } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import useSWR from "swr";
@@ -9,6 +9,7 @@ import { CopyButton } from "@/components/copy-button";
 import { toast } from "@/components/toast";
 import { fetcher, send } from "@/lib/api";
 import type { GroupSummary } from "@/lib/groups";
+import type { InviteResult } from "@/lib/invite-email";
 import {
   ROLE_LABEL,
   clashes,
@@ -29,6 +30,7 @@ export const field =
 type Created = {
   group: { id: number; name: string };
   kept: { email: string; typed: string; name: string }[];
+  invite: InviteResult;
 };
 
 /**
@@ -288,7 +290,7 @@ function CreatedCard({ created, link, onDone }: { created: Created; link: string
     <section className="glass space-y-3 rounded-glass p-4">
       <h2 className="font-bold">הקבוצה &quot;{created.group.name}&quot; נוצרה ✅</h2>
       <p className="text-sm text-white/60">
-        שלחו להם את ההודעה הזו בוואטסאפ. מנהל/ת הקבוצה יוכל/תוכל ליצור בה טיול.
+        {inviteNote(created.invite)} מנהל/ת הקבוצה יוכל/תוכל ליצור בה טיול.
       </p>
       <KeptNames kept={created.kept} />
       <p className="rounded-xl bg-white/5 p-3 text-sm leading-relaxed whitespace-pre-line text-white/80">
@@ -331,6 +333,22 @@ function GroupCard({ group, link }: { group: GroupSummary; link: string }) {
 
       {open && (
         <div className="space-y-3 border-t border-white/10 p-4">
+          {group.tripList.length > 0 && (
+            <ul className="space-y-1">
+              {group.tripList.map((t) => (
+                <li key={t.id}>
+                  <Link
+                    href={`/t/${t.id}`}
+                    className="tap flex items-center gap-2 rounded-xl bg-white/5 px-3 text-sm font-semibold text-white/80 transition active:scale-[0.99]"
+                  >
+                    <Tent className="size-4 shrink-0 text-brand-300" />
+                    <span className="min-w-0 flex-1 truncate">{t.name}</span>
+                    <ChevronLeft className="size-4 shrink-0 text-white/25 ltr:rotate-180" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
           <ul className="space-y-1.5">
             {group.members.map((m) => (
               <li key={m.userId} className="flex items-center gap-2 text-sm">
@@ -363,4 +381,14 @@ function GroupCard({ group, link }: { group: GroupSummary; link: string }) {
       )}
     </li>
   );
+}
+
+/**
+ * What to tell the admin after adding people: only what actually went out.
+ * On a preview nothing is sent (no Gmail there), so it falls back to WhatsApp.
+ */
+export function inviteNote({ sent, total }: InviteResult) {
+  if (total === 0 || sent === 0) return "שלחו להם את ההודעה הזו בוואטסאפ.";
+  if (sent === total) return "שלחנו להם מייל הזמנה. אפשר לשלוח גם את ההודעה הזו בוואטסאפ.";
+  return `שלחנו מייל ל-${sent} מתוך ${total}. לשאר שלחו את ההודעה הזו בוואטסאפ.`;
 }

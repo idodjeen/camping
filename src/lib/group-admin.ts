@@ -18,6 +18,7 @@ import { parseCoords } from "@/lib/coords";
 import { addDays, todayInIsrael } from "@/lib/dates";
 import { ROLE_ORDER, readPeople } from "@/lib/groups";
 import { clashes, type PersonInput } from "@/lib/people";
+import type { Invitee } from "@/lib/invite-email";
 import { HttpError } from "@/lib/session";
 import { fillFromTemplate, fillFromTrip } from "@/lib/trip-template";
 import { createUser } from "@/lib/user";
@@ -242,17 +243,18 @@ export async function addMembers(groupId: number, input: NewMembers, by: number)
     if (problems.length > 0) throw new HttpError(400, problems.join("\n"));
 
     const kept: { email: string; typed: string; name: string }[] = [];
-    const added: number[] = [];
+    const added: Invitee[] = [];
     for (const p of input.people) {
       const found = byEmail.get(p.email);
       if (found && found.name !== p.name) kept.push({ email: p.email, typed: p.name, name: found.name });
       const user = found ?? (await createUser(tx, p));
       await tx.insert(groupMembers).values({ groupId, userId: user.id, role: input.role, addedBy: by });
-      added.push(user.id);
+      added.push({ userId: user.id, email: user.email, name: user.name });
     }
-    if (input.role === "editor") await joinOpenTrips(tx, groupId, added);
+    if (input.role === "editor") await joinOpenTrips(tx, groupId, added.map((a) => a.userId));
 
-    return { added: added.length, kept };
+    // `people` is for the invite emails; the route keeps it out of the response.
+    return { added: added.length, kept, people: added };
   });
 }
 
