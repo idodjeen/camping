@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 
-import { db } from "@/db";
+import { db, type Tx } from "@/db";
 import { groupMembers, users } from "@/db/schema";
 import { envViewer } from "@/lib/allowlist";
 
@@ -81,8 +81,6 @@ async function importEnvViewer(email: string): Promise<boolean> {
   console.info(`imported VIEWER_USERS entry as a viewer of group ${ORIGINAL_GROUP_ID}`);
   return true;
 }
-
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
  * A new person's row, with a slug no one else has.

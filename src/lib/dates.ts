@@ -19,6 +19,11 @@ export function daysUntil(date: string, from: string = todayInIsrael()): number 
   return Math.round(ms / 86_400_000);
 }
 
+/** `date` moved by `days` whole days, still a plain "YYYY-MM-DD". */
+export function addDays(date: string, days: number): string {
+  return new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+}
+
 /** "YYYY-MM-DDTHH:mm" in Israel — sortable, and comparable as a plain string. */
 export function nowInIsrael(): string {
   const parts = new Intl.DateTimeFormat("en-CA", {

@@ -1,4 +1,4 @@
-import { asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { cookies } from "next/headers";
 
 import { db } from "@/db";
@@ -43,6 +43,19 @@ export async function accessibleTrips(user: User) {
     .innerJoin(groups, eq(groups.id, trip.groupId))
     .where(user.isSuperAdmin ? undefined : inArray(trip.groupId, myGroups))
     .orderBy(desc(trip.startDate), desc(trip.id));
+}
+
+/**
+ * The groups this person is in, with their role there. A super admin sees
+ * every group, with a null role where they aren't a member.
+ */
+export async function accessibleGroups(user: User) {
+  return db
+    .select({ id: groups.id, name: groups.name, role: groupMembers.role })
+    .from(groups)
+    .leftJoin(groupMembers, and(eq(groupMembers.groupId, groups.id), eq(groupMembers.userId, user.id)))
+    .where(user.isSuperAdmin ? undefined : isNotNull(groupMembers.userId))
+    .orderBy(asc(groups.id));
 }
 
 /**
