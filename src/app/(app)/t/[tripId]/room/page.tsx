@@ -132,7 +132,7 @@ export default function RoomPage() {
           <MessagesSquare className="size-[18px]" />
         </div>
         <div className="min-w-0 flex-1">
-          <h1 className="text-base font-bold leading-tight">חדר צ׳אט</h1>
+          <h1 className="text-base font-bold leading-tight">צ׳אט כללי</h1>
           <p className="truncate text-[11px] text-white/40">
             {people.length > 0 ? people.map((p) => p.name).join(", ") : "כל החבר׳ה"}
           </p>
@@ -217,32 +217,39 @@ export default function RoomPage() {
 
       {/* Rides just above the bottom nav. With the keyboard up the nav hides
           and --bottom-nav-h is 0 (lib/use-keyboard.ts), so it sits on the
-          keyboard instead. */}
-      <form
-        onSubmit={submit}
-        className="sticky bottom-(--bottom-nav-h) z-20 -mx-5 mt-4 border-t border-white/10 bg-night-950/90 px-5 py-2.5 backdrop-blur-xl"
-      >
-        <div className="flex items-end gap-2">
-          <div className="min-w-0 flex-1">
-            <MentionBox
-              value={draft}
-              onChange={setDraft}
-              people={people}
-              boxRef={boxRef}
-              rows={1}
-              placeholder="הודעה לכולם… אפשר לתייג עם @"
-            />
+          keyboard instead. Read-only people get a note rather than a composer
+          whose every message the API would refuse. */}
+      {viewer ? (
+        <p className="mt-4 text-center text-xs text-white/40">
+          מצב צפייה בלבד - אפשר לקרוא, אי אפשר לכתוב
+        </p>
+      ) : (
+        <form
+          onSubmit={submit}
+          className="sticky bottom-(--bottom-nav-h) z-20 -mx-5 mt-4 border-t border-white/10 bg-night-950/90 px-5 py-2.5 backdrop-blur-xl"
+        >
+          <div className="flex items-end gap-2">
+            <div className="min-w-0 flex-1">
+              <MentionBox
+                value={draft}
+                onChange={setDraft}
+                people={people}
+                boxRef={boxRef}
+                rows={1}
+                placeholder="הודעה לכולם… אפשר לתייג עם @"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={busy || !draft.trim()}
+              aria-label="לשלוח"
+              className="tap grid shrink-0 place-items-center rounded-xl bg-brand-500/25 px-3 text-brand-100 transition active:scale-95 disabled:opacity-30"
+            >
+              {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+            </button>
           </div>
-          <button
-            type="submit"
-            disabled={busy || !draft.trim()}
-            aria-label="לשלוח"
-            className="tap grid shrink-0 place-items-center rounded-xl bg-brand-500/25 px-3 text-brand-100 transition active:scale-95 disabled:opacity-30"
-          >
-            {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-          </button>
-        </div>
-      </form>
+        </form>
+      )}
     </>
   );
 }
