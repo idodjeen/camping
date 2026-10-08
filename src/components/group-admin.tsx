@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import useSWR from "swr";
 
-import { KeptNames, PeopleField, field } from "@/components/admin-groups";
+import { KeptNames, PeopleField, field, inviteNote } from "@/components/admin-groups";
 import { CopyButton } from "@/components/copy-button";
 import { toast } from "@/components/toast";
 import type { MemberRole } from "@/db/schema";
@@ -14,11 +14,12 @@ import { fetcher, send } from "@/lib/api";
 import { parseCoords } from "@/lib/coords";
 import { formatShortDate } from "@/lib/dates";
 import type { AdminMember, AdminTrip, GroupDetail } from "@/lib/group-admin";
+import type { InviteResult } from "@/lib/invite-email";
 import { ROLE_LABEL, clashes, inviteMessage, parsePeople } from "@/lib/people";
 import { cn } from "@/lib/utils";
 
 type Me = { id: number; isSuperAdmin: boolean };
-type Added = { added: number; kept: { email: string; typed: string; name: string }[] };
+type Added = { added: number; kept: { email: string; typed: string; name: string }[]; invite: InviteResult };
 
 const ROLES: readonly MemberRole[] = ["admin", "editor", "viewer"];
 const label = "text-xs font-semibold text-white/60";
@@ -677,7 +678,7 @@ function AddedCard({ added, message, onDone }: { added: Added; message: string; 
   return (
     <section className="glass space-y-3 rounded-glass p-4">
       <h3 className="font-bold">{added.added === 1 ? "נוסף/ה אדם אחד ✅" : `נוספו ${added.added} אנשים ✅`}</h3>
-      <p className="text-sm text-white/60">שלחו להם את ההודעה הזו בוואטסאפ.</p>
+      <p className="text-sm text-white/60">{inviteNote(added.invite)}</p>
       <KeptNames kept={added.kept} />
       <p className="rounded-xl bg-white/5 p-3 text-sm leading-relaxed whitespace-pre-line text-white/80">{message}</p>
       <div className="flex gap-2">
