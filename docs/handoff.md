@@ -17,6 +17,7 @@
 | Trip management `/t/[tripId]/manage`: details, categories, meals (group admins) | Live: phase 6 (#18) |
 | Notifications: one table, bell grouped by thread, one push per thread, close on read, icon badge | Live: roadmap E (#20) |
 | Sign-in matches Gmail spellings; refused sign-ins are logged | Live: #16 |
+| Chat: צ׳אט כללי button in the sticky bar, no zoom, no sideways drag | Live: #23, checked on an iPhone 2026-10-08 |
 | Expenses: edit, categories, chart | Live: roadmap B (#10) |
 | Safety rails: guarded migrations, reload guard, error screens | Live: roadmap A (#6, #8) |
 | Production database | 13 migrations (0000-0012), confirmed 2026-10-08 after #20 |
@@ -131,6 +132,11 @@ In order, one at a time unless both sides agree on the parallel rules below:
 - Layout: bar heights only from `--app-header-h` / `--bottom-nav-h` (`globals.css`). Sticky under the
   header uses `top-(--app-header-h)`, above the nav `bottom-(--bottom-nav-h)`. Nothing `position:
   fixed` inside `template.tsx`'s subtree. Overlays portal to `<body>` and use `lib/use-overlay.ts`.
+- No zoom (#23): the viewport sets `maximum-scale=1, user-scalable=no`, and `<html>` has
+  `touch-action: pan-x pan-y` (iOS ignores `user-scalable`). Fields are at least 16px on touch
+  screens (`globals.css`), because iOS zooms into smaller ones on focus and a zoomed page also turns
+  off `useKeyboardFlag`. Don't override that size. `body` has `overflow-x: clip`; never `hidden` on
+  `html`/`body`, which breaks every sticky bar.
 - z-order: page bars 10-20, header 30, nav 40, toasts 50, banner and lightbox 60, sheets 65,
   onboarding 70.
 - Never change module state during render (React may render twice); record it in an effect.
@@ -171,6 +177,10 @@ In order, one at a time unless both sides agree on the parallel rules below:
     first frame and sticky positions read about 3% off. Read the DOM, not screenshots.
   - The `dev` database drops connections now and then. Re-run the step, and check what landed.
   - Editing `next.config.ts` restarts the dev server; don't edit it mid-test.
+  - The auto-mode classifier sometimes refuses writing the minted token to `public/*.svg`, and once
+    it has, it may refuse later `psql` writes on `dev` too (2026-10-08, #23). Then verify on the
+    preview, and hand Ido the cleanup SQL for your test rows.
+  - `psql -c "a; b; c"` prints only the last statement's result; pipe the SQL in to see each one.
   - The first `npx next typegen` in a fresh worktree can take minutes.
   - After deleting a throwaway route, remove `.next/dev` or `tsc` trips on stale route types.
   - `typedRoutes` checks need `.next/types` (`npx next typegen` or a build).
@@ -179,7 +189,7 @@ In order, one at a time unless both sides agree on the parallel rules below:
 
 **Never verified on a real phone**
 - Header and menu (#9): the header clearing the notch, the banner and toasts under the status bar,
-  the keyboard in the chat room, swipe-to-close.
+  swipe-to-close. (The keyboard in the chat room was checked on an iPhone with #23.)
 - Notifications (#20): one notification per thread that updates in place, the 2-minute renotify rule,
   closing it when the thread is read, the app-icon badge, and "mark all" clearing them. Checked only
   in code and with simulated pushes. The checklist is in #20's body, and previews can now push.
