@@ -3,7 +3,7 @@
 import { ArrowRight, Loader2, MessagesSquare, Send, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import useSWR, { useSWRConfig } from "swr";
+import useSWR from "swr";
 
 import { MentionBox, highlight } from "@/components/comments";
 import { toast } from "@/components/toast";
@@ -11,12 +11,14 @@ import { UserAvatar } from "@/components/user-avatar";
 import { ApiError, fetcher, send, swrConfig } from "@/lib/api";
 import { formatRelative } from "@/lib/dates";
 import type { ChatMessage } from "@/lib/comments";
+import { useInbox } from "@/lib/inbox-client";
+import { THREAD } from "@/lib/threads";
 import { useTrip } from "@/lib/trip-client";
 import { useKeyboardFlag } from "@/lib/use-keyboard";
 import { cn } from "@/lib/utils";
 
 type Person = { id: number; name: string; slug: string; avatarUrl: string | null };
-type Me = { user: { id: number; isAdmin: boolean }; people: Person[] };
+type Me = { user: { id: number; isAdmin: boolean; isViewer: boolean }; people: Person[] };
 
 
 /** "היום" / "אתמול" / "23.9" — days are cut in Israel time, like everything else here. */
@@ -39,8 +41,8 @@ export default function RoomPage() {
     fetcher,
     swrConfig,
   );
-  const { data: me, mutate: mutateMe } = useSWR<Me>(api("/me"), fetcher, swrConfig);
-  const { mutate: globalMutate } = useSWRConfig();
+  const { data: me } = useSWR<Me>(api("/me"), fetcher, swrConfig);
+  const { data: inbox, readThread } = useInbox();
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const boxRef = useRef<HTMLTextAreaElement>(null);
@@ -52,15 +54,20 @@ export default function RoomPage() {
   const people = me?.people ?? [];
   const myId = me?.user.id;
 
-  // Being in the room is what reads it, the way opening a sheet reads a thread.
-  const unread = messages.some((m) => m.unread);
+  // Being in the room is what reads it, the way opening a sheet reads a thread:
+  // tags on the bubbles, and the room's group in the bell. Keyed on the newest
+  // waiting row, so a message landing while you are here is read too.
+  const waiting = Math.max(
+    0,
+    ...messages.filter((m) => m.unread).map((m) => m.id),
+    inbox?.unread.find((g) => g.thread === THREAD.chat)?.newestId ?? 0,
+  );
+  const viewer = me?.user.isViewer;
   useEffect(() => {
-    if (!unread) return;
-    void send(api("/chat/read"), "POST")
-      .then(() => Promise.all([mutateMe(), globalMutate(api("/notifications"))]))
-      // Keep the ring on the bubbles for this visit; the next poll drops it.
-      .catch(() => {});
-  }, [unread, mutateMe, globalMutate]);
+    if (waiting === 0 || viewer !== false) return;
+    // Keep the ring on the bubbles for this visit; the next poll drops it.
+    void readThread(THREAD.chat).catch(() => {});
+  }, [waiting, viewer, readThread]);
 
   // Open at the end. After that follow new messages only if you were already
   // reading the bottom — a 15s poll must not yank you away from older ones.

@@ -11,10 +11,11 @@ import { UserAvatar } from "@/components/user-avatar";
 import { fetcher, swrConfig } from "@/lib/api";
 import { formatRelative } from "@/lib/dates";
 import type { ChatMessage } from "@/lib/comments";
+import { useInbox } from "@/lib/inbox-client";
 import { useTrip } from "@/lib/trip-client";
 import { cn } from "@/lib/utils";
 
-type Me = { user: { id: number }; unreadMentions?: { general: number } };
+type Me = { user: { id: number } };
 type Filter = "all" | "tagged" | Subject;
 
 const LIST_LABEL: Record<Subject, string> = { gear: "ציוד", shopping: "קניות", meal: "ארוחות" };
@@ -79,7 +80,7 @@ export default function ChatPage() {
 
   const myId = me?.user.id;
   const unreadTags = data?.messages.filter((m) => m.unread).length ?? 0;
-  const roomUnread = me?.unreadMentions?.general ?? 0;
+  const roomUnread = useInbox().data?.counts.tags.chat ?? 0;
 
   let prevItem = "";
   let prevDay = "";

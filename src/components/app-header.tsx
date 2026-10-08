@@ -11,6 +11,7 @@ import { Modal } from "@/components/modal";
 import { NotificationsBell } from "@/components/notifications";
 import { SideSheet } from "@/components/side-sheet";
 import { fetcher, swrConfig } from "@/lib/api";
+import { useInbox } from "@/lib/inbox-client";
 import {
   SECONDARY,
   badgeFor,
@@ -27,7 +28,7 @@ import { cn } from "@/lib/utils";
 /** A trip the switcher can open; the layout loads the list on the server. */
 export type TripOption = { id: number; name: string; groupId: number; groupName: string };
 
-type Me = { user: { isAdmin: boolean; isSuperAdmin: boolean }; unreadMentions: Unread };
+type Me = { user: { isAdmin: boolean; isSuperAdmin: boolean } };
 
 /**
  * The header on every trip screen: the menu at the start edge, the group and
@@ -41,14 +42,16 @@ type Me = { user: { isAdmin: boolean; isSuperAdmin: boolean }; unreadMentions: U
  */
 export function AppHeader({ trips }: { trips: TripOption[] }) {
   const { api, id } = useTrip();
-  // Same key the bottom nav polls, so the badge costs no extra request.
   const { data } = useSWR<Me>(api("/me"), fetcher, swrConfig);
+  // Same key the bell and the bottom nav poll, so the badges cost no extra request.
+  const { data: inbox } = useInbox();
+  const tags = inbox?.counts.tags;
   const [menu, setMenu] = useState(false);
   const roles: MenuRoles = {
     isAdmin: data?.user.isAdmin ?? false,
     isSuperAdmin: data?.user.isSuperAdmin ?? false,
   };
-  const waiting = menuBadge(data?.unreadMentions, roles);
+  const waiting = menuBadge(tags, roles);
 
   return (
     <>
@@ -69,7 +72,7 @@ export function AppHeader({ trips }: { trips: TripOption[] }) {
             )}
           </button>
 
-          <TripSwitcher trips={trips} />
+          <TripSwitcher trips={trips} elsewhere={(inbox?.counts.otherTrips ?? 0) > 0} />
 
           <div className="shrink-0">
             <NotificationsBell />
@@ -79,7 +82,7 @@ export function AppHeader({ trips }: { trips: TripOption[] }) {
 
       <SideSheet open={menu} onClose={() => setMenu(false)} title="תפריט">
         <NavMenu
-          data={data}
+          tags={tags}
           roles={roles}
           groupId={trips.find((t) => t.id === id)?.groupId}
           onPick={() => setMenu(false)}
@@ -95,12 +98,12 @@ export function AppHeader({ trips }: { trips: TripOption[] }) {
  * href depends on the trip's group, which NAV's static list can't express.
  */
 function NavMenu({
-  data,
+  tags,
   roles,
   groupId,
   onPick,
 }: {
-  data: Me | undefined;
+  tags: Unread | undefined;
   roles: MenuRoles;
   groupId: number | undefined;
   onPick: () => void;
@@ -118,7 +121,7 @@ function NavMenu({
         label={label}
         Icon={Icon}
         active={active}
-        badge={badgeFor(href, data?.unreadMentions)}
+        badge={badgeFor(href, tags)}
         onPick={onPick}
       />
     );
@@ -180,9 +183,10 @@ function MenuRow({
 
 /**
  * The group and trip you are in. With more than one trip it opens a list by
- * group; picking one opens that trip's home.
+ * group; picking one opens that trip's home. `elsewhere` puts a dot on it when
+ * another trip has unread notifications.
  */
-function TripSwitcher({ trips }: { trips: TripOption[] }) {
+function TripSwitcher({ trips, elsewhere }: { trips: TripOption[]; elsewhere: boolean }) {
   const { id } = useTrip();
   const [open, setOpen] = useState(false);
   const current = trips.find((t) => t.id === id);
@@ -212,11 +216,16 @@ function TripSwitcher({ trips }: { trips: TripOption[] }) {
       <button
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
-        aria-label={`${current?.name ?? "הטיול"}, להחליף טיול`}
+        aria-label={`${current?.name ?? "הטיול"}, להחליף טיול${elsewhere ? ", יש חדש בטיול אחר" : ""}`}
         className="tap flex min-w-0 flex-1 items-center justify-center gap-1 rounded-2xl px-1 transition active:scale-[0.98]"
       >
         {label}
-        <ChevronDown className="size-4 shrink-0 text-white/35" />
+        <span className="relative shrink-0">
+          <ChevronDown className="size-4 text-white/35" />
+          {elsewhere && (
+            <span className="absolute -end-0.5 -top-0.5 size-2 rounded-full bg-brand-400 ring-2 ring-night-950" />
+          )}
+        </span>
       </button>
 
       <Modal open={open} onClose={() => setOpen(false)} title="הטיולים שלי">
