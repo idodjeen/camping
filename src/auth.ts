@@ -15,7 +15,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
      */
     async signIn({ user, profile }) {
       const email = profile?.email ?? user?.email;
-      return email ? canSignIn(email) : false;
+      const allowed = email ? await canSignIn(email) : false;
+      // The refused address appears nowhere else (the error page gets only
+      // "AccessDenied"), and "which account did they use?" is the first
+      // question when someone can't get in.
+      if (!allowed) console.warn(`sign-in refused for ${email ?? "(no email)"}`);
+      return allowed;
     },
 
     /**
