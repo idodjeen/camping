@@ -2,103 +2,115 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { Bell, CheckCheck, Loader2, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import useSWR, { useSWRConfig } from "swr";
-
-import { CommentsSheet, type Subject } from "@/components/comments";
 import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+
+import { CommentsSheet, TaggedBadge } from "@/components/comments";
 import { Modal } from "@/components/modal";
 import { toast } from "@/components/toast";
 import { UserAvatar } from "@/components/user-avatar";
-import { ApiError, fetcher, send, swrConfig } from "@/lib/api";
+import { ApiError } from "@/lib/api";
 import { formatRelative } from "@/lib/dates";
+import { useInbox } from "@/lib/inbox-client";
+import type { InboxGroup, InboxRow, Person } from "@/lib/notifications";
+import { setAppBadge } from "@/lib/push-client";
+import type { Subject, Target } from "@/lib/threads";
 import { useTrip } from "@/lib/trip-client";
 import { cn } from "@/lib/utils";
 
-type Mention = {
-  id: number;
-  subject: Subject | "general";
-  subjectId: number;
-  subjectLabel: string;
-  body: string;
-  createdAt: string;
-  readAt: string | null;
-  author: { id: number; name: string; slug: string; avatarUrl: string | null };
-};
-/** A bell row that is not a tag: a chat message, or an item reaching full coverage. */
-type Event = Omit<Mention, "body"> & { kind: "message" | "covered"; body: string };
-type Feed = { mentions: Mention[]; notifications: Event[] };
-
-/** One shape for the pane, so the two sources render and sort as a single list. */
-type Row = {
-  key: string;
-  kind: "mention" | "message" | "covered";
-  /** Set for rows backed by the `notifications` table; a tap marks just that one read. */
-  eventId: number | null;
-  m: Mention;
-  headline: string;
-  text: string;
-};
-
-const toRows = (feed: Feed | undefined): Row[] => {
-  if (!feed) return [];
-  const rows: Row[] = [
-    ...feed.mentions.map((m): Row => ({
-      key: `m${m.id}`,
-      kind: "mention",
-      eventId: null,
-      m,
-      headline: `${m.author.name} תייג/ה אותך`,
-      text: m.body,
-    })),
-    ...feed.notifications.map((n): Row => ({
-      key: `n${n.id}`,
-      kind: n.kind,
-      eventId: n.id,
-      m: n,
-      headline: n.kind === "covered" ? "הפריט מכוסה" : `${n.author.name} כתב/ה`,
-      text: n.kind === "covered" ? `${n.author.name} לקח/ה את היחידה האחרונה` : n.body,
-    })),
-  ];
-  return rows.sort((a, b) => b.m.createdAt.localeCompare(a.m.createdAt));
-};
-
 /** Which list the item lives on, for the chip on each row. */
-const LIST_LABEL: Record<Subject | "general", string> = {
-  gear: "ציוד",
-  shopping: "קניות",
-  meal: "ארוחות",
-  general: "צ׳אט",
-};
+const LIST_LABEL: Record<Subject, string> = { gear: "ציוד", shopping: "קניות", meal: "ארוחות" };
 
-/** "ציוד · שק שינה", or just "צ׳אט כללי" — the general room has no item to name. */
-const where = (m: Mention) =>
-  m.subject === "general" ? m.subjectLabel : `${LIST_LABEL[m.subject]} · ${m.subjectLabel}`;
+/** "ציוד · שק שינה", or just "צ׳אט כללי": only items have a list to name. */
+const where = (r: { label: string; target: Target }) =>
+  r.target.sheet ? `${LIST_LABEL[r.target.sheet.subject]} · ${r.label}` : r.label;
 
-/**
- * The one subscription behind the bell, the pane and the banner.
- *
- * All three call this, and SWR collapses them into a single request per poll
- * because the key is the same string (this trip's /notifications), the same reason
- * the bottom nav can read /me for free while the dashboard is also polling it.
- */
-function useMentions() {
-  const { api } = useTrip();
-  return useSWR<Feed>(api("/notifications"), fetcher, swrConfig);
+/** What happened, as the bold line of a single row. */
+function headline(r: InboxRow) {
+  switch (r.kind) {
+    case "mention":
+      return `${r.actor.name} תייג/ה אותך`;
+    case "message":
+      return `${r.actor.name} כתב/ה`;
+    case "covered":
+      return "הפריט מכוסה";
+    default:
+      return r.label;
+  }
 }
 
-/** What CommentsSheet needs to open a thread from a mention row. */
-type OpenThread = { subject: Subject; id: number; name: string };
-const threadOf = (m: Mention): OpenThread | null =>
-  m.subject === "general" ? null : { subject: m.subject, id: m.subjectId, name: m.subjectLabel };
+function text(r: InboxRow) {
+  return r.kind === "covered" ? `${r.actor.name} לקח/ה את היחידה האחרונה` : r.text;
+}
+
+/** "ניר", "ניר ואור", "ניר, אור ועוד 1". */
+function names(people: Person[]) {
+  const [a, b] = people;
+  if (people.length <= 1) return a?.name ?? "";
+  if (people.length === 2) return `${a.name} ו${b.name}`;
+  return `${a.name}, ${b.name} ועוד ${people.length - 2}`;
+}
+
+/** A group's bold line: one event reads as itself, several name who wrote. */
+const groupHeadline = (g: InboxGroup) => (g.count > 1 ? names(g.actors) : headline(g.latest));
+
+/** A group's preview: the latest event, saying whose it is when there are several. */
+const groupText = (g: InboxGroup) =>
+  g.count > 1 && g.latest.kind !== "covered" ? `${g.latest.actor.name}: ${text(g.latest)}` : text(g.latest);
+
+/** Up to three overlapping faces, newest first. */
+function Faces({ people, size = 32 }: { people: Person[]; size?: number }) {
+  return (
+    <span className="flex shrink-0 self-start">
+      {people.slice(0, 3).map((p) => (
+        <span key={p.id} className="-ms-3 rounded-full ring-2 ring-night-900 first:ms-0">
+          <UserAvatar name={p.name} slug={p.slug} avatarUrl={p.avatarUrl} size={size} />
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/**
+ * Opens what a bell row is about: its thread sheet, or the screen it names.
+ * Shared by the pane and the banner, which each render the sheet themselves.
+ */
+function useOpener() {
+  const { page } = useTrip();
+  const router = useRouter();
+  const [thread, setThread] = useState<{ subject: Subject; id: number; name: string } | null>(null);
+
+  const open = (target: Target, label: string) => {
+    if (target.sheet) setThread({ ...target.sheet, name: label });
+    else router.push(page(target.page));
+  };
+
+  const sheet = thread && (
+    <CommentsSheet
+      open
+      onClose={() => setThread(null)}
+      subject={thread.subject}
+      id={thread.id}
+      name={thread.name}
+    />
+  );
+  return { open, sheet };
+}
 
 /* --------------------------------------------------------------- the bell */
 
-/** Bell + unread count, opening the pane. Lives in the app header. */
+/** Bell + unread threads, opening the pane. Lives in the app header. */
 export function NotificationsBell() {
-  const { data } = useMentions();
+  const { data } = useInbox();
   const [open, setOpen] = useState(false);
-  const unread = toRows(data).filter((r) => !r.m.readAt).length;
+  const unread = data?.counts.threads ?? 0;
+
+  // The app icon counts unread threads on every trip. Set on every poll, so a
+  // thread read on another device clears here on the next fetch.
+  const icon = data ? data.counts.threads + data.counts.otherTrips : null;
+  useEffect(() => {
+    if (icon !== null) setAppBadge(icon);
+  }, [icon]);
 
   return (
     <>
@@ -131,38 +143,18 @@ export function NotificationsBell() {
 /* --------------------------------------------------------------- the pane */
 
 function NotificationsPane({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { api, page } = useTrip();
-  const { data, isLoading, mutate } = useMentions();
-  const { mutate: globalMutate } = useSWRConfig();
-  const router = useRouter();
-  const [thread, setThread] = useState<OpenThread | null>(null);
+  const { data, isLoading, readThread, readAll } = useInbox();
+  const opener = useOpener();
   const [clearing, setClearing] = useState(false);
 
-  const rows = toRows(data);
-  const unread = rows.filter((r) => !r.m.readAt).length;
+  const groups = data?.unread ?? [];
+  const recent = data?.recent ?? [];
 
   async function markAll() {
     setClearing(true);
-    const now = new Date().toISOString();
     try {
-      await mutate(
-        async () => {
-          await send(api("/notifications"), "POST");
-          return fetcher<Feed>(api("/notifications"));
-        },
-        {
-          // Every row loses its unread styling on tap rather than after Neon
-          // answers — the same optimistic pattern the gear claims use.
-          optimisticData: {
-            mentions: (data?.mentions ?? []).map((m) => ({ ...m, readAt: m.readAt ?? now })),
-            notifications: (data?.notifications ?? []).map((n) => ({ ...n, readAt: n.readAt ?? now })),
-          },
-          rollbackOnError: true,
-          revalidate: false,
-        },
-      );
-      // The nav badges read their counts from /api/me, not from this feed.
-      await globalMutate(api("/me"));
+      // Up to what is on screen: anything that lands meanwhile stays unread.
+      await readAll(Math.max(0, ...groups.map((g) => g.newestId)));
     } catch (err) {
       toast(err instanceof ApiError ? err.message : "לא הצלחנו לעדכן");
     } finally {
@@ -172,25 +164,21 @@ function NotificationsPane({ open, onClose }: { open: boolean; onClose: () => vo
 
   // Opening the thread replaces the pane rather than stacking a second sheet
   // on top of it: two portalled modals would fight over the backdrop tap.
-  function openRow(r: Row) {
+  function openGroup(g: InboxGroup) {
     onClose();
-    // Tags are cleared by opening their thread; the other rows have no thread
-    // state of their own, so the tap itself is what reads them.
-    if (r.eventId !== null && !r.m.readAt) {
-      void send(api("/notifications"), "PATCH", { id: r.eventId })
-        .then(() => Promise.all([mutate(), globalMutate(api("/me"))]))
-        .catch(() => {});
-    }
-    // A general message has no sheet of its own — it lives in the chat room.
-    const t = threadOf(r.m);
-    if (t) setThread(t);
-    else router.push(page("/room"));
+    void readThread(g.thread, g.newestId).catch(() => {});
+    opener.open(g.target, g.label);
+  }
+
+  function openRow(r: InboxRow) {
+    onClose();
+    opener.open(r.target, r.label);
   }
 
   return (
     <>
       <Modal open={open} onClose={onClose} title="התראות">
-        {unread > 0 && (
+        {groups.length > 0 && (
           <button
             onClick={markAll}
             disabled={clearing}
@@ -203,7 +191,7 @@ function NotificationsPane({ open, onClose }: { open: boolean; onClose: () => vo
 
         {isLoading && !data ? (
           <p className="py-6 text-center text-sm text-white/40">טוען…</p>
-        ) : rows.length === 0 ? (
+        ) : groups.length === 0 && recent.length === 0 ? (
           <div className="py-8 text-center">
             <Bell className="mx-auto size-7 text-white/15" />
             <p className="mt-2 text-sm leading-relaxed text-white/40">
@@ -214,61 +202,76 @@ function NotificationsPane({ open, onClose }: { open: boolean; onClose: () => vo
           </div>
         ) : (
           <div className="space-y-2">
-            {rows.map(({ key, m, headline, text, ...r }) => (
+            {groups.map((g) => (
               <button
-                key={key}
-                onClick={() => openRow({ key, m, headline, text, ...r })}
-                className={cn(
-                  "flex w-full gap-2.5 rounded-2xl p-2.5 text-start transition active:scale-[0.98]",
-                  m.readAt ? "bg-white/[0.03]" : "bg-brand-500/12 ring-1 ring-brand-400/20",
-                )}
+                key={g.thread}
+                onClick={() => openGroup(g)}
+                className="flex w-full gap-2.5 rounded-2xl bg-brand-500/12 p-2.5 text-start ring-1 ring-brand-400/20 transition active:scale-[0.98]"
               >
-                <UserAvatar
-                  name={m.author.name}
-                  slug={m.author.slug}
-                  avatarUrl={m.author.avatarUrl}
-                  size={32}
-                />
+                <Faces people={g.actors} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-1.5">
-                    <span className="truncate text-xs font-bold">{headline}</span>
+                    <span className="truncate text-xs font-bold">{groupHeadline(g)}</span>
                     <span className="shrink-0 rounded-md bg-white/8 px-1.5 py-0.5 text-[10px] text-white/50">
-                      {where(m)}
+                      {where(g)}
                     </span>
                     <span className="ms-auto shrink-0 text-[10px] text-white/30">
-                      {formatRelative(m.createdAt)}
+                      {formatRelative(g.latest.createdAt)}
                     </span>
                   </div>
-                  <p
-                    className={cn(
-                      "mt-1 line-clamp-2 break-words text-sm leading-relaxed",
-                      m.readAt ? "text-white/50" : "text-white/80",
-                    )}
-                  >
-                    {text}
+                  <p className="mt-1 line-clamp-2 break-words text-sm leading-relaxed text-white/80">
+                    {groupText(g)}
+                  </p>
+                  {(g.count > 1 || g.tags > 0) && (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      {g.count > 1 && (
+                        <span className="text-[11px] font-semibold tabular-nums text-brand-200">
+                          {g.count} חדשות
+                        </span>
+                      )}
+                      {g.tags > 0 && <TaggedBadge />}
+                    </div>
+                  )}
+                </div>
+                <span
+                  aria-label="לא נקרא"
+                  className="mt-1.5 size-2 shrink-0 self-start rounded-full bg-brand-400"
+                />
+              </button>
+            ))}
+
+            {recent.length > 0 && groups.length > 0 && (
+              <p className="px-1 pt-2 text-[11px] font-semibold text-white/35">נקראו</p>
+            )}
+
+            {recent.map((r) => (
+              <button
+                key={r.id}
+                onClick={() => openRow(r)}
+                className="flex w-full gap-2.5 rounded-2xl bg-white/[0.03] p-2.5 text-start transition active:scale-[0.98]"
+              >
+                <Faces people={[r.actor]} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="truncate text-xs font-bold">{headline(r)}</span>
+                    <span className="shrink-0 rounded-md bg-white/8 px-1.5 py-0.5 text-[10px] text-white/50">
+                      {where(r)}
+                    </span>
+                    <span className="ms-auto shrink-0 text-[10px] text-white/30">
+                      {formatRelative(r.createdAt)}
+                    </span>
+                  </div>
+                  <p className="mt-1 line-clamp-2 break-words text-sm leading-relaxed text-white/50">
+                    {text(r)}
                   </p>
                 </div>
-                {!m.readAt && (
-                  <span
-                    aria-label="לא נקרא"
-                    className="mt-1.5 size-2 shrink-0 self-start rounded-full bg-brand-400"
-                  />
-                )}
               </button>
             ))}
           </div>
         )}
       </Modal>
 
-      {thread && (
-        <CommentsSheet
-          open
-          onClose={() => setThread(null)}
-          subject={thread.subject}
-          id={thread.id}
-          name={thread.name}
-        />
-      )}
+      {opener.sheet}
     </>
   );
 }
@@ -276,20 +279,16 @@ function NotificationsPane({ open, onClose }: { open: boolean; onClose: () => vo
 /* ------------------------------------------------------------- the banner */
 
 /**
- * The highest id we have already popped a banner for, one mark per source.
+ * The newest row id we have already popped a banner for, per trip.
  *
  * This deliberately does *not* reuse `read_at`. "Did I show you a banner" and
  * "did you open the thread" are different questions: swiping a banner away
- * must not mark the message read, and a page refresh must not re-announce
+ * must not mark the thread read, and a page refresh must not re-announce
  * something you already saw slide past. So the banner keeps its own
- * high-water marks on the device, while the badges keep using the server's
- * read_at.
- *
- * Tags and the other events live in different tables, so their ids come from
- * different sequences and each needs a mark of its own.
+ * high-water mark on the device, while the badges keep using the server's
+ * read_at. Since every kind lives in one table, one mark covers them all.
  */
-const MENTION_MARK = "camping:announced-mention";
-const EVENT_MARK = "camping:announced-event";
+const markKey = (tripId: number) => `camping:announced-inbox:${tripId}`;
 
 /** null = this device has never stored one. */
 function loadMark(key: string): number | null {
@@ -297,7 +296,7 @@ function loadMark(key: string): number | null {
     const raw = localStorage.getItem(key);
     return raw === null ? null : Number(raw) || 0;
   } catch {
-    // Private mode / blocked storage. The refs below still stop a loop within
+    // Private mode / blocked storage. The ref below still stops a loop within
     // the session; the cost is one repeat banner after a refresh.
     return null;
   }
@@ -312,84 +311,68 @@ function saveMark(key: string, id: number) {
 }
 
 /**
- * Slides a banner down when a tag, a message or a "covered" event reaches you
- * while the app is open.
+ * Slides a banner down when something new reaches your bell while the app is
+ * open, showing the thread of the newest one.
  *
- * Mounted once in the app layout, so it survives navigation between tabs and
+ * Mounted once in the trip layout, so it survives navigation between tabs and
  * fires wherever you happen to be. The 15s poll is what makes it arrive
  * without a page change.
  */
 export function MentionBanner() {
-  const { api, page } = useTrip();
-  const { data } = useMentions();
-  const { mutate: globalMutate } = useSWRConfig();
-  const [shown, setShown] = useState<{ row: Row; extra: number } | null>(null);
-  const router = useRouter();
-  const [thread, setThread] = useState<OpenThread | null>(null);
-  const marks = useRef<{ mention: number; event: number } | null>(null);
+  const { id } = useTrip();
+  const { data, readThread } = useInbox();
+  const opener = useOpener();
+  const [shown, setShown] = useState<{ group: InboxGroup; extra: number } | null>(null);
+  const mark = useRef<{ trip: number; id: number } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!data) return;
 
-    if (marks.current === null) {
-      const stored = loadMark(EVENT_MARK);
-      marks.current = {
-        mention: loadMark(MENTION_MARK) ?? 0,
-        // A device that has never seen an event banner starts from what is
-        // already there, so the first load after an update is not a flood of
-        // old messages. Tags keep their earlier behaviour.
-        event: stored ?? Math.max(0, ...data.notifications.map((n) => n.id)),
-      };
-      if (stored === null) saveMark(EVENT_MARK, marks.current.event);
+    if (mark.current?.trip !== id) {
+      const stored = loadMark(markKey(id));
+      // A device that has never shown a banner on this trip starts from what
+      // is already there, so the first load is not a flood of old rows.
+      const start =
+        stored ?? Math.max(0, ...data.unread.map((g) => g.newestId), ...data.recent.map((r) => r.id));
+      mark.current = { trip: id, id: start };
+      if (stored === null) saveMark(markKey(id), start);
     }
-    const seen = marks.current;
+    const seen = mark.current;
 
-    const fresh = toRows(data).filter(
-      (r) => !r.m.readAt && (r.eventId === null ? r.m.id > seen.mention : r.eventId > seen.event),
-    );
+    // Groups come newest first, so the head is the one worth showing; the
+    // rest only contribute a count, and the pane has the detail.
+    const fresh = data.unread.filter((g) => g.newestId > seen.id);
     if (fresh.length === 0) return;
 
-    // Newest first, so the head is the one worth showing; the rest only
-    // contribute a count, and the pane has the detail.
-    for (const r of fresh) {
-      if (r.eventId === null) seen.mention = Math.max(seen.mention, r.m.id);
-      else seen.event = Math.max(seen.event, r.eventId);
-    }
-    saveMark(MENTION_MARK, seen.mention);
-    saveMark(EVENT_MARK, seen.event);
-    setShown({ row: fresh[0], extra: fresh.length - 1 });
+    seen.id = Math.max(seen.id, ...fresh.map((g) => g.newestId));
+    saveMark(markKey(id), seen.id);
+    setShown({ group: fresh[0], extra: fresh.length - 1 });
 
-    // Advancing the marks above makes this effect idempotent: every later poll
-    // returns a new `data` object but no fresh rows, so nothing re-fires.
+    // Advancing the mark makes this effect idempotent: every later poll
+    // returns a new `data` object but nothing newer, so nothing re-fires.
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setShown(null), 9000);
-  }, [data]);
+  }, [data, id]);
 
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
 
   function open() {
     if (!shown) return;
-    const { row } = shown;
-    // Same rule as the pane: a tag is read by opening its thread, the other
-    // kinds are read by this tap.
-    if (row.eventId !== null) {
-      void send(api("/notifications"), "PATCH", { id: row.eventId })
-        .then(() => Promise.all([globalMutate(api("/notifications")), globalMutate(api("/me"))]))
-        .catch(() => {});
-    }
-    const t = threadOf(row.m);
-    if (t) setThread(t);
-    else router.push(page("/room"));
+    const { group } = shown;
+    void readThread(group.thread, group.newestId).catch(() => {});
+    opener.open(group.target, group.label);
     setShown(null);
   }
+
+  const g = shown?.group;
 
   return (
     <>
       {/* Clears the status bar: the app draws under it (black-translucent). */}
       <div className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top,0px)+0.75rem)] z-[60] flex justify-center px-4">
         <AnimatePresence>
-          {shown && (
+          {shown && g && (
             <motion.div
               role="status"
               aria-live="polite"
@@ -402,28 +385,24 @@ export function MentionBanner() {
               className="glow-brand pointer-events-auto w-full max-w-md rounded-2xl border border-brand-400/25 bg-night-800/95 p-3 backdrop-blur-xl"
             >
               <div className="flex items-start gap-2.5">
-                <UserAvatar
-                  name={shown.row.m.author.name}
-                  slug={shown.row.m.author.slug}
-                  avatarUrl={shown.row.m.author.avatarUrl}
-                  size={34}
-                />
+                <Faces people={g.actors} size={34} />
                 {/* The card is the tap target; the ✕ sits outside it so
                     dismissing never also opens the thread. */}
                 <button onClick={open} className="min-w-0 flex-1 text-start">
                   <p className="text-xs font-bold text-brand-200">
-                    {shown.row.headline}
+                    {groupHeadline(g)}
                     <span className="font-normal text-white/45">
                       {" · "}
-                      {where(shown.row.m)}
+                      {where(g)}
+                      {g.count > 1 && ` · ${g.count} חדשות`}
                     </span>
                   </p>
                   <p className="mt-0.5 line-clamp-2 break-words text-sm leading-relaxed text-white/80">
-                    {shown.row.text}
+                    {groupText(g)}
                   </p>
                   {shown.extra > 0 && (
                     <p className="mt-1 text-[11px] font-semibold text-white/40">
-                      {shown.extra === 1 ? "ועוד התראה אחת" : `ועוד ${shown.extra} התראות`}
+                      {shown.extra === 1 ? "ועוד שרשור אחד" : `ועוד ${shown.extra} שרשורים`}
                     </p>
                   )}
                 </button>
@@ -440,15 +419,7 @@ export function MentionBanner() {
         </AnimatePresence>
       </div>
 
-      {thread && (
-        <CommentsSheet
-          open
-          onClose={() => setThread(null)}
-          subject={thread.subject}
-          id={thread.id}
-          name={thread.name}
-        />
-      )}
+      {opener.sheet}
     </>
   );
 }

@@ -4,6 +4,7 @@ import { AppHeader } from "@/components/app-header";
 import { BottomNav } from "@/components/bottom-nav";
 import { MentionBanner } from "@/components/notifications";
 import { OnboardingGate } from "@/components/onboarding";
+import { PushSync } from "@/components/push-sync";
 import { RememberTrip } from "@/components/remember-trip";
 import { Toaster } from "@/components/toast";
 import { WhatsNew } from "@/components/whats-new";
@@ -47,6 +48,10 @@ export default async function TripLayout({
           on the gear list still reaches you. */}
       <WidgetBoundary name="MentionBanner">
         <MentionBanner />
+      </WidgetBoundary>
+      {/* Keeps this device's push subscription on the server. */}
+      <WidgetBoundary name="PushSync">
+        <PushSync />
       </WidgetBoundary>
       {/* First login only; finishing stamps users.onboarded_at. */}
       <WidgetBoundary name="OnboardingGate">

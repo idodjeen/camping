@@ -650,7 +650,7 @@ route; a new member whose email collides with an existing slug signs in fine.
 | 3 | - | done: [PR #7](https://github.com/idodjeen/camping/pull/7) | groups-and-trips phase 2 | L | no: its drops wait (see below) | A |
 | 4 | B | done: [PR #10](https://github.com/idodjeen/camping/pull/10) | 9 | M | yes: `0009_expense_category` | A, phase 2 |
 | 5 | C | done: [PR #9](https://github.com/idodjeen/camping/pull/9), fixes [#11](https://github.com/idodjeen/camping/pull/11), [#12](https://github.com/idodjeen/camping/pull/12) | 0 (= phase 3) | M | no | phase 2 |
-| 6 | D | phase 4 done: [PR #13](https://github.com/idodjeen/camping/pull/13); phase 5 next | 10 (= phases 4-5) | M + M | phase 4: `0010_drop_trip_default` | phase 2 |
+| 6 | D | done: [PR #13](https://github.com/idodjeen/camping/pull/13) (phase 4), [#15](https://github.com/idodjeen/camping/pull/15) (phase 5) | 10 (= phases 4-5) | M + M | phase 4: `0010_drop_trip_default` | phase 2 |
 | 7 | E | `claude/notifications-core` | 6, 7, and two parts of 2 | L | yes: unify | phase 3 |
 | 8 | F | `claude/notifications-more` | 8 | L | yes: `notify_prefs` | E, B |
 | 9 | G | `claude/edit-messages` | 5 | M | yes: `edited_at` | E |

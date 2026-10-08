@@ -22,8 +22,8 @@ import {
  * them into "/t/7/gear", and local() turns the pathname back for isActive.
  */
 
-/** Unread tags per list, as /api/t/[tripId]/me reports them. */
-export type Unread = { gear: number; shopping: number; meals: number; general: number };
+/** Unread tags per list: `counts.tags` from /api/t/[tripId]/inbox. */
+export type Unread = { gear: number; shopping: number; meals: number; chat: number };
 
 export type NavItem = {
   href: string;
@@ -104,7 +104,7 @@ export function badgeFor(href: string, unread: Unread | undefined): number {
       return unread.meals;
     // The chat holds every thread and the general room, so its badge is every unread tag.
     case "/chat":
-      return unread.gear + unread.shopping + unread.meals + unread.general;
+      return unread.gear + unread.shopping + unread.meals + unread.chat;
     default:
       return 0;
   }

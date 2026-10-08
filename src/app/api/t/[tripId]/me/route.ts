@@ -3,8 +3,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { gearClaims, personalItems } from "@/db/schema";
 import { tripRoute, type TripParams } from "@/lib/access";
-import { unreadMentions } from "@/lib/comments";
-import { prefsOf } from "@/lib/notifications";
+import { legacyUnreadMentions, prefsOf } from "@/lib/notifications";
 import { handle } from "@/lib/session";
 import { tripPeople } from "@/lib/trips";
 
@@ -55,7 +54,8 @@ export function GET(_req: Request, ctx: TripParams) {
         }))
         .sort((a, b) => a.categoryName.localeCompare(b.categoryName, "he")),
       personal,
-      unreadMentions: await unreadMentions(me.id, trip.id),
+      // ADAPTER for one release, removed in H: the nav now counts from /inbox.
+      unreadMentions: await legacyUnreadMentions(me.id, trip.id),
       // The trip's people, for the @ picker. Small enough to ride along rather
       // than making the composer fetch a roster of its own.
       people: (await tripPeople(trip.id)).map((u) => ({

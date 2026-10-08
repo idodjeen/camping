@@ -2,10 +2,10 @@ import { and, asc, count, eq, isNotNull, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
-  commentMentions,
   comments,
   gearCategories,
   meals,
+  notifications,
   shoppingCategories,
 } from "@/db/schema";
 
@@ -59,15 +59,21 @@ async function commentCounts(tripId: number, column: SubjectColumn) {
 async function unreadCounts(tripId: number, column: SubjectColumn, viewerId?: number) {
   if (viewerId === undefined) return new Map<number, number>();
 
+  // Tag rows always exist, whatever the bell's switches say, so the marker
+  // shows even with tag notifications off.
   const rows = await db
     .select({ id: column, n: count() })
-    .from(commentMentions)
-    .innerJoin(comments, eq(comments.id, commentMentions.commentId))
+    .from(notifications)
+    .innerJoin(
+      comments,
+      and(eq(comments.tripId, notifications.tripId), eq(comments.id, notifications.commentId)),
+    )
     .where(
       and(
-        eq(comments.tripId, tripId),
-        eq(commentMentions.userId, viewerId),
-        isNull(commentMentions.readAt),
+        eq(notifications.tripId, tripId),
+        eq(notifications.userId, viewerId),
+        eq(notifications.kind, "mention"),
+        isNull(notifications.readAt),
         isNotNull(column),
       ),
     )

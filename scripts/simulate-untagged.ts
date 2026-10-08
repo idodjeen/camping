@@ -1,7 +1,7 @@
 /**
  * Does a comment that tags nobody reach everyone else's bell?
  *
- * Runs the real createComment / listNotifications inside ONE transaction and
+ * Runs the real createComment / getInbox inside ONE transaction and
  * rolls it back at the end, by swapping the app's cached db for the tx. Nothing
  * is committed, and no one else can see the rows while it runs.
  */
@@ -9,7 +9,8 @@ import { asc } from "drizzle-orm";
 
 import { db } from "@/db";
 import { gearItems, users } from "@/db/schema";
-import { createComment, listMentions, listNotifications } from "@/lib/comments";
+import { createComment } from "@/lib/comments";
+import { getInbox } from "@/lib/notifications";
 
 const g = globalThis as unknown as { __campingDb?: unknown };
 class Rollback extends Error {}
@@ -29,15 +30,13 @@ async function main() {
 
       console.log(`author: ${author.name}; comment tags nobody\n`);
       for (const u of all) {
-        const [n, m] = await Promise.all([
-          listNotifications(u.id, item.tripId),
-          listMentions(u.id, item.tripId),
-        ]);
-        const got = n.filter((x) => x.kind === "message" && x.body === body).length;
+        const inbox = await getInbox(u.id, item.tripId, true);
+        const rows = inbox.unread.flatMap((g) => (g.latest.text === body ? [g.latest] : []));
+        const got = rows.filter((x) => x.kind === "message").length;
         console.log(
           `${u.name.padEnd(10)} notifyMessages=${String(u.notifyMessages).padEnd(5)} ` +
             `bell message rows=${got}  ${u.id === author.id ? "(author, expect 0)" : u.notifyMessages ? "(expect 1)" : "(opted out, expect 0)"}` +
-            `  mentions=${m.length}`,
+            `  tags=${rows.filter((x) => x.kind === "mention").length}`,
         );
       }
       throw new Rollback();
