@@ -78,6 +78,20 @@
       "when": 1791408565943,
       "tag": "0010_drop_trip_default",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791486615824,
+      "tag": "0011_unify_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791486631842,
+      "tag": "0012_unify_notifications_backfill",
+      "breakpoints": true
     }
   ]
 }
