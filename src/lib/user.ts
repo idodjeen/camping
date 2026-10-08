@@ -1,11 +1,33 @@
-import { eq, sql } from "drizzle-orm";
+import { eq, or, sql } from "drizzle-orm";
 
 import { db, type Tx } from "@/db";
 import { groupMembers, users } from "@/db/schema";
 import { envViewer } from "@/lib/allowlist";
+import { cleanEmail, gmailKey } from "@/lib/people";
+
+/** gmailKey() of the stored email, in SQL; null for non-Gmail rows. */
+const STORED_GMAIL_KEY = sql`case when split_part(${users.email}, '@', 2) in ('gmail.com', 'googlemail.com')
+  then replace(split_part(split_part(${users.email}, '@', 1), '+', 1), '.', '') || '@gmail.com' end`;
+
+/**
+ * Which row an email signs in as. The exact address wins; failing that, a
+ * Gmail address matches a row typed with other dots, a "+" tag or
+ * googlemail.com, since Google hands us the account's own spelling and not
+ * the one the group admin typed. The users table is small, so the fallback's
+ * scan costs nothing.
+ */
+function byEmail(rawEmail: string) {
+  const email = cleanEmail(rawEmail);
+  const key = gmailKey(email);
+  return {
+    where: key ? or(eq(users.email, email), sql`${STORED_GMAIL_KEY} = ${key}`) : eq(users.email, email),
+    order: [sql`${users.email} = ${email} desc`, users.id],
+  };
+}
 
 export async function findUserByEmail(rawEmail: string) {
-  const [row] = await db.select().from(users).where(eq(users.email, rawEmail.toLowerCase()));
+  const { where, order } = byEmail(rawEmail);
+  const [row] = await db.select().from(users).where(where).orderBy(...order).limit(1);
   return row ?? null;
 }
 
@@ -19,13 +41,16 @@ export async function findUserByEmail(rawEmail: string) {
  * pages), exactly like canSignIn would answer for a fresh sign-in.
  */
 export async function findActiveUser(rawEmail: string) {
+  const { where, order } = byEmail(rawEmail);
   const [row] = await db
     .select({
       user: users,
       member: sql<boolean>`exists (select 1 from ${groupMembers} where ${groupMembers.userId} = ${users.id})`,
     })
     .from(users)
-    .where(eq(users.email, rawEmail.toLowerCase()));
+    .where(where)
+    .orderBy(...order)
+    .limit(1);
   if (!row) return null;
   return row.user.isSuperAdmin || row.member ? row.user : null;
 }
@@ -38,7 +63,7 @@ export async function findActiveUser(rawEmail: string) {
  * exception is the transitional VIEWER_USERS import below.
  */
 export async function canSignIn(rawEmail: string): Promise<boolean> {
-  const email = rawEmail.toLowerCase();
+  const email = cleanEmail(rawEmail);
   const user = await findUserByEmail(email);
 
   if (!user) return importEnvViewer(email);

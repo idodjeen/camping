@@ -12,6 +12,7 @@ import type { GroupSummary } from "@/lib/groups";
 import {
   ROLE_LABEL,
   clashes,
+  cleanEmail,
   inviteMessage,
   isEmail,
   nameProblem,
@@ -81,7 +82,7 @@ function NewGroupForm({ onCreated }: { onCreated: (c: Created) => void }) {
   const editors = useMemo(() => parsePeople(editorsText), [editorsText]);
   const viewers = useMemo(() => parsePeople(viewersText), [viewersText]);
 
-  const email = adminEmail.trim().toLowerCase();
+  const email = cleanEmail(adminEmail);
   const adminEmailError = adminEmail && !isEmail(email) ? "המייל לא תקין" : null;
   const adminNameError = adminName ? nameProblem(adminName) : null;
 

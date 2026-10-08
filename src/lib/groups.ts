@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 
 import { db } from "@/db";
 import { groupMembers, groups, trip, users, type MemberRole } from "@/db/schema";
-import { clashes, isEmail, nameProblem, type PersonInput } from "@/lib/people";
+import { clashes, cleanEmail, isEmail, nameProblem, type PersonInput } from "@/lib/people";
 import { HttpError } from "@/lib/session";
 import { createUser } from "@/lib/user";
 
@@ -73,7 +73,7 @@ const GROUP_NAME_MAX = 40;
  */
 export function readPerson(v: unknown, where: string, problems: string[]): PersonInput | null {
   const p = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
-  const email = typeof p.email === "string" ? p.email.trim().toLowerCase() : "";
+  const email = typeof p.email === "string" ? cleanEmail(p.email) : "";
   const name = typeof p.name === "string" ? p.name.trim() : "";
   if (!isEmail(email)) {
     problems.push(`${where}: המייל ${email || "(ריק)"} לא תקין`);

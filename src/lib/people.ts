@@ -15,6 +15,29 @@ const EMAIL = /^[^\s@,;:<>()]+@[^\s@,;:<>()]+\.[^\s@,;:<>()]+$/;
 export const isEmail = (s: string) => EMAIL.test(s);
 
 /**
+ * An email as typed or pasted, ready to store or compare: lowercase, with no
+ * whitespace and no invisible format characters. Text pasted from WhatsApp or
+ * other Hebrew apps carries direction marks (U+200E, U+200F) around Latin
+ * words, and neither `\s` nor trim() removes them, so they would be stored
+ * as part of the email and never match the address Google signs in with.
+ */
+export const cleanEmail = (raw: string) => raw.replace(/[\s\p{Cf}]/gu, "").toLowerCase();
+
+/**
+ * The one Gmail inbox an address reaches, or null when it is not Gmail.
+ * Gmail ignores dots and anything after "+" in the local part, and
+ * googlemail.com is the same domain, so "Kuper.The.Cool+camp@googlemail.com"
+ * is kuperthecool@gmail.com. Google signs a person in with their account's
+ * own spelling, which may not be the one a group admin typed.
+ */
+export function gmailKey(email: string): string | null {
+  const at = email.lastIndexOf("@");
+  const domain = email.slice(at + 1);
+  if (domain !== "gmail.com" && domain !== "googlemail.com") return null;
+  return `${email.slice(0, at).split("+")[0].replaceAll(".", "")}@gmail.com`;
+}
+
+/**
  * Why a display name can't be used, or null when it can.
  *
  * Names are @mention targets: the composer's picker stops at a space, and
@@ -57,7 +80,7 @@ export function parsePeople(text: string): ParsedLine[] {
     .map((line) => {
       const match = line.match(/[^\s@,;:<>()]+@[^\s@,;:<>()]+/);
       if (!match) return { line, email: "", name: "", error: "לא נמצא מייל בשורה" };
-      const email = match[0].toLowerCase();
+      const email = cleanEmail(match[0]);
       // Whatever is left once the email and the separators around it are gone.
       const name = (line.slice(0, match.index) + " " + line.slice(match.index! + match[0].length))
         .replace(/^[\s:\-–]+|[\s:\-–]+$/g, "")
