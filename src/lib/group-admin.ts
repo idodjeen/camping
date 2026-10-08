@@ -15,7 +15,7 @@ import {
   type MemberRole,
 } from "@/db/schema";
 import { parseCoords } from "@/lib/coords";
-import { addDays, todayInIsrael } from "@/lib/dates";
+import { isDate, todayInIsrael } from "@/lib/dates";
 import { ROLE_ORDER, readPeople } from "@/lib/groups";
 import { clashes, type PersonInput } from "@/lib/people";
 import type { Invitee } from "@/lib/invite-email";
@@ -381,26 +381,27 @@ export async function setTripMember(
 const TRIP_NAME_MAX = 60;
 const PLACE_MAX = 60;
 
-export type NewTrip = {
+/** What a trip is, apart from its content: shared by creating a trip and editing one. */
+export type TripDetails = {
   name: string;
   startDate: string;
   endDate: string;
   locationName: string | null;
   lat: number;
   lng: number;
+};
+
+export type NewTrip = TripDetails & {
   /** Start from the template, or copy this trip of the same group. */
   from: "template" | number;
 };
 
-/** A real calendar date as "YYYY-MM-DD" (so not 2026-02-30). */
-const isDate = (s: string) =>
-  /^\d{4}-\d{2}-\d{2}$/.test(s) && Number.isFinite(Date.parse(`${s}T00:00:00Z`)) && addDays(s, 0) === s;
-
-/** The request body, checked field by field. Throws a 400 naming what to fix. */
-export function parseNewTrip(raw: unknown): NewTrip {
-  const body = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+/**
+ * The trip's own fields from a request body, checked one by one. Problems go
+ * onto `problems`; the result is only meaningful when none were added.
+ */
+export function readTripDetails(body: Record<string, unknown>, problems: string[]): TripDetails {
   const text = (v: unknown) => (typeof v === "string" ? v.trim() : "");
-  const problems: string[] = [];
 
   const name = text(body.name);
   if (!name) problems.push("חסר שם לטיול");
@@ -416,13 +417,24 @@ export function parseNewTrip(raw: unknown): NewTrip {
   if (locationName && [...locationName].length > PLACE_MAX) problems.push(`שם המקום עד ${PLACE_MAX} תווים`);
 
   const coords = parseCoords(text(body.coords));
-  if ("error" in coords) problems.push(coords.error);
+  if ("error" in coords) {
+    problems.push(coords.error);
+    return { name, startDate, endDate, locationName, lat: 0, lng: 0 };
+  }
+  return { name, startDate, endDate, locationName, lat: coords.lat, lng: coords.lng };
+}
+
+/** The request body, checked field by field. Throws a 400 naming what to fix. */
+export function parseNewTrip(raw: unknown): NewTrip {
+  const body = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const problems: string[] = [];
+  const details = readTripDetails(body, problems);
 
   const from = body.from === "template" ? "template" : Number(body.from);
   if (from !== "template" && !(Number.isInteger(from) && from > 0)) problems.push("לא ברור ממה להתחיל");
 
-  if (problems.length > 0 || "error" in coords) throw new HttpError(400, problems.join("\n"));
-  return { name, startDate, endDate, locationName, lat: coords.lat, lng: coords.lng, from };
+  if (problems.length > 0) throw new HttpError(400, problems.join("\n"));
+  return { ...details, from };
 }
 
 /**

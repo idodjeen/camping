@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown, ExternalLink, Plus, ShoppingCart, Trash2, UserPlus, X } from "lucide-react";
+import { Check, ChevronDown, ExternalLink, Plus, Settings2, ShoppingCart, Trash2, UserPlus, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -87,23 +87,143 @@ function Trips({ detail, onChange }: { detail: GroupDetail; onChange: () => void
   );
 }
 
+/** A trip's own fields as the forms hold them: text, before parsing. */
+export type TripFieldsValue = { name: string; startDate: string; endDate: string; place: string; coordsText: string };
+
+const EMPTY_TRIP: TripFieldsValue = { name: "", startDate: "", endDate: "", place: "", coordsText: "" };
+
+/** Whether the fields are complete enough to send; the API checks them again. */
+export function tripFieldsReady(v: TripFieldsValue) {
+  const coords = v.coordsText.trim() ? parseCoords(v.coordsText) : null;
+  return (
+    v.name.trim() !== "" &&
+    v.startDate !== "" &&
+    v.endDate !== "" &&
+    v.endDate >= v.startDate &&
+    coords !== null &&
+    !("error" in coords)
+  );
+}
+
+/** The request body's share of the fields, as readTripDetails() expects them. */
+export const tripFieldsBody = (v: TripFieldsValue) => ({
+  name: v.name.trim(),
+  startDate: v.startDate,
+  endDate: v.endDate,
+  locationName: v.place.trim(),
+  coords: v.coordsText,
+});
+
+/**
+ * Name, dates, place and map location: the fields of a new trip, and of
+ * editing one on /t/[tripId]/manage. The location reads back as you type.
+ */
+export function TripFields({ value, onChange }: { value: TripFieldsValue; onChange: (v: TripFieldsValue) => void }) {
+  const { name, startDate, endDate, place, coordsText } = value;
+  const set = (patch: Partial<TripFieldsValue>) => onChange({ ...value, ...patch });
+  const coords = coordsText.trim() ? parseCoords(coordsText) : null;
+  const datesError = startDate && endDate && endDate < startDate ? "הטיול מסתיים לפני שהוא מתחיל" : null;
+
+  return (
+    <>
+        <label className="block space-y-1.5">
+          <span className={label}>שם הטיול</span>
+          <input
+            value={name}
+            onChange={(e) => set({ name: e.target.value })}
+            maxLength={60}
+            placeholder="למשל: מחנאות 2027"
+            className={field}
+          />
+        </label>
+
+        <div className="flex gap-2">
+          <label className="block min-w-0 flex-1 space-y-1.5">
+            <span className={label}>מתאריך</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => {
+                const start = e.target.value;
+                set({ startDate: start, endDate: !endDate || endDate < start ? start : endDate });
+              }}
+              className={field}
+            />
+          </label>
+          <label className="block min-w-0 flex-1 space-y-1.5">
+            <span className={label}>עד</span>
+            <input
+              type="date"
+              value={endDate}
+              min={startDate || undefined}
+              onChange={(e) => set({ endDate: e.target.value })}
+              className={field}
+            />
+          </label>
+        </div>
+        {datesError && <p className="text-xs text-rose-300">{datesError}</p>}
+
+        <label className="block space-y-1.5">
+          <span className={label}>שם המקום (לא חובה)</span>
+          <input
+            value={place}
+            onChange={(e) => set({ place: e.target.value })}
+            maxLength={60}
+            placeholder="למשל: חניון בית צידה"
+            className={field}
+          />
+        </label>
+
+        <label className="block space-y-1.5">
+          <span className={label}>המיקום במפה</span>
+          <input
+            value={coordsText}
+            onChange={(e) => set({ coordsText: e.target.value })}
+            dir="ltr"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            placeholder="32.79, 35.53"
+            className={cn(field, "text-start")}
+          />
+          {coords === null ? (
+            <span className="block text-xs text-white/40">
+              קואורדינטות, או קישור מלא מגוגל מפות. במחשב: קליק ימני על הנקודה במפה, ולחיצה על המספרים מעתיקה אותם.
+            </span>
+          ) : "error" in coords ? (
+            <span className="block text-xs text-rose-300">{coords.error}</span>
+          ) : (
+            <span className="flex items-center gap-2 text-xs">
+              <Check className="size-3.5 shrink-0 text-aqua-400" />
+              <span dir="ltr" className="text-white/70">
+                {coords.lat}, {coords.lng}
+              </span>
+              <a
+                href={`https://www.google.com/maps?q=${coords.lat},${coords.lng}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 font-semibold text-brand-300"
+              >
+                לבדוק במפה
+                <ExternalLink className="size-3" />
+              </a>
+            </span>
+          )}
+        </label>
+    </>
+  );
+}
+
 function NewTripForm({ detail, onCancel }: { detail: GroupDetail; onCancel?: () => void }) {
   const router = useRouter();
-  const [name, setName] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [place, setPlace] = useState("");
-  const [coordsText, setCoordsText] = useState("");
+  const [trip, setTrip] = useState(EMPTY_TRIP);
   // An earlier trip of the group is the better start when there is one: it's their own list.
   const [from, setFrom] = useState(detail.trips[0] ? String(detail.trips[0].id) : "template");
   const [busy, setBusy] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
-  const coords = coordsText.trim() ? parseCoords(coordsText) : null;
-  const datesError = startDate && endDate && endDate < startDate ? "הטיול מסתיים לפני שהוא מתחיל" : null;
   const source = detail.trips.find((t) => String(t.id) === from);
-  const ready =
-    name.trim() !== "" && startDate !== "" && endDate !== "" && !datesError && coords !== null && !("error" in coords);
+  const ready = tripFieldsReady(trip);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -111,16 +231,12 @@ function NewTripForm({ detail, onCancel }: { detail: GroupDetail; onCancel?: () 
     setBusy(true);
     setServerError(null);
     try {
-      const { trip } = await send<{ trip: { id: number } }>(`/api/g/${detail.group.id}/trips`, "POST", {
-        name: name.trim(),
-        startDate,
-        endDate,
-        locationName: place.trim(),
-        coords: coordsText,
+      const created = await send<{ trip: { id: number } }>(`/api/g/${detail.group.id}/trips`, "POST", {
+        ...tripFieldsBody(trip),
         from: from === "template" ? "template" : Number(from),
       });
-      toast(`הטיול "${name.trim()}" נוצר`, "ok");
-      router.push(`/t/${trip.id}`);
+      toast(`הטיול "${trip.name.trim()}" נוצר`, "ok");
+      router.push(`/t/${created.trip.id}`);
     } catch (err) {
       setServerError(errorText(err));
       setBusy(false);
@@ -146,90 +262,7 @@ function NewTripForm({ detail, onCancel }: { detail: GroupDetail; onCancel?: () 
         )}
       </div>
 
-      <label className="block space-y-1.5">
-        <span className={label}>שם הטיול</span>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          maxLength={60}
-          placeholder="למשל: מחנאות 2027"
-          className={field}
-        />
-      </label>
-
-      <div className="flex gap-2">
-        <label className="block min-w-0 flex-1 space-y-1.5">
-          <span className={label}>מתאריך</span>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => {
-              setStartDate(e.target.value);
-              if (!endDate || endDate < e.target.value) setEndDate(e.target.value);
-            }}
-            className={field}
-          />
-        </label>
-        <label className="block min-w-0 flex-1 space-y-1.5">
-          <span className={label}>עד</span>
-          <input
-            type="date"
-            value={endDate}
-            min={startDate || undefined}
-            onChange={(e) => setEndDate(e.target.value)}
-            className={field}
-          />
-        </label>
-      </div>
-      {datesError && <p className="text-xs text-rose-300">{datesError}</p>}
-
-      <label className="block space-y-1.5">
-        <span className={label}>שם המקום (לא חובה)</span>
-        <input
-          value={place}
-          onChange={(e) => setPlace(e.target.value)}
-          maxLength={60}
-          placeholder="למשל: חניון בית צידה"
-          className={field}
-        />
-      </label>
-
-      <label className="block space-y-1.5">
-        <span className={label}>המיקום במפה</span>
-        <input
-          value={coordsText}
-          onChange={(e) => setCoordsText(e.target.value)}
-          dir="ltr"
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-          placeholder="32.79, 35.53"
-          className={cn(field, "text-start")}
-        />
-        {coords === null ? (
-          <span className="block text-xs text-white/40">
-            קואורדינטות, או קישור מלא מגוגל מפות. במחשב: קליק ימני על הנקודה במפה, ולחיצה על המספרים מעתיקה אותם.
-          </span>
-        ) : "error" in coords ? (
-          <span className="block text-xs text-rose-300">{coords.error}</span>
-        ) : (
-          <span className="flex items-center gap-2 text-xs">
-            <Check className="size-3.5 shrink-0 text-aqua-400" />
-            <span dir="ltr" className="text-white/70">
-              {coords.lat}, {coords.lng}
-            </span>
-            <a
-              href={`https://www.google.com/maps?q=${coords.lat},${coords.lng}`}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 font-semibold text-brand-300"
-            >
-              לבדוק במפה
-              <ExternalLink className="size-3" />
-            </a>
-          </span>
-        )}
-      </label>
+      <TripFields value={trip} onChange={setTrip} />
 
       <div className="space-y-1.5">
         {detail.trips.length > 0 ? (
@@ -328,12 +361,21 @@ function TripCard({
               />
             ))}
           </ul>
-          <Link
-            href={`/t/${trip.id}`}
-            className="tap inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white/60 transition active:scale-95"
-          >
-            לטיול
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={`/t/${trip.id}`}
+              className="tap inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white/60 transition active:scale-95"
+            >
+              לטיול
+            </Link>
+            <Link
+              href={`/t/${trip.id}/manage`}
+              className="tap inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white/60 transition active:scale-95"
+            >
+              <Settings2 className="size-3.5" />
+              עריכת הטיול
+            </Link>
+          </div>
         </div>
       )}
     </li>
