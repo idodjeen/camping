@@ -125,7 +125,7 @@ not deploy before the column exists.
 ## Phases
 
 Each phase is its own PR, and the app keeps working after each one. Status on 2026-10-08: phases
-1-5 are live (PRs #5, #7, #9, #13, #15); phase 6 runs alongside roadmap E. See `docs/handoff.md`.
+1-6 are live (PRs #5, #7, #9, #13, #15, #18); phase 7 is next. See `docs/handoff.md`.
 
 1. **Dev database and schema.** The Neon branch, the new tables, `trip_id` on every content table,
    and the backfill. The app still reads trip 1 everywhere, so nothing visible changes.
