@@ -19,6 +19,10 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  // An app, not a document: the screen stays at its own width. This also
+  // stops iOS from zooming in when a small-font field gets focus.
+  maximumScale: 1,
+  userScalable: false,
   themeColor: "#06060c",
   // Lets the page paint under the notch / home indicator so env(safe-area-inset-*)
   // has something to work with.

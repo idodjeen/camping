@@ -87,53 +87,53 @@ export default function ChatPage() {
 
   return (
     <>
-      <PageTitle
-        title="צ׳אט"
-        subtitle="כל התגובות על הפריטים, במקום אחד"
-        action={
-          <Link
-            href={page("/room")}
-            aria-label={roomUnread > 0 ? "חדר צ׳אט — תייגו אותך" : "חדר צ׳אט"}
-            className={cn(
-              "tap relative flex items-center gap-1.5 rounded-2xl border px-3 text-xs font-semibold transition active:scale-95",
-              roomUnread > 0
-                ? "border-brand-400/30 bg-brand-500/15 text-brand-200"
-                : "border-white/10 bg-white/5 text-white/60",
-            )}
-          >
-            <MessagesSquare className="size-4" />
-            חדר צ׳אט
-            {roomUnread > 0 && (
-              <span className="grid size-4 place-items-center rounded-full bg-brand-500 text-[9px] font-bold text-white">
-                {roomUnread}
-              </span>
-            )}
-          </Link>
-        }
-      />
+      <PageTitle title="צ׳אט" subtitle="כל התגובות על הפריטים, במקום אחד" />
 
-      {/* Parks right under the app header. */}
-      <div className="sticky top-(--app-header-h) z-10 -mx-5 mb-4 flex gap-2 overflow-x-auto bg-night-950/85 px-5 py-2 backdrop-blur-xl [scrollbar-width:none]">
-        {FILTERS.map((f) => (
-          <button
-            key={f.key}
-            onClick={() => setFilter(f.key)}
-            className={cn(
-              "tap flex shrink-0 items-center gap-1 rounded-xl border px-3 text-xs font-semibold transition active:scale-95",
-              filter === f.key
-                ? "border-brand-400/40 bg-brand-500/20 text-brand-200"
-                : f.key === "tagged" && unreadTags > 0
-                  ? "border-brand-400/35 bg-brand-500/15 text-brand-200"
-                  : "border-white/10 bg-white/5 text-white/45",
-            )}
-          >
-            {f.key === "tagged" && <AtSign className="size-3" />}
-            {f.label}
-            {f.key === "tagged" && unreadTags > 0 && (
-              <span className="tabular-nums">· {unreadTags}</span>
-            )}
-          </button>
-        ))}
+      {/* Parks right under the app header. The page opens at its newest
+          message, so the way into the general chat lives here, where it stays
+          in reach, and only the filters scroll sideways. */}
+      <div className="sticky top-(--app-header-h) z-10 -mx-5 mb-4 flex items-center gap-2 bg-night-950/85 py-2 ps-5 backdrop-blur-xl">
+        <Link
+          href={page("/room")}
+          aria-label={roomUnread > 0 ? "צ׳אט כללי — תייגו אותך" : "צ׳אט כללי"}
+          className={cn(
+            "tap relative flex shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition active:scale-95",
+            roomUnread > 0
+              ? "border-brand-400/45 bg-brand-500/25 text-brand-100"
+              : "border-brand-400/25 bg-brand-500/10 text-brand-200",
+          )}
+        >
+          <MessagesSquare className="size-4" />
+          צ׳אט כללי
+          {roomUnread > 0 && (
+            <span className="grid size-4 place-items-center rounded-full bg-brand-500 text-[9px] font-bold text-white">
+              {roomUnread}
+            </span>
+          )}
+        </Link>
+        <span aria-hidden className="h-6 w-px shrink-0 bg-white/10" />
+        <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pe-5 [scrollbar-width:none]">
+          {FILTERS.map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              className={cn(
+                "tap flex shrink-0 items-center gap-1 rounded-xl border px-3 text-xs font-semibold transition active:scale-95",
+                filter === f.key
+                  ? "border-brand-400/40 bg-brand-500/20 text-brand-200"
+                  : f.key === "tagged" && unreadTags > 0
+                    ? "border-brand-400/35 bg-brand-500/15 text-brand-200"
+                    : "border-white/10 bg-white/5 text-white/45",
+              )}
+            >
+              {f.key === "tagged" && <AtSign className="size-3" />}
+              {f.label}
+              {f.key === "tagged" && unreadTags > 0 && (
+                <span className="tabular-nums">· {unreadTags}</span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
       {isLoading && !data ? (

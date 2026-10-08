@@ -72,6 +72,25 @@
 html {
   /* Focusing a field or scrolling to an element stops short of the header. */
   scroll-padding-top: var(--app-header-h);
+  /* No pinch or double-tap zoom. iOS Safari ignores user-scalable=no in the
+     viewport tag, but it does honour this. */
+  touch-action: pan-x pan-y;
+}
+
+/* Never wider than the screen, so the page can't be dragged sideways. clip,
+   unlike hidden, makes no scroll container, so sticky bars keep working. */
+body {
+  overflow-x: clip;
+}
+
+/* iOS zooms into any field under 16px when it gets focus. Unlayered, so it
+   beats the text-sm on the inputs. */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: max(16px, 1em);
+  }
 }
 
 html,
