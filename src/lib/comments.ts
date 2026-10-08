@@ -1,22 +1,14 @@
 import { and, asc, desc, eq, inArray, isNull, not } from "drizzle-orm";
 
 import { db } from "@/db";
-import {
-  commentMentions,
-  comments,
-  gearItems,
-  meals,
-  notifications,
-  shoppingItems,
-  users,
-} from "@/db/schema";
-import { notifyMessage } from "@/lib/notifications";
+import { comments, gearItems, meals, notifications, shoppingItems, users } from "@/db/schema";
+import { notify } from "@/lib/notifications";
 import { EVERYONE } from "@/lib/mention-all";
 import { HttpError } from "@/lib/session";
+import { SUBJECTS, THREAD, type Subject } from "@/lib/threads";
 import { tripPeople } from "@/lib/trips";
 
-export const SUBJECTS = ["gear", "shopping", "meal"] as const;
-export type Subject = (typeof SUBJECTS)[number];
+export { SUBJECTS, type Subject };
 
 /** A general chat message is one whose three subject columns are all empty. */
 const generalOnly = and(
@@ -24,10 +16,6 @@ const generalOnly = and(
   isNull(comments.shoppingItemId),
   isNull(comments.mealId),
 );
-
-/** The ids of one trip's comments, for scoping tables that hang off a comment. */
-const commentsOf = (tripId: number) =>
-  db.select({ id: comments.id }).from(comments).where(eq(comments.tripId, tripId));
 
 /** Maps a subject name onto the one column that holds it. */
 const COLUMN = {
@@ -59,8 +47,28 @@ export async function getThread(
   const rows = await db.query.comments.findMany({
     where: and(eq(comments.tripId, tripId), eq(COLUMN[subject], subjectId)),
     orderBy: [asc(comments.createdAt), asc(comments.id)],
-    with: { author: true, mentions: { with: { user: true } } },
+    with: { author: true },
   });
+
+  // Who each message tagged: their tag rows, whoever's they are.
+  const tagged =
+    rows.length === 0
+      ? []
+      : await db
+          .select({ commentId: notifications.commentId, name: users.name })
+          .from(notifications)
+          .innerJoin(users, eq(users.id, notifications.userId))
+          .where(
+            and(
+              eq(notifications.tripId, tripId),
+              eq(notifications.kind, "mention"),
+              inArray(
+                notifications.commentId,
+                rows.map((c) => c.id),
+              ),
+            ),
+          )
+          .orderBy(asc(notifications.id));
 
   return rows.map((c) => ({
     id: c.id,
@@ -72,7 +80,7 @@ export async function getThread(
       slug: c.author.slug,
       avatarUrl: c.author.avatarUrl,
     },
-    mentions: c.mentions.map((m) => m.user.name),
+    mentions: tagged.filter((t) => t.commentId === c.id).map((t) => t.name),
   }));
 }
 
@@ -113,7 +121,7 @@ export async function createComment(
 
   // A comment on an item from another trip would be refused by the composite
   // FK anyway; checking first turns that 500 into a clean 404.
-  if (subject) await subjectLabel(tripId, subject, subjectId!);
+  const label = subject ? await subjectLabel(tripId, subject, subjectId!) : "צ׳אט כללי";
 
   // Only this trip's people can be tagged, and only they hear about it.
   const people = await tripPeople(tripId);
@@ -133,52 +141,29 @@ export async function createComment(
     })
     .returning();
 
-  if (mentioned.length > 0) {
-    await db
-      .insert(commentMentions)
-      .values(mentioned.map((p) => ({ commentId: created.id, userId: p.id })))
-      .onConflictDoNothing();
-  }
-
-  // The bell row is best-effort, like the email: losing it must not lose the message.
-  try {
-    await notifyMessage(created, authorId, people, mentioned.map((p) => p.id));
-  } catch (err) {
-    console.error("message notification failed", err);
-  }
+  // Best-effort, like the email: notify() logs and never throws, so losing a
+  // bell row can't lose the message.
+  const common = {
+    tripId,
+    actorId: authorId,
+    thread: subject ? THREAD.item(subject, subjectId!) : THREAD.chat,
+    refs: { commentId: created.id },
+    push: { label, preview: body.length > 120 ? `${body.slice(0, 117)}…` : body },
+  };
+  await notify({ ...common, kind: "mention", to: mentioned.map((p) => p.id) });
+  // Everyone else who asked to hear about messages. Not anyone tagged *with*
+  // tags switched on: they already have the tag, and two bell rows for one
+  // message would just be noise. Someone tagged with tags muted still gets the
+  // plain message row, so muting one kind never silences the whole comment.
+  await notify({
+    ...common,
+    kind: "message",
+    to: people
+      .filter((p) => !mentioned.some((m) => m.id === p.id && p.notifyMentions))
+      .map((p) => p.id),
+  });
 
   return { comment: created, mentioned };
-}
-
-/** Marks my own unread mentions in one thread as read. */
-export async function markThreadRead(
-  userId: number,
-  tripId: number,
-  subject: Subject,
-  subjectId: number,
-) {
-  const ids = await db
-    .select({ id: comments.id })
-    .from(comments)
-    .where(and(eq(comments.tripId, tripId), eq(COLUMN[subject], subjectId)));
-  if (ids.length === 0) return { marked: 0 };
-
-  const updated = await db
-    .update(commentMentions)
-    .set({ readAt: new Date() })
-    .where(
-      and(
-        eq(commentMentions.userId, userId),
-        isNull(commentMentions.readAt),
-        inArray(
-          commentMentions.commentId,
-          ids.map((r) => r.id),
-        ),
-      ),
-    )
-    .returning();
-
-  return { marked: updated.length };
 }
 
 /**
@@ -204,132 +189,6 @@ function topicOf(c: {
 
 /** What a chat message is about: one of the lists, or nothing (the general chat). */
 export type Topic = Subject | "general";
-
-export type MentionView = {
-  /** The mention row, not the comment — two people tagged in one comment get one each. */
-  id: number;
-  subject: Topic;
-  /** 0 for the general chat, which has no item. */
-  subjectId: number;
-  /** The item's own name, so the pane can say what the message is about. */
-  subjectLabel: string;
-  body: string;
-  createdAt: string;
-  readAt: string | null;
-  author: { id: number; name: string; slug: string; avatarUrl: string | null };
-};
-
-/**
- * Every message I have been tagged in, newest first — read ones included.
- *
- * Ordered by the mention's own id rather than the comment's timestamp: the row
- * is inserted in the same request that creates the comment, so the sequence is
- * already in send order, and a serial primary key sorts without touching the
- * joined table. Read mentions stay in the list because the pane is a history,
- * not an inbox you empty.
- *
- */
-export async function listMentions(
-  userId: number,
-  tripId: number,
-  limit = 40,
-): Promise<MentionView[]> {
-  // Tags switched off in חשבון: the bell stops showing them. The rows are still
-  // written, so switching back on brings the history back rather than a gap.
-  const [me] = await db.select({ on: users.notifyMentions }).from(users).where(eq(users.id, userId));
-  if (!me?.on) return [];
-
-  const rows = await db.query.commentMentions.findMany({
-    where: and(
-      eq(commentMentions.userId, userId),
-      inArray(commentMentions.commentId, commentsOf(tripId)),
-    ),
-    orderBy: [desc(commentMentions.id)],
-    limit,
-    with: {
-      comment: { with: { author: true, gearItem: true, shoppingItem: true, meal: true } },
-    },
-  });
-
-  return rows.map((m) => {
-    const c = m.comment;
-    const [subject, subjectId, label] = topicOf(c);
-
-    return {
-      id: m.id,
-      subject,
-      subjectId,
-      subjectLabel: label,
-      body: c.body,
-      createdAt: c.createdAt.toISOString(),
-      readAt: m.readAt?.toISOString() ?? null,
-      author: {
-        id: c.author.id,
-        name: c.author.name,
-        slug: c.author.slug,
-        avatarUrl: c.author.avatarUrl,
-      },
-    };
-  });
-}
-
-/** A bell row that is not a tag: a new chat message, or an item reaching full coverage. */
-export type NotificationView = {
-  id: number;
-  kind: "message" | "covered";
-  subject: Topic;
-  subjectId: number;
-  subjectLabel: string;
-  /** The message text; empty for "covered", which the pane words itself. */
-  body: string;
-  createdAt: string;
-  readAt: string | null;
-  author: { id: number; name: string; slug: string; avatarUrl: string | null };
-};
-
-/** Newest first. The prefs are applied when rows are written, so this reads all of mine. */
-export async function listNotifications(
-  userId: number,
-  tripId: number,
-  limit = 40,
-): Promise<NotificationView[]> {
-  const rows = await db.query.notifications.findMany({
-    where: and(eq(notifications.userId, userId), eq(notifications.tripId, tripId)),
-    orderBy: [desc(notifications.id)],
-    limit,
-    with: {
-      actor: true,
-      gearItem: true,
-      comment: { with: { gearItem: true, shoppingItem: true, meal: true } },
-    },
-  });
-
-  return rows.map((n) => {
-    const [subject, subjectId, label] =
-      n.kind === "covered"
-        ? (["gear", n.gearItemId ?? 0, n.gearItem?.name ?? "פריט שנמחק"] as const)
-        : n.comment
-          ? topicOf(n.comment)
-          : (["general", 0, "צ׳אט כללי"] as const);
-
-    return {
-      id: n.id,
-      kind: n.kind,
-      subject,
-      subjectId,
-      subjectLabel: label,
-      body: n.comment?.body ?? "",
-      createdAt: n.createdAt.toISOString(),
-      readAt: n.readAt?.toISOString() ?? null,
-      author: {
-        id: n.actor.id,
-        name: n.actor.name,
-        slug: n.actor.slug,
-        avatarUrl: n.actor.avatarUrl,
-      },
-    };
-  });
-}
 
 export type ChatMessage = {
   id: number;
@@ -370,13 +229,32 @@ export async function listChat(
       gearItem: true,
       shoppingItem: true,
       meal: true,
-      mentions: true,
     },
   });
 
+  // My tags among these messages, read or not; whatever my switches say, so
+  // the ring on a bubble never depends on the bell's settings.
+  const myTags =
+    rows.length === 0
+      ? []
+      : await db
+          .select({ commentId: notifications.commentId, readAt: notifications.readAt })
+          .from(notifications)
+          .where(
+            and(
+              eq(notifications.userId, userId),
+              eq(notifications.tripId, tripId),
+              eq(notifications.kind, "mention"),
+              inArray(
+                notifications.commentId,
+                rows.map((c) => c.id),
+              ),
+            ),
+          );
+
   return rows.reverse().map((c) => {
     const [subject, subjectId, label] = topicOf(c);
-    const mine = c.mentions.find((m) => m.userId === userId);
+    const mine = myTags.find((m) => m.commentId === c.id);
 
     return {
       id: c.id,
@@ -395,75 +273,6 @@ export async function listChat(
       unread: mine !== undefined && mine.readAt === null,
     };
   });
-}
-
-/** Marks my unread tags in the general chat as read — what opening the chat tab does. */
-export async function markGeneralRead(userId: number, tripId: number) {
-  const general = await db
-    .select({ id: comments.id })
-    .from(comments)
-    .where(and(eq(comments.tripId, tripId), generalOnly));
-  if (general.length === 0) return { marked: 0 };
-
-  const updated = await db
-    .update(commentMentions)
-    .set({ readAt: new Date() })
-    .where(
-      and(
-        eq(commentMentions.userId, userId),
-        isNull(commentMentions.readAt),
-        inArray(
-          commentMentions.commentId,
-          general.map((r) => r.id),
-        ),
-      ),
-    )
-    .returning();
-
-  return { marked: updated.length };
-}
-
-/** Clears every unread mention of mine at once, from the pane's "mark all read". */
-export async function markAllMentionsRead(userId: number, tripId: number) {
-  const updated = await db
-    .update(commentMentions)
-    .set({ readAt: new Date() })
-    .where(
-      and(
-        eq(commentMentions.userId, userId),
-        isNull(commentMentions.readAt),
-        inArray(commentMentions.commentId, commentsOf(tripId)),
-      ),
-    )
-    .returning();
-
-  return { marked: updated.length };
-}
-
-/** Unread mentions per list, for the dot on the bottom nav. */
-export async function unreadMentions(userId: number, tripId: number) {
-  const rows = await db
-    .select({
-      gear: comments.gearItemId,
-      shopping: comments.shoppingItemId,
-      meal: comments.mealId,
-    })
-    .from(commentMentions)
-    .innerJoin(comments, eq(comments.id, commentMentions.commentId))
-    .where(
-      and(
-        eq(comments.tripId, tripId),
-        eq(commentMentions.userId, userId),
-        isNull(commentMentions.readAt),
-      ),
-    );
-
-  return {
-    gear: rows.filter((r) => r.gear !== null).length,
-    shopping: rows.filter((r) => r.shopping !== null).length,
-    meals: rows.filter((r) => r.meal !== null).length,
-    general: rows.filter((r) => r.gear === null && r.shopping === null && r.meal === null).length,
-  };
 }
 
 export async function deleteComment(
