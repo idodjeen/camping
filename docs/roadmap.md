@@ -117,8 +117,8 @@ add nothing while only one migration PR is open at a time.
 | Variable | Production | Preview | Development | What it means |
 |---|---|---|---|---|
 | `DATABASE_URL` | prod, Config | `dev` branch | `dev` branch | Fixed Oct 7: previews read and write the `dev` copy, not real trip data. |
-| `ALLOWED_USERS` | yes | yes | - | Members can sign in on previews. Retired by groups-and-trips phase 2. |
-| `VIEWER_USERS` | yes, Secret | yes | - | Added to Preview Oct 7. Only imported on a viewer's first sign-in; deleted in groups phase 7. |
+| `ALLOWED_USERS` | yes | yes | - | Retired by groups-and-trips phase 2; only `db:seed` reads it, locally. Can be deleted on Vercel. |
+| `VIEWER_USERS` | yes, Secret | yes | - | No code reads it since groups phase 7. Delete it on Vercel after that merges. |
 | `VAPID_*` | yes, Secret | missing | - | Previews can't send push at all (`sendPush` does nothing without keys), so they can't buzz real phones. To test group E's push on a preview, add a **new** key pair to Preview. Never copy production's: with `dev`'s copied subscriptions, it would reach friends' phones. |
 | `GMAIL_*` | yes, Secret | missing | - | Previews can't email anyone. Keep it that way. |
 | `AUTH_URL` | yes | missing | - | Keep it out of Preview: it would send preview sign-ins to production. |

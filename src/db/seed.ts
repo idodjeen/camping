@@ -21,10 +21,32 @@ config({ path: ".env" });
 
 import { eq, sql } from "drizzle-orm";
 
-import { parseEmailList } from "../lib/allowlist.js";
 import { GEAR, GROUP, MEALS, ROSTER, SHOPPING, TRIP } from "./seed-data.js";
 
 const RESET = process.argv.includes("--reset");
+
+/**
+ * ALLOWED_USERS="a@x.com:עידו,b@x.com:ניר" -> entries. A missing name falls
+ * back to the email's local part. Emails cannot contain ":", so the first
+ * colon is always the separator.
+ */
+function parseEmailList(raw: string | undefined): { email: string; name: string }[] {
+  if (!raw) return [];
+
+  return raw
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const sep = entry.indexOf(":");
+      if (sep === -1) return { email: entry.toLowerCase(), name: entry.split("@")[0] };
+      return {
+        email: entry.slice(0, sep).trim().toLowerCase(),
+        name: entry.slice(sep + 1).trim(),
+      };
+    })
+    .filter((u) => u.email.includes("@"));
+}
 
 /**
  * The seed fills the original group's first trip and nothing else. Other groups

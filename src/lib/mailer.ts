@@ -47,7 +47,7 @@ export type SendResult = { to: string; ok: boolean; error?: string };
  */
 export async function sendAll(messages: Outgoing[]): Promise<SendResult[]> {
   const transport = getTransport();
-  const from = `מחנאות 2026 <${process.env.GMAIL_USER}>`;
+  const from = `מחנאות <${process.env.GMAIL_USER}>`;
   const results: SendResult[] = [];
 
   for (const m of messages) {

@@ -16,8 +16,6 @@ export async function GET() {
   // Secret ones are not - which would make the report lie about the runtime.
   await headers();
 
-  const allowed = process.env.ALLOWED_USERS ?? "";
-
   return Response.json({
     commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local",
     env: process.env.VERCEL_ENV ?? "local",
@@ -28,10 +26,9 @@ export async function GET() {
       AUTH_GOOGLE_SECRET: Boolean(process.env.AUTH_GOOGLE_SECRET),
       AUTH_TRUST_HOST: Boolean(process.env.AUTH_TRUST_HOST),
       DATABASE_URL: Boolean(process.env.DATABASE_URL),
-      ALLOWED_USERS: Boolean(allowed),
     },
     // Shape checks only — no values. Catches a client ID pasted into the
-    // secret field, or an allowlist that parses to zero usable entries.
+    // secret field.
     google_id_looks_right: process.env.AUTH_GOOGLE_ID?.endsWith(".apps.googleusercontent.com") ?? false,
     // Client IDs are public (they appear in the OAuth URL), so showing the
     // shape is safe and tells us truncation from stray quotes/whitespace.
@@ -42,9 +39,5 @@ export async function GET() {
     google_id_has_quotes: /["']/.test(process.env.AUTH_GOOGLE_ID ?? ""),
     google_secret_length: process.env.AUTH_GOOGLE_SECRET?.length ?? 0,
     google_secret_looks_right: process.env.AUTH_GOOGLE_SECRET?.startsWith("GOCSPX-") ?? false,
-    allowed_users_parsed: allowed
-      .split(",")
-      .map((e) => e.trim())
-      .filter((e) => e.slice(0, e.indexOf(":") === -1 ? undefined : e.indexOf(":")).includes("@")).length,
   });
 }

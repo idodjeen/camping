@@ -17,7 +17,7 @@ import { toast } from "@/components/toast";
 import { ApiError, fetcher, send, swrConfig } from "@/lib/api";
 import { burstFrom } from "@/lib/confetti";
 import { formatGearList, formatMyList } from "@/lib/format-lists";
-import { useTrip } from "@/lib/trip-client";
+import { useTrip, useTripName } from "@/lib/trip-client";
 import { cn } from "@/lib/utils";
 
 type Claim = {
@@ -48,6 +48,7 @@ type Payload = { categories: Category[] };
 
 export default function GearPage() {
   const { api } = useTrip();
+  const tripName = useTripName();
   const { data, isLoading, mutate } = useSWR<Payload>(api("/gear"), fetcher, swrConfig);
   const { data: me } = useSWR<{
     user: { id: number; name: string };
@@ -148,7 +149,7 @@ export default function GearPage() {
               }
             />
           ) : (
-            <CopyButton getText={() => formatGearList(data?.categories ?? [])} />
+            <CopyButton getText={() => formatGearList(data?.categories ?? [], { tripName })} />
           )
         }
       />

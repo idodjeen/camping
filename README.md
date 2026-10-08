@@ -1,22 +1,38 @@
-# מחנאות 2026 🏕️
+# מחנאות 🏕️
 
-Mobile-first, Hebrew (RTL) trip-coordination app for five friends camping in the Upper Galilee,
-**1–3.10.2026**. Claim gear, follow the meal plan, tick off the shopping, keep a private
-personal packing list.
+Mobile-first, Hebrew (RTL) app for planning camping trips with friends. It hosts many groups,
+each with its own people and trips, and keeps every group's data invisible to the others.
+On a trip you claim gear, follow the meal plan, tick off the shopping, split expenses, chat,
+and keep a private packing list.
 
-Built entirely on free tiers: Vercel Hobby + Neon Postgres + Open-Meteo.
+Built on free tiers: Vercel Hobby + Neon Postgres + Open-Meteo.
 
 ## What's in the app
 
+Everything inside a trip lives under `/t/[tripId]`. Three tabs sit at the bottom, and the rest
+is in the ☰ menu (`src/lib/nav.ts`).
+
 | Screen | What it does |
 |---|---|
-| **בית** | Live countdown, 3-day forecast, Waze/Maps buttons, progress rings, next meal, what's still unclaimed |
+| **בית** | Countdown, forecast, Waze/Maps buttons, progress rings, next meal, what's still unclaimed |
 | **ציוד** | Claim gear by category, take part of a quantity, release it, add missing items |
-| **ארוחות** | Day-by-day timeline with each meal's ingredients and their bought status |
-| **קניות** | Checklist by category; only עידו and ניר can tick items |
-| **שלי** | Your claims with packed checkboxes, plus a private personal list |
+| **צ׳אט** | Every thread in the trip, plus the general chat room |
+| **ארוחות** | Day-by-day timeline with each meal's ingredients and whether they were bought |
+| **קניות** | Checklist by category; only the trip's shoppers can tick items |
+| **הוצאות** | Expenses with a split, payments between people, balances and a chart |
+| **לוח התורמים** | Who brought and packed the most |
+| **חשבון** | Your role, push and notification switches, the short guide |
+| **ניהול הטיול** | Group admins: trip details, categories, meals |
 
-First login shows four swipeable onboarding cards; they can be replayed from שלי.
+Outside a trip:
+
+| Path | Who | What |
+|---|---|---|
+| `/` | everyone | Your trips by group; opens your last trip |
+| `/g/[groupId]` | group admins | Members and roles, new trips, who is on each trip and who shops |
+| `/admin` | super admin | All groups, creating a group and its first admin |
+
+First sign-in shows a few swipeable onboarding cards; they can be replayed from חשבון.
 
 ---
 
@@ -26,25 +42,26 @@ First login shows four swipeable onboarding cards; they can be replayed from ש�
 |---|---|
 | Framework | Next.js 16 (App Router) + React 19 + TypeScript |
 | Database | Neon Postgres + Drizzle ORM |
-| Auth | Auth.js (NextAuth v5), Google only, JWT sessions, env allowlist |
+| Auth | Auth.js (NextAuth v5), Google only, JWT sessions, access from the database |
 | Styling | Tailwind CSS v4 (CSS-first tokens) |
-| Data | SWR — 15s polling + revalidate on focus |
+| Data | SWR, 15s polling + revalidate on focus |
+| Notifications | Web Push (VAPID) and Gmail SMTP |
 | Weather | Open-Meteo (no API key) |
 
 Requires **Node 22+** (the Neon driver uses the global `WebSocket`).
 
 ---
 
-## Setup — do these in order
+## Setup, in order
 
 ### 1. Google OAuth client
 
-1. [Google Cloud Console](https://console.cloud.google.com/) → create a project.
-2. **APIs & Services → OAuth consent screen** → *External* → fill in app name + support email.
-3. ⚠️ While the consent screen is in **Testing**, add all five Google accounts under
-   **Test users**. Otherwise Google refuses them before this app's allowlist ever runs —
-   the most common "it just says access blocked" cause.
-4. **Credentials → Create credentials → OAuth client ID → Web application**:
+1. [Google Cloud Console](https://console.cloud.google.com/) -> create a project.
+2. **APIs & Services -> OAuth consent screen** -> *External* -> fill in app name + support email.
+3. ⚠️ Set the consent screen to **In production**. While it's in **Testing**, Google refuses
+   every account that isn't listed under **Test users**, before this app's own check runs.
+   With only the email and profile scopes, Google doesn't require verification.
+4. **Credentials -> Create credentials -> OAuth client ID -> Web application**:
 
    **Authorized JavaScript origins**
    ```
@@ -60,16 +77,21 @@ Requires **Node 22+** (the Neon driver uses the global `WebSocket`).
 5. Copy the **Client ID** and **Client secret**.
 
 > Add the Vercel URL after the first deploy, once you know the domain. Google applies
-> changes within a minute or two.
+> changes within a minute or two. Previews don't need their own entries: they relay sign-in
+> through production (`AUTH_REDIRECT_PROXY_URL`, see `.env.example`).
 
 ### 2. Database (Neon via Vercel)
 
-Vercel dashboard → your project → **Storage → Create Database → Neon** → Connect.
-This injects `DATABASE_URL` into every environment automatically.
+Vercel dashboard -> your project -> **Storage -> Create Database -> Neon** -> Connect.
+This injects `DATABASE_URL` into every environment.
+
+Use two Neon branches: `main` for Production only, and `dev` for local work and every Vercel
+preview. Try every migration on `dev` first.
 
 ### 3. Environment variables
 
-Set these in **Vercel → Settings → Environment Variables** (Production + Preview + Development):
+`.env.example` lists every variable, with what it's for and which environments get it. The
+essentials, in **Vercel -> Settings -> Environment Variables**:
 
 | Variable | Value |
 |---|---|
@@ -77,9 +99,10 @@ Set these in **Vercel → Settings → Environment Variables** (Production + Pre
 | `AUTH_GOOGLE_ID` | from step 1 |
 | `AUTH_GOOGLE_SECRET` | from step 1 |
 | `AUTH_TRUST_HOST` | `true` |
-| `ALLOWED_USERS` | `email:עידו,email:ניר,email:סער,email:אור,email:יצחק` |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | push; **Config** type, not Secret |
+| `GMAIL_USER`, `GMAIL_APP_PASSWORD` | reminder and invite emails; Production only |
 
-`DATABASE_URL` is already there from step 2.
+On this project, Vercel's **Secret** type never reaches the runtime; use **Config**.
 
 ### 4. Local setup
 
@@ -88,7 +111,7 @@ npm install
 vercel link          # once, to connect this folder to the Vercel project
 vercel env pull .env.local
 npm run db:migrate   # create the tables
-npm run db:seed      # load trip, users, gear, shopping, meals
+npm run db:seed      # the original group and its first trip
 npm run dev          # http://localhost:3000
 ```
 
@@ -103,7 +126,7 @@ npm run dev          # http://localhost:3000
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run db:generate` | Generate SQL migrations from `src/db/schema.ts` |
 | `npm run db:migrate` | Apply migrations |
-| `npm run db:seed` | **Idempotent** seed — safe to re-run |
+| `npm run db:seed` | **Idempotent** seed, safe to re-run |
 | `npm run db:reset` | ⚠️ Truncates everything, then reseeds |
 | `npm run db:studio` | Drizzle Studio (browse the data) |
 
@@ -117,55 +140,61 @@ constraints as missing and offers to truncate the table to add them.
 
 ### About the seed
 
-`npm run db:seed` can be run any number of times against the live database. Re-running
-updates seeded *content* — item names, quantities, meal links — while preserving everything
-the group has created:
+The seed fills the original group (id 1) and its first trip, and touches nothing else. Every
+other group and trip is created in the app. Its five people come from `ALLOWED_USERS` in
+`.env.local`, so their emails stay out of the repo; nothing else reads that variable.
 
-- gear claims and their "packed" flags
-- which shopping items were bought, by whom, and when
-- personal packing lists
-- onboarding progress
-
-Use `db:reset` only when you genuinely want to throw away the group's data.
+Re-running updates seeded *content* (item names, quantities, meal links) while preserving
+everything the group has created: gear claims and "packed" flags, who bought what, personal
+lists and onboarding progress. Use `db:reset` only when you really want to throw that away.
 
 ---
 
-## Users, roles and avatars
+## People and roles
 
-Access is gated by `ALLOWED_USERS`. Any other Google account gets a Hebrew
-"אין גישה" screen and no session.
+Who may sign in, and as what, lives in the database. Anyone who isn't the super admin or a
+member of some group gets the Hebrew "אין גישה" screen and no session.
 
-**Roles live in the database**, not in env — so they can be changed later without a
-redeploy. The seed sets them:
-
-| Person | Admin | Shopper |
+| Role | Stored in | Can |
 |---|---|---|
-| עידו | ✅ | ✅ |
-| ניר | | ✅ |
-| סער / אור / יצחק | | |
+| Super admin | `users.is_super_admin` | Everything in every group; creates groups; sends reminder emails |
+| Group admin | `group_members.role = 'admin'` | Members, roles, trips, trip details, categories and meals |
+| Editor | `group_members.role = 'editor'` | Everything on the trips they're on |
+| Viewer | `group_members.role = 'viewer'` | Read only; every write gets 403 |
+| Shopper | `trip_members.is_shopper` | Tick shopping items as bought, on that trip |
 
-Every permission is re-checked server-side in the route handler on each request; the client
-only hides controls, it never grants them.
+People are added by a group admin on `/g/[groupId]` (or by the super admin when creating a
+group). They get an invite email and can sign in with that Google account right away.
 
-**Avatars** are optional static files at `public/avatars/{slug}.jpg` —
-`ido`, `nir`, `saar`, `or`, `itzhak`. Drop in JPGs and redeploy. Anyone without a file gets a
-deterministic gradient circle with their initial, so the app never looks broken.
+Every permission is re-checked on the server in each route; the client only hides controls,
+it never grants them.
+
+**Avatars**: the five founders have photos in `public/avatars/{slug}.jpg`. Everyone else gets a
+deterministic gradient circle with their initial.
 
 ---
 
 ## Architecture notes
 
-**Auth.js split config.** `src/auth.config.ts` is edge-safe (providers + allowlist, no DB) and
-is what `src/middleware.ts` loads. `src/auth.ts` adds the DB-aware callbacks and is only ever
-imported by Node route handlers. Importing the database into middleware breaks the Edge bundle.
+**One gate per request.** Every trip route starts with `requireTrip(tripId, "read" | "write" |
+"admin")` (`src/lib/access.ts`) and filters every query by that trip. Someone outside the group
+gets 404, never 403, so they can't even tell a trip exists. Composite foreign keys stop a row
+pointing into another trip, even if a query forgets a filter.
+
+**Auth.js split config.** `src/auth.config.ts` is database-free and is what `src/proxy.ts`
+loads on every request. `src/auth.ts` adds the database-aware sign-in check and is only imported
+by Node route handlers.
 
 **Neon Pool driver, not neon-http.** The gear-claim endpoint needs a real interactive
-transaction — two people claiming the last gas stove simultaneously must not both succeed.
-The HTTP driver can't do `SELECT ... FOR UPDATE`; the Pool driver can.
+transaction: two people claiming the last gas stove at once must not both succeed. The HTTP
+driver can't do `SELECT ... FOR UPDATE`; the Pool driver can.
 
-**Dates are strings, never `Date` objects.** A `Date` is interpreted in the server's timezone
-(UTC on Vercel), so a trip starting 1.10 would render as 30.9 in Israel. All date-only values
-stay as `"YYYY-MM-DD"` strings end to end.
+**Dates are strings, never `Date` objects.** A `Date` is read in the server's timezone (UTC on
+Vercel), so a trip starting 1.10 would show as 30.9 in Israel. Date-only values stay as
+`"YYYY-MM-DD"` strings end to end.
+
+More: `docs/groups-and-trips.md` (the multi-group design), `docs/roadmap.md`, and
+`docs/handoff.md` (current state and working rules).
 
 ---
 

@@ -211,7 +211,6 @@ In order, one at a time unless both sides agree on the parallel rules below:
   `POST .../chat/read`, and `unreadMentions` in `/api/t/[tripId]/me`.
 - `comment_mentions` (no longer written), `users.is_admin`, `users.is_shopper`; `notifications.thread_key`
   becomes NOT NULL.
-- `VIEWER_USERS` and `importEnvViewer` (hard-codes group 1): phase 7.
 
 **Housekeeping**
 - Merged remote branches to delete: `claude/notifications-core`, `claude/trip-content`, and any
