@@ -1,7 +1,16 @@
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { groupMembers, trip, tripMembers, type MemberRole, type Trip, type User } from "@/db/schema";
+import {
+  groupMembers,
+  groups,
+  trip,
+  tripMembers,
+  type Group,
+  type MemberRole,
+  type Trip,
+  type User,
+} from "@/db/schema";
 import { HttpError, requireSignedIn } from "@/lib/session";
 
 /**
@@ -83,6 +92,56 @@ export type TripParams = { params: Promise<{ tripId: string }> };
 
 export async function tripRoute(ctx: TripParams, level: Level = "read") {
   return requireTrip((await ctx.params).tripId, level);
+}
+
+/**
+ * What one person may do in one group, for the group admin's page. The same
+ * shape as TripAccess, one level up.
+ */
+export type GroupAccess = {
+  user: User;
+  group: Group;
+  /** Role in this group; null for a super admin who is not a member. */
+  role: MemberRole | null;
+  /** Group admin or super admin. */
+  isAdmin: boolean;
+};
+
+/** One round trip: the group, plus the caller's role in it. */
+export async function loadGroupAccess(user: User, groupId: number): Promise<GroupAccess | null> {
+  if (!Number.isInteger(groupId) || groupId <= 0) return null;
+
+  const [row] = await db
+    .select({ group: groups, role: groupMembers.role })
+    .from(groups)
+    .leftJoin(
+      groupMembers,
+      and(eq(groupMembers.groupId, groups.id), eq(groupMembers.userId, user.id)),
+    )
+    .where(eq(groups.id, groupId));
+
+  if (!row || (!row.role && !user.isSuperAdmin)) return null;
+  return { user, group: row.group, role: row.role, isAdmin: user.isSuperAdmin || row.role === "admin" };
+}
+
+/**
+ * The gate for /g/[groupId] and /api/g/[groupId]: group admins of this group
+ * and the super admin. Like requireTrip, anyone outside the group gets 404 so
+ * they can't learn that it exists; members who aren't admins get 403.
+ */
+export async function requireGroupAdmin(rawGroupId: string | number) {
+  const user = await requireSignedIn();
+  const access = await loadGroupAccess(user, Number(rawGroupId));
+  if (!access) throw new HttpError(404, "הקבוצה לא נמצאה");
+  if (!access.isAdmin) throw new HttpError(403, "רק מנהלי הקבוצה");
+  return access;
+}
+
+/** The context Next passes to every handler under /api/g/[groupId]. */
+export type GroupParams = { params: Promise<{ groupId: string }> };
+
+export async function groupRoute(ctx: GroupParams) {
+  return requireGroupAdmin((await ctx.params).groupId);
 }
 
 /** A numeric path segment such as [id], or a 400. */

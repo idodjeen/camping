@@ -1,6 +1,7 @@
 "use client";
 
-import { Check, ChevronDown, Plus, Users, X } from "lucide-react";
+import { Check, ChevronDown, Plus, UserCog, Users, X } from "lucide-react";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import useSWR from "swr";
 
@@ -21,7 +22,7 @@ import { cn } from "@/lib/utils";
 
 const KEY = "/api/admin/groups";
 
-const field =
+export const field =
   "tap w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm outline-none placeholder:text-white/25 focus:border-brand-400/40";
 
 type Created = {
@@ -206,7 +207,7 @@ function NewGroupForm({ onCreated }: { onCreated: (c: Created) => void }) {
  * A textarea for a pasted list, with each line read back underneath: the name
  * and email it found, or what's wrong with that line.
  */
-function PeopleField({
+export function PeopleField({
   label,
   value,
   onChange,
@@ -264,6 +265,21 @@ function PeopleField({
   );
 }
 
+/** People who already had a row keep their name; say so when it isn't the one typed. */
+export function KeptNames({ kept }: { kept: Created["kept"] }) {
+  if (kept.length === 0) return null;
+  return (
+    <ul className="space-y-1 rounded-xl bg-white/5 p-3 text-xs text-white/60">
+      {kept.map((k) => (
+        <li key={k.email}>
+          <span dir="ltr">{k.email}</span> כבר רשום/ה באפליקציה, ולכן נשאר/ה בשם {k.name} (ולא{" "}
+          {k.typed})
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /** Right after creating: the message to paste into the group's WhatsApp. */
 function CreatedCard({ created, link, onDone }: { created: Created; link: string; onDone: () => void }) {
   const message = inviteMessage(created.group.name, link);
@@ -273,16 +289,7 @@ function CreatedCard({ created, link, onDone }: { created: Created; link: string
       <p className="text-sm text-white/60">
         שלחו להם את ההודעה הזו בוואטסאפ. מנהל/ת הקבוצה יוכל/תוכל ליצור בה טיול.
       </p>
-      {created.kept.length > 0 && (
-        <ul className="space-y-1 rounded-xl bg-white/5 p-3 text-xs text-white/60">
-          {created.kept.map((k) => (
-            <li key={k.email}>
-              <span dir="ltr">{k.email}</span> כבר רשום/ה באפליקציה, ולכן נשאר/ה בשם {k.name} (ולא{" "}
-              {k.typed})
-            </li>
-          ))}
-        </ul>
-      )}
+      <KeptNames kept={created.kept} />
       <p className="rounded-xl bg-white/5 p-3 text-sm leading-relaxed whitespace-pre-line text-white/80">
         {message}
       </p>
@@ -341,7 +348,16 @@ function GroupCard({ group, link }: { group: GroupSummary; link: string }) {
               </li>
             ))}
           </ul>
-          <CopyButton getText={() => inviteMessage(group.name, link)} label="הודעת הזמנה לוואטסאפ" />
+          <div className="flex flex-wrap gap-2">
+            <CopyButton getText={() => inviteMessage(group.name, link)} label="הודעת הזמנה לוואטסאפ" />
+            <Link
+              href={`/g/${group.id}`}
+              className="tap flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white/60 transition active:scale-95"
+            >
+              <UserCog className="size-3.5" />
+              ניהול הקבוצה
+            </Link>
+          </div>
         </div>
       )}
     </li>

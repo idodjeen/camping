@@ -1,11 +1,10 @@
 import { ChevronRight } from "lucide-react";
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import Link from "next/link";
 
 import { AdminGroups } from "@/components/admin-groups";
 import { Toaster } from "@/components/toast";
-import { listGroups } from "@/lib/groups";
+import { appOrigin, listGroups } from "@/lib/groups";
 import { requirePageUser } from "@/lib/session";
 
 export const metadata: Metadata = { title: "ניהול קבוצות" };
@@ -34,12 +33,6 @@ export default async function AdminPage() {
     );
   }
 
-  // The address this request came in on, so a preview's message links to the
-  // preview and production's to production.
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
-  const proto = h.get("x-forwarded-proto") ?? (/^(localhost|127\.)/.test(host) ? "http" : "https");
-
   return (
     <main className="mx-auto w-full max-w-md px-5 pt-[calc(env(safe-area-inset-top,0px)+1.25rem)] pb-10">
       <Toaster />
@@ -51,7 +44,7 @@ export default async function AdminPage() {
         חזרה לטיול
       </Link>
       <h1 className="mb-6 text-2xl font-bold">ניהול קבוצות</h1>
-      <AdminGroups initial={await listGroups()} link={`${proto}://${host}`} />
+      <AdminGroups initial={await listGroups()} link={await appOrigin()} />
     </main>
   );
 }

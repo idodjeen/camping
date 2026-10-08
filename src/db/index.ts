@@ -59,4 +59,7 @@ export const db = new Proxy({} as NeonDatabase<typeof schema>, {
   },
 });
 
+/** The handle a `db.transaction` callback receives, for helpers that run inside one. */
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 export { schema };

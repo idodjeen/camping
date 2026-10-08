@@ -1,4 +1,5 @@
 import { asc, count, eq, inArray } from "drizzle-orm";
+import { headers } from "next/headers";
 
 import { db } from "@/db";
 import { groupMembers, groups, trip, users, type MemberRole } from "@/db/schema";
@@ -15,7 +16,18 @@ export type GroupSummary = {
   members: GroupMemberRow[];
 };
 
-const ROLE_ORDER: Record<MemberRole, number> = { admin: 0, editor: 1, viewer: 2 };
+export const ROLE_ORDER: Record<MemberRole, number> = { admin: 0, editor: 1, viewer: 2 };
+
+/**
+ * The address this request came in on, for the invite message: a preview's
+ * message links to the preview and production's to production.
+ */
+export async function appOrigin() {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
+  const proto = h.get("x-forwarded-proto") ?? (/^(localhost|127\.)/.test(host) ? "http" : "https");
+  return `${proto}://${host}`;
+}
 
 /** Every group with its people and how many trips it has: the super admin's list. */
 export async function listGroups(): Promise<GroupSummary[]> {
@@ -55,6 +67,33 @@ export type NewGroup = {
 
 const GROUP_NAME_MAX = 40;
 
+/**
+ * One person from a request body, or null with the reason pushed onto
+ * `problems`. `where` says which part of the form it came from.
+ */
+export function readPerson(v: unknown, where: string, problems: string[]): PersonInput | null {
+  const p = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+  const email = typeof p.email === "string" ? p.email.trim().toLowerCase() : "";
+  const name = typeof p.name === "string" ? p.name.trim() : "";
+  if (!isEmail(email)) {
+    problems.push(`${where}: המייל ${email || "(ריק)"} לא תקין`);
+    return null;
+  }
+  const bad = nameProblem(name);
+  if (bad) {
+    problems.push(`${where} (${email}): ${bad}`);
+    return null;
+  }
+  return { email, name };
+}
+
+/** A list of people from a request body; the bad ones only add to `problems`. */
+export function readPeople(v: unknown, where: string, problems: string[]): PersonInput[] {
+  return (Array.isArray(v) ? v : [])
+    .map((p) => readPerson(p, where, problems))
+    .filter((p): p is PersonInput => p !== null);
+}
+
 /** The request body, checked field by field. Throws a 400 naming what to fix. */
 export function parseNewGroup(raw: unknown): NewGroup {
   const body = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
@@ -64,23 +103,8 @@ export function parseNewGroup(raw: unknown): NewGroup {
   if (!name) problems.push("חסר שם לקבוצה");
   else if ([...name].length > GROUP_NAME_MAX) problems.push(`שם הקבוצה עד ${GROUP_NAME_MAX} תווים`);
 
-  const person = (v: unknown, where: string): PersonInput | null => {
-    const p = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
-    const email = typeof p.email === "string" ? p.email.trim().toLowerCase() : "";
-    const pname = typeof p.name === "string" ? p.name.trim() : "";
-    if (!isEmail(email)) {
-      problems.push(`${where}: המייל ${email || "(ריק)"} לא תקין`);
-      return null;
-    }
-    const bad = nameProblem(pname);
-    if (bad) {
-      problems.push(`${where} (${email}): ${bad}`);
-      return null;
-    }
-    return { email, name: pname };
-  };
-  const list = (v: unknown, where: string) =>
-    (Array.isArray(v) ? v : []).map((p) => person(p, where)).filter((p): p is PersonInput => p !== null);
+  const person = (v: unknown, where: string) => readPerson(v, where, problems);
+  const list = (v: unknown, where: string) => readPeople(v, where, problems);
 
   const admin = person(body.admin, "מנהל/ת");
   const editors = list(body.editors, "חברים");

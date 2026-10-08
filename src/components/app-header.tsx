@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown, ChevronLeft, Menu } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, Menu, UserCog, type LucideIcon } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -11,7 +11,16 @@ import { Modal } from "@/components/modal";
 import { NotificationsBell } from "@/components/notifications";
 import { SideSheet } from "@/components/side-sheet";
 import { fetcher, swrConfig } from "@/lib/api";
-import { SECONDARY, badgeFor, canSee, isActive, menuBadge, type MenuRoles, type Unread } from "@/lib/nav";
+import {
+  SECONDARY,
+  badgeFor,
+  canSee,
+  isActive,
+  menuBadge,
+  type MenuRoles,
+  type NavItem,
+  type Unread,
+} from "@/lib/nav";
 import { useTrip } from "@/lib/trip-client";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +40,7 @@ type Me = { user: { isAdmin: boolean; isSuperAdmin: boolean }; unreadMentions: U
  * also read.
  */
 export function AppHeader({ trips }: { trips: TripOption[] }) {
-  const { api } = useTrip();
+  const { api, id } = useTrip();
   // Same key the bottom nav polls, so the badge costs no extra request.
   const { data } = useSWR<Me>(api("/me"), fetcher, swrConfig);
   const [menu, setMenu] = useState(false);
@@ -69,58 +78,103 @@ export function AppHeader({ trips }: { trips: TripOption[] }) {
       </header>
 
       <SideSheet open={menu} onClose={() => setMenu(false)} title="תפריט">
-        <NavMenu data={data} roles={roles} onPick={() => setMenu(false)} />
+        <NavMenu
+          data={data}
+          roles={roles}
+          groupId={trips.find((t) => t.id === id)?.groupId}
+          onPick={() => setMenu(false)}
+        />
       </SideSheet>
     </>
   );
 }
 
-/** The screens that are not bottom tabs, each with its own badge. */
+/**
+ * The screens that are not bottom tabs, each with its own badge. The group
+ * admin's row sits between the trip's screens and the app-wide pages: its
+ * href depends on the trip's group, which NAV's static list can't express.
+ */
 function NavMenu({
   data,
   roles,
+  groupId,
   onPick,
 }: {
   data: Me | undefined;
   roles: MenuRoles;
+  groupId: number | undefined;
   onPick: () => void;
 }) {
   const { page, local } = useTrip();
   const pathname = local(usePathname());
+  const rows = SECONDARY.filter((n) => canSee(n, roles));
+
+  const row = ({ href, label, Icon, outsideTrip }: NavItem) => {
+    const active = !outsideTrip && isActive(href, pathname);
+    return (
+      <MenuRow
+        key={href}
+        href={outsideTrip ? (href as Route) : page(href)}
+        label={label}
+        Icon={Icon}
+        active={active}
+        badge={badgeFor(href, data?.unreadMentions)}
+        onPick={onPick}
+      />
+    );
+  };
 
   return (
     <nav className="space-y-1">
-      {SECONDARY.filter((n) => canSee(n, roles)).map(({ href, label, Icon, outsideTrip }) => {
-        const active = !outsideTrip && isActive(href, pathname);
-        const badge = badgeFor(href, data?.unreadMentions);
-        return (
-          <Link
-            key={href}
-            href={outsideTrip ? (href as Route) : page(href)}
-            // Closes from the tap itself, not on a pathname change, so tapping
-            // the screen you are already on closes the menu too.
-            onClick={onPick}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              "tap flex items-center gap-3 rounded-2xl px-3 transition-colors",
-              active ? "bg-brand-500/12 text-brand-200" : "text-white/75 active:bg-white/5",
-            )}
-          >
-            <Icon className="size-5 shrink-0" strokeWidth={active ? 2.4 : 1.9} />
-            <span className="flex-1 text-sm font-semibold">{label}</span>
-            {badge > 0 && (
-              <span
-                aria-label={badge === 1 ? "תיוג אחד מחכה לך" : `${badge} תיוגים מחכים לך`}
-                className="grid size-5 place-items-center rounded-full bg-brand-500 text-[10px] font-bold tabular-nums text-white"
-              >
-                {badge}
-              </span>
-            )}
-            <ChevronLeft className="size-4 shrink-0 text-white/20 ltr:rotate-180" />
-          </Link>
-        );
-      })}
+      {rows.filter((n) => !n.outsideTrip).map(row)}
+      {roles.isAdmin && groupId !== undefined && (
+        // Cast like useTrip().page(): typedRoutes can't see a runtime id, and /g/[groupId] is real.
+        <MenuRow href={`/g/${groupId}` as Route} label="ניהול הקבוצה" Icon={UserCog} onPick={onPick} />
+      )}
+      {rows.filter((n) => n.outsideTrip).map(row)}
     </nav>
+  );
+}
+
+function MenuRow({
+  href,
+  label,
+  Icon,
+  active = false,
+  badge = 0,
+  onPick,
+}: {
+  href: Route;
+  label: string;
+  Icon: LucideIcon;
+  active?: boolean;
+  badge?: number;
+  onPick: () => void;
+}) {
+  return (
+    <Link
+      href={href}
+      // Closes from the tap itself, not on a pathname change, so tapping
+      // the screen you are already on closes the menu too.
+      onClick={onPick}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "tap flex items-center gap-3 rounded-2xl px-3 transition-colors",
+        active ? "bg-brand-500/12 text-brand-200" : "text-white/75 active:bg-white/5",
+      )}
+    >
+      <Icon className="size-5 shrink-0" strokeWidth={active ? 2.4 : 1.9} />
+      <span className="flex-1 text-sm font-semibold">{label}</span>
+      {badge > 0 && (
+        <span
+          aria-label={badge === 1 ? "תיוג אחד מחכה לך" : `${badge} תיוגים מחכים לך`}
+          className="grid size-5 place-items-center rounded-full bg-brand-500 text-[10px] font-bold tabular-nums text-white"
+        >
+          {badge}
+        </span>
+      )}
+      <ChevronLeft className="size-4 shrink-0 text-white/20 ltr:rotate-180" />
+    </Link>
   );
 }
 

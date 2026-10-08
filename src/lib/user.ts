@@ -1,12 +1,33 @@
 import { eq, sql } from "drizzle-orm";
 
-import { db } from "@/db";
+import { db, type Tx } from "@/db";
 import { groupMembers, users } from "@/db/schema";
 import { envViewer } from "@/lib/allowlist";
 
 export async function findUserByEmail(rawEmail: string) {
   const [row] = await db.select().from(users).where(eq(users.email, rawEmail.toLowerCase()));
   return row ?? null;
+}
+
+/**
+ * The person behind a session, but only while they still belong somewhere:
+ * the super admin, or a member of at least one group. One query.
+ *
+ * Sessions last 30 days, so this is what makes a removal take effect on the
+ * very next request: someone removed from their last group has a valid
+ * cookie but no longer counts as signed in (401 from the API, /no-access on
+ * pages), exactly like canSignIn would answer for a fresh sign-in.
+ */
+export async function findActiveUser(rawEmail: string) {
+  const [row] = await db
+    .select({
+      user: users,
+      member: sql<boolean>`exists (select 1 from ${groupMembers} where ${groupMembers.userId} = ${users.id})`,
+    })
+    .from(users)
+    .where(eq(users.email, rawEmail.toLowerCase()));
+  if (!row) return null;
+  return row.user.isSuperAdmin || row.member ? row.user : null;
 }
 
 /**
@@ -60,8 +81,6 @@ async function importEnvViewer(email: string): Promise<boolean> {
   console.info(`imported VIEWER_USERS entry as a viewer of group ${ORIGINAL_GROUP_ID}`);
   return true;
 }
-
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
  * A new person's row, with a slug no one else has.
