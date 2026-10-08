@@ -1,8 +1,11 @@
 import { tripRoute, type TripParams } from "@/lib/access";
 import { buildMessages } from "@/lib/emails";
 import { sendAll } from "@/lib/mailer";
-import { NOTIFY_TYPES, type NotifyType } from "@/lib/reminders";
+import { notify } from "@/lib/notifications";
+import { NOTIFY_INFO, NOTIFY_TYPES, type NotifyType } from "@/lib/reminders";
 import { handle, HttpError } from "@/lib/session";
+import { THREAD } from "@/lib/threads";
+import { tripPeople } from "@/lib/trips";
 
 export const dynamic = "force-dynamic";
 // Five sequential SMTP handshakes comfortably exceed the default limit.
@@ -50,7 +53,7 @@ export function GET(req: Request, ctx: TripParams) {
  */
 export function POST(req: Request, ctx: TripParams) {
   return handle(async () => {
-    const { trip } = await requireSender(ctx);
+    const { trip, user } = await requireSender(ctx);
     const body = (await req.json().catch(() => ({}))) as { type?: string };
     const type = parseType(body.type ?? null);
 
@@ -58,6 +61,22 @@ export function POST(req: Request, ctx: TripParams) {
     if (messages.length === 0) return { type, sent: 0, results: [] };
 
     const results = await sendAll(messages);
+
+    // The same people as the email, as a push and a bell row. No switch: these
+    // are sent by hand and rarely, and the email has no opt-out either.
+    // Personal reminders (packing) differ per person, so each gets their own subject.
+    const idOf = new Map((await tripPeople(trip.id)).map((p) => [p.email, p.id]));
+    for (const subject of new Set(messages.map((m) => m.subject))) {
+      await notify({
+        tripId: trip.id,
+        kind: "reminder",
+        actorId: user.id,
+        thread: THREAD.reminder(type),
+        to: messages.filter((m) => m.subject === subject).flatMap((m) => idOf.get(m.to) ?? []),
+        data: { subject },
+        push: { label: NOTIFY_INFO[type].label, preview: subject },
+      });
+    }
     return {
       type,
       sent: results.filter((r) => r.ok).length,

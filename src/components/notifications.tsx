@@ -9,6 +9,7 @@ import { CommentsSheet, TaggedBadge } from "@/components/comments";
 import { Modal } from "@/components/modal";
 import { toast } from "@/components/toast";
 import { UserAvatar } from "@/components/user-avatar";
+import type { NotificationKind } from "@/db/schema";
 import { ApiError } from "@/lib/api";
 import { formatRelative } from "@/lib/dates";
 import { useInbox } from "@/lib/inbox-client";
@@ -24,6 +25,19 @@ const LIST_LABEL: Record<Subject, string> = { gear: "ציוד", shopping: "קנ�
 const where = (r: { label: string; target: Target }) =>
   r.target.sheet ? `${LIST_LABEL[r.target.sheet.subject]} · ${r.label}` : r.label;
 
+/** The bold line for the kinds the server words: an icon and what happened. */
+const EVENT: Partial<Record<NotificationKind, string>> = {
+  uncovered: "⚠️ חזר להיות חסר",
+  gear_added: "🎒 פריט ציוד חדש",
+  shopping_added: "🛒 נוסף לקניות",
+  bought: "🛍️ נקנה",
+  expense_added: "💸 הוצאה חדשה",
+  expense_edited: "✏️ הוצאה עודכנה",
+  expense_deleted: "🗑️ הוצאה נמחקה",
+  settlement: "🤝 תשלום סומן",
+  reminder: "📣 תזכורת",
+};
+
 /** What happened, as the bold line of a single row. */
 function headline(r: InboxRow) {
   switch (r.kind) {
@@ -32,11 +46,14 @@ function headline(r: InboxRow) {
     case "message":
       return `${r.actor.name} כתב/ה`;
     case "covered":
-      return "הפריט מכוסה";
+      return "🎉 הפריט מכוסה";
     default:
-      return r.label;
+      return EVENT[r.kind] ?? r.label;
   }
 }
+
+/** Tags and messages are someone's words; every other kind's text already names who did it. */
+const quotes = (k: NotificationKind) => k === "mention" || k === "message";
 
 function text(r: InboxRow) {
   return r.kind === "covered" ? `${r.actor.name} לקח/ה את היחידה האחרונה` : r.text;
@@ -53,9 +70,16 @@ function names(people: Person[]) {
 /** A group's bold line: one event reads as itself, several name who wrote. */
 const groupHeadline = (g: InboxGroup) => (g.count > 1 ? names(g.actors) : headline(g.latest));
 
-/** A group's preview: the latest event, saying whose it is when there are several. */
-const groupText = (g: InboxGroup) =>
-  g.count > 1 && g.latest.kind !== "covered" ? `${g.latest.actor.name}: ${text(g.latest)}` : text(g.latest);
+/**
+ * A group's preview: the latest event, saying whose it is when there are
+ * several. A shopping run by one person reads as one line.
+ */
+function groupText(g: InboxGroup) {
+  if (g.count > 1 && g.actors.length === 1 && g.kinds.length === 1 && g.kinds[0] === "bought") {
+    return `${g.actors[0].name} קנה/תה ${g.count} פריטים`;
+  }
+  return g.count > 1 && quotes(g.latest.kind) ? `${g.latest.actor.name}: ${text(g.latest)}` : text(g.latest);
+}
 
 /** Up to three overlapping faces, newest first. */
 function Faces({ people, size = 32 }: { people: Person[]; size?: number }) {
@@ -191,7 +215,7 @@ function NotificationsPane({ open, onClose }: { open: boolean; onClose: () => vo
             <p className="mt-2 text-sm leading-relaxed text-white/40">
               אין התראות עדיין.
               <br />
-              תיוגים, הודעות ופריטים שכוסו יופיעו כאן — אפשר לבחור מה בחשבון.
+              תיוגים, הודעות, ציוד, קניות וכסף יופיעו כאן — אפשר לבחור מה בחשבון.
             </p>
           </div>
         ) : (

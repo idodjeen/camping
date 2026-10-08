@@ -27,6 +27,9 @@ export const mealSlot = pgEnum("meal_slot", ["breakfast", "lunch", "dinner"]);
 
 /* ------------------------------------------------------------------ users */
 
+/** `users.notify_prefs`: which groups of notification kinds a person hears. */
+export type NotifySwitches = { mentions?: boolean; chat?: boolean; lists?: boolean; money?: boolean };
+
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   email: text("email").notNull().unique(),
@@ -48,7 +51,19 @@ export const users = pgTable("users", {
    */
   isSuperAdmin: boolean("is_super_admin").notNull().default(false),
   onboardedAt: timestamp("onboarded_at", { withTimezone: true }),
-  /** Which kinds of notification reach the bell. All on until the person opts out. */
+  /**
+   * The four switches in חשבון, per person (not per trip). A missing key reads
+   * as on, so a later switch needs no migration.
+   */
+  notifyPrefs: jsonb("notify_prefs")
+    .$type<NotifySwitches>()
+    .notNull()
+    .default({ mentions: true, chat: true, lists: true, money: true }),
+  /**
+   * The switches before notify_prefs. Still written alongside it for one
+   * release, so a flip on a bundle from before the deploy isn't lost; read by
+   * nothing. Dropped in H.
+   */
   notifyMentions: boolean("notify_mentions").notNull().default(true),
   notifyCovered: boolean("notify_covered").notNull().default(true),
   notifyMessages: boolean("notify_messages").notNull().default(true),

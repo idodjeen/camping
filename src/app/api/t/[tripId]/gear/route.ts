@@ -3,8 +3,10 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { gearCategories, gearItems } from "@/db/schema";
 import { tripRoute, type TripParams } from "@/lib/access";
+import { notify } from "@/lib/notifications";
 import { getGear } from "@/lib/queries";
 import { handle, HttpError } from "@/lib/session";
+import { THREAD } from "@/lib/threads";
 
 export const dynamic = "force-dynamic";
 
@@ -38,8 +40,9 @@ export function POST(req: Request, ctx: TripParams) {
     if (!category) throw new HttpError(404, "קטגוריה לא נמצאה");
 
     const qty = body.qtyNeeded ?? 1;
+    let created;
     try {
-      const [created] = await db
+      [created] = await db
         .insert(gearItems)
         .values({
           tripId: trip.id,
@@ -50,10 +53,20 @@ export function POST(req: Request, ctx: TripParams) {
           createdBy: user.id,
         })
         .returning();
-      return { item: created };
     } catch {
       // UNIQUE(category_id, name)
       throw new HttpError(409, "כבר יש פריט כזה בקטגוריה");
     }
+
+    await notify({
+      tripId: trip.id,
+      kind: "gear_added",
+      actorId: user.id,
+      thread: THREAD.list("gear"),
+      refs: { gearItemId: created.id },
+      data: { name: created.name },
+      push: { label: "ציוד" },
+    });
+    return { item: created };
   });
 }

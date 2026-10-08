@@ -5,11 +5,24 @@ import { expenseShares, expenses } from "@/db/schema";
 import { intParam, tripRoute } from "@/lib/access";
 import { parseExpenseInput } from "@/lib/expense-input";
 import { splitEqually } from "@/lib/expenses";
+import { notify } from "@/lib/notifications";
 import { handle, HttpError } from "@/lib/session";
+import { THREAD } from "@/lib/threads";
 
 export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ tripId: string; id: string }> };
+
+/** An expense's shares as { userId: agorot }, the shape notification data keeps. */
+async function sharesOf(expenseId: number): Promise<Record<string, number>> {
+  const rows = await db
+    .select({ userId: expenseShares.userId, amount: expenseShares.amount })
+    .from(expenseShares)
+    .where(eq(expenseShares.expenseId, expenseId));
+  return Object.fromEntries(rows.map((r) => [r.userId, r.amount]));
+}
+
+const ids = (...shares: Record<string, number>[]) => shares.flatMap((s) => Object.keys(s).map(Number));
 
 /**
  * Whoever entered it, whoever paid, or a group admin. Shares cascade with the
@@ -27,7 +40,20 @@ export function DELETE(_req: Request, ctx: Ctx) {
       throw new HttpError(403, "אפשר למחוק רק הוצאה שהוספת או ששילמת");
     }
 
+    const shares = await sharesOf(id);
     await db.delete(expenses).where(thisOne);
+
+    // No reference to the expense: it's gone, and its "added" rows went with it.
+    // The snapshot is what the row reads from.
+    await notify({
+      tripId: trip.id,
+      kind: "expense_deleted",
+      actorId: me.id,
+      thread: THREAD.money,
+      to: [...ids(shares), expense.paidBy],
+      data: { description: expense.description, amount: expense.amount },
+      push: { label: "כסף" },
+    });
     return { deleted: true };
   });
 }
@@ -59,6 +85,7 @@ export function PATCH(req: Request, ctx: Ctx) {
     });
     const { sharedWith, ...fields } = input;
     const resplit = input.amount !== undefined || sharedWith !== undefined;
+    const before = await sharesOf(id);
 
     const updated = await db.transaction(async (tx) => {
       // Matching on the trip again means a delete from another device in the
@@ -94,6 +121,19 @@ export function PATCH(req: Request, ctx: Ctx) {
     });
 
     if (!updated) throw new HttpError(404, "ההוצאה לא נמצאה");
+
+    // The old and new split and payer: someone taken off it hears so once.
+    const after = resplit ? await sharesOf(id) : before;
+    await notify({
+      tripId: trip.id,
+      kind: "expense_edited",
+      actorId: me.id,
+      thread: THREAD.money,
+      to: [...ids(before, after), expense.paidBy, updated.paidBy],
+      refs: { expenseId: id },
+      data: { description: updated.description, amount: updated.amount, before, after },
+      push: { label: "כסף" },
+    });
     return { expense: updated };
   });
 }
