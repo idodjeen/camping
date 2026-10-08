@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { celebrate } from "@/lib/confetti";
-import { gradientFor, initialFor } from "@/lib/gradient";
+import { initialFor, toneFor } from "@/lib/gradient";
 import { useOverlay } from "@/lib/use-overlay";
 import { cn } from "@/lib/utils";
 
@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
  *
  * Avatar files are optional — they live at /public/avatars/{slug}.jpg and may
  * simply not exist yet. A plain <img> is used rather than next/image precisely
- * so that a 404 fires onError and we can swap in the deterministic gradient
+ * so that a 404 fires onError and we can swap in the deterministic coloured
  * initial. next/image would render a broken optimizer request instead.
  */
 export function UserAvatar({
@@ -71,8 +71,8 @@ export function UserAvatar({
   );
 
   const shared = cn(
-    "inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-full font-semibold text-white ring-2 ring-night-900",
-    !showImage && `bg-gradient-to-br ${gradientFor(slug)}`,
+    "inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-full font-bold ring-2 ring-canvas",
+    !showImage && toneFor(slug),
     className,
   );
   const style = { width: size, height: size, fontSize: Math.round(size * 0.42) };
@@ -122,7 +122,7 @@ function Lightbox({
 }: {
   open: boolean;
   onClose: () => void;
-  /** Null when the person has no photo yet — we show their gradient instead. */
+  /** Null when the person has no photo yet: we show their colour instead. */
   src: string | null;
   name: string;
   slug: string;
@@ -144,7 +144,7 @@ function Lightbox({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-night-950/85 p-6 backdrop-blur-md"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-canvas/85 p-6 backdrop-blur-md"
         >
           <motion.div
             initial={{ scale: 0.82, opacity: 0, y: 12 }}
@@ -158,21 +158,21 @@ function Lightbox({
               <img
                 src={src}
                 alt={name}
-                className="w-full rounded-3xl object-cover shadow-2xl ring-1 ring-white/15"
+                className="w-full rounded-hero object-cover shadow-2xl ring-1 ring-line"
               />
             ) : (
               <div
-                className={`grid aspect-square w-full place-items-center rounded-3xl bg-gradient-to-br ${gradientFor(slug)} text-8xl font-black text-white shadow-2xl ring-1 ring-white/15`}
+                className={`grid aspect-square w-full place-items-center rounded-hero ${toneFor(slug)} font-display text-8xl shadow-2xl ring-1 ring-line`}
               >
                 {initialFor(name)}
               </div>
             )}
-            <p className="mt-3 text-center text-lg font-bold">{name}</p>
+            <p className="mt-3 text-center font-display text-xl">{name}</p>
 
             <button
               onClick={onClose}
               aria-label="לסגור"
-              className="tap absolute -top-3 -end-3 grid place-items-center rounded-full border border-white/15 bg-night-800 text-white/70 shadow-lg active:scale-90"
+              className="tap absolute -top-3 -end-3 grid place-items-center rounded-full border-[1.5px] border-line bg-surface text-ink shadow-lg active:scale-90"
             >
               <X className="size-5" />
             </button>

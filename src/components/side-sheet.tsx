@@ -47,7 +47,7 @@ export function SideSheet({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 z-[65] bg-night-950/70 backdrop-blur-sm"
+          className="fixed inset-0 z-[65] bg-ink/30 backdrop-blur-[2px]"
         >
           <motion.div
             role="dialog"
@@ -67,14 +67,14 @@ export function SideSheet({
               if (toward > 80 || flick > 500) onClose();
             }}
             onClick={(e) => e.stopPropagation()}
-            className="absolute inset-y-0 start-0 flex w-[80vw] max-w-xs flex-col border-e border-white/10 bg-night-900/95 shadow-2xl backdrop-blur-xl"
+            className="absolute inset-y-0 start-0 flex w-[84vw] max-w-sm flex-col rounded-e-hero bg-canvas shadow-2xl"
           >
-            <div className="flex items-center gap-3 border-b border-white/10 ps-5 pe-3 pt-[env(safe-area-inset-top,0px)]">
-              <h2 className="flex-1 py-3 text-lg font-bold">{title}</h2>
+            <div className="flex items-center gap-3 ps-5 pe-3 pt-[env(safe-area-inset-top,0px)]">
+              <h2 className="flex-1 py-4 font-display text-xl">{title}</h2>
               <button
                 onClick={onClose}
                 aria-label="לסגור"
-                className="tap grid place-items-center rounded-xl text-white/45 active:text-white"
+                className="grid size-[46px] place-items-center rounded-full border-[1.5px] border-line bg-surface text-ink active:scale-95"
               >
                 <X className="size-5" />
               </button>

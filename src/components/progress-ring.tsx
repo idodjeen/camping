@@ -1,45 +1,48 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ChevronLeft } from "lucide-react";
+
+import { cn } from "@/lib/utils";
+
+const TONES = {
+  rose: { card: "bg-rose", sub: "text-rose-ink", stroke: "var(--c-rose-strong)" },
+  sage: { card: "bg-sage", sub: "text-sage-ink", stroke: "var(--c-sage-strong)" },
+} as const;
 
 /**
- * Circular progress. Drawn with stroke-dasharray on an SVG circle rotated so
- * 0% starts at twelve o'clock, and animated by tweening strokeDashoffset — a
- * GPU-friendly property, unlike animating the path itself.
+ * Circular progress on a tinted card. Drawn with stroke-dasharray on an SVG
+ * circle rotated so 0% starts at twelve o'clock, and animated by tweening
+ * strokeDashoffset, a GPU-friendly property, unlike animating the path itself.
+ * The track is the canvas colour, so the ring reads as cut out of the card.
  */
 export function ProgressRing({
   done,
   total,
   label,
-  color = "brand",
-  linked = false,
+  tone = "rose",
 }: {
   done: number;
   total: number;
   label: string;
-  color?: "brand" | "aqua";
-  /** Draws the chevron, so a tappable ring looks tappable. */
-  linked?: boolean;
+  tone?: keyof typeof TONES;
 }) {
   const pct = total === 0 ? 0 : Math.round((done / total) * 100);
   const r = 34;
   const circumference = 2 * Math.PI * r;
-  const stroke = color === "aqua" ? "var(--color-aqua-400)" : "var(--color-brand-400)";
+  const t = TONES[tone];
 
   return (
-    <div className="glass relative flex flex-col items-center rounded-2xl p-4">
-      {linked && <ChevronLeft className="absolute start-2 top-2 size-4 text-white/25" />}
-      <div className="relative">
-        <svg width="88" height="88" viewBox="0 0 88 88" className="-rotate-90">
-          <circle cx="44" cy="44" r={r} fill="none" stroke="rgb(255 255 255 / 0.08)" strokeWidth="8" />
+    <div className={cn("flex items-center gap-3 rounded-[1.75rem] p-4", t.card)}>
+      <div className="relative shrink-0">
+        <svg width="76" height="76" viewBox="0 0 80 80" className="-rotate-90" aria-hidden>
+          <circle cx="40" cy="40" r={r} fill="none" stroke="var(--c-canvas)" strokeWidth="9" />
           <motion.circle
-            cx="44"
-            cy="44"
+            cx="40"
+            cy="40"
             r={r}
             fill="none"
-            stroke={stroke}
-            strokeWidth="8"
+            stroke={t.stroke}
+            strokeWidth="9"
             strokeLinecap="round"
             strokeDasharray={circumference}
             initial={{ strokeDashoffset: circumference }}
@@ -48,13 +51,17 @@ export function ProgressRing({
           />
         </svg>
         <div className="absolute inset-0 grid place-items-center">
-          <span className="text-xl font-black tabular-nums">{pct}%</span>
+          <span className="font-display text-[19px] tabular-nums" dir="ltr">
+            {pct}%
+          </span>
         </div>
       </div>
-      <p className="mt-2 text-xs font-medium text-white/60">{label}</p>
-      <p className="text-[11px] tabular-nums text-white/35">
-        {done}/{total}
-      </p>
+      <div className="min-w-0 leading-tight">
+        <p className="text-[15px] font-bold text-ink">{label}</p>
+        <p className={cn("mt-0.5 text-[13px] tabular-nums", t.sub)} dir="ltr">
+          {done}/{total}
+        </p>
+      </div>
     </div>
   );
 }

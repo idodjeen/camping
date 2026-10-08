@@ -16,7 +16,6 @@ import type { InboxGroup, InboxRow, Person } from "@/lib/notifications";
 import { setAppBadge } from "@/lib/push-client";
 import type { Subject, Target } from "@/lib/threads";
 import { useTrip } from "@/lib/trip-client";
-import { cn } from "@/lib/utils";
 
 /** Which list the item lives on, for the chip on each row. */
 const LIST_LABEL: Record<Subject, string> = { gear: "ציוד", shopping: "קניות", meal: "ארוחות" };
@@ -121,16 +120,11 @@ export function NotificationsBell() {
           : unread === 1 ? "התראות — אחת חדשה"
           : `התראות — ${unread} חדשות`
         }
-        className={cn(
-          "tap relative grid place-items-center rounded-2xl border transition active:scale-95",
-          unread > 0
-            ? "border-brand-400/30 bg-brand-500/15 text-brand-200"
-            : "border-white/10 bg-white/5 text-white/55",
-        )}
+        className="relative grid size-[46px] place-items-center rounded-full border-[1.5px] border-line bg-surface text-ink transition active:scale-95"
       >
-        <Bell className="size-[18px]" />
+        <Bell className="size-5" />
         {unread > 0 && (
-          <span className="absolute end-1 top-1 grid size-[17px] place-items-center rounded-full bg-brand-500 text-[9px] font-bold tabular-nums text-white ring-2 ring-night-950">
+          <span className="absolute -end-1 -top-1 grid h-[19px] min-w-[19px] place-items-center rounded-full border-2 border-canvas bg-cta px-1 text-[11px] font-bold tabular-nums text-on-cta">
             {unread}
           </span>
         )}

@@ -1,19 +1,33 @@
 import type { Metadata, Viewport } from "next";
-import { Heebo } from "next/font/google";
+import { Assistant, Varela_Round } from "next/font/google";
+
+import { THEME_COLOR, THEME_SCRIPT } from "@/lib/theme";
 
 import "./globals.css";
 
-const heebo = Heebo({
+// Body text. Hebrew first: it is the whole interface.
+const assistant = Assistant({
   subsets: ["hebrew", "latin"],
-  variable: "--font-heebo",
+  variable: "--font-assistant",
+  display: "swap",
+});
+
+// Titles and big numbers (font-display). It has a single weight.
+const varela = Varela_Round({
+  weight: "400",
+  subsets: ["hebrew", "latin"],
+  variable: "--font-varela",
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "מחנאות 2026",
-  description: "מי מביא מה, מה אוכלים, ומה עוד צריך לקנות.",
+  title: "מחנאות",
+  description: "מתכננים טיול עם החברים: מי מביא מה, מה קונים, מה אוכלים ומי חייב למי.",
   // Lets iOS launch the Home Screen icon as a standalone app (required for push).
-  appleWebApp: { capable: true, title: "מחנאות", statusBarStyle: "black-translucent" },
+  // "default" rather than black-translucent: the bar then takes theme-color,
+  // which the theme script keeps in step with light and dark. A translucent
+  // bar always has white text, unreadable over the light canvas.
+  appleWebApp: { capable: true, title: "מחנאות", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
@@ -23,7 +37,11 @@ export const viewport: Viewport = {
   // stops iOS from zooming in when a small-font field gets focus.
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#06060c",
+  // Per device setting until the script in <head> applies a stored choice.
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: THEME_COLOR.light },
+    { media: "(prefers-color-scheme: dark)", color: THEME_COLOR.dark },
+  ],
   // Lets the page paint under the notch / home indicator so env(safe-area-inset-*)
   // has something to work with.
   viewportFit: "cover",
@@ -31,7 +49,18 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="he" dir="rtl" className={`${heebo.variable} dark`}>
+    // suppressHydrationWarning: THEME_SCRIPT rewrites data-theme before React
+    // hydrates, and the DOM must win. It covers this element's attributes only.
+    <html
+      lang="he"
+      dir="rtl"
+      data-theme="light"
+      suppressHydrationWarning
+      className={`${assistant.variable} ${varela.variable}`}
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body className="font-sans antialiased">{children}</body>
     </html>
   );

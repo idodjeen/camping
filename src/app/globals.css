@@ -3,30 +3,183 @@
 /*
  * Tailwind v4 is CSS-first: there is no tailwind.config.js. Design tokens are
  * declared here with @theme and become utilities automatically
- * (--color-night-900 -> bg-night-900, text-night-900, border-night-900, ...).
+ * (--color-surface -> bg-surface, text-surface, border-surface, ...).
+ *
+ * The look is "warm and human" (the 2026-10 redesign): cream and aubergine,
+ * with four soft accents (peach, rose, sage, amber) and one strong action
+ * colour. Two themes share every token name; only the values differ, so a
+ * component is written once and is correct in both.
+ *
+ *   light  the default palette, on :root
+ *   dark   [data-theme="dark"] on <html>, set before first paint by the
+ *          inline script in app/layout.tsx (see lib/theme.ts)
  */
+
+:root {
+  color-scheme: light;
+
+  --c-canvas: #fff4ea;
+  --c-surface: #fffbf7;
+  --c-line: #f3dccb;
+  --c-ink: #3b2230;
+  --c-muted: #7d5b54;
+
+  /* Accents: a soft fill, the readable ink on it, and a strong stroke for
+     rings and bars drawn on that fill. */
+  --c-peach: #ffd6bc;
+  --c-peach-ink: #8f4a33;
+  --c-rose: #ffd3d6;
+  --c-rose-ink: #7a3640;
+  --c-rose-strong: #b23a48;
+  --c-sage: #d9e8c4;
+  --c-sage-ink: #42621f;
+  --c-sage-strong: #4f7a2b;
+  --c-amber: #ffe3a3;
+  --c-amber-ink: #8a5a00;
+  --c-coral: #ffe1d3;
+  --c-coral-ink: #b8381f;
+
+  /* One strong colour, for the single main action on a screen. */
+  --c-cta: #d4402a;
+  --c-on-cta: #ffffff;
+  --c-link: #b8381f;
+
+  /* The trip illustration. */
+  --c-tent: #e24b2e;
+  --c-tent-glow: #ffc2a0;
+
+  /* The floating tab bar stays dark in both themes. */
+  --c-nav: #3b2230;
+  --c-nav-icon: #ebcdbb;
+  --c-nav-active: #fff4ea;
+  --c-nav-active-ink: #3b2230;
+  --c-badge: #ff7b5c;
+  --c-on-badge: #2a1410;
+
+  --c-shadow: rgb(59 34 48 / 0.18);
+
+  /* Screens not redesigned yet still use the old night/brand/white classes.
+     They are mapped onto the new palette below; this is the solid fill their
+     buttons get, soft enough for ink text in both themes. */
+  --c-legacy-accent: #ffc9a8;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --c-canvas: #1d1316;
+  --c-surface: #2a1b20;
+  --c-line: #43303a;
+  --c-ink: #fbebdd;
+  --c-muted: #c4a89c;
+
+  --c-peach: #4a2b26;
+  --c-peach-ink: #ffc9b0;
+  --c-rose: #432229;
+  --c-rose-ink: #ffb3ba;
+  --c-rose-strong: #ff8a94;
+  --c-sage: #2e3320;
+  --c-sage-ink: #cfe5a3;
+  --c-sage-strong: #b7d77f;
+  --c-amber: #4a3a1a;
+  --c-amber-ink: #ffd98a;
+  --c-coral: #5a2a22;
+  --c-coral-ink: #ffb39e;
+
+  --c-cta: #ff7b5c;
+  --c-on-cta: #2a1410;
+  --c-link: #ff9a7e;
+
+  --c-tent: #ff7b5c;
+  --c-tent-glow: #5e352d;
+
+  --c-nav: #3a2830;
+  --c-nav-icon: #d9bfb3;
+  --c-nav-active: #ffe1d3;
+  --c-nav-active-ink: #2a1410;
+  --c-badge: #ff7b5c;
+  --c-on-badge: #2a1410;
+
+  --c-shadow: rgb(0 0 0 / 0.45);
+
+  --c-legacy-accent: #6a3328;
+}
+
+/* `inline`: the utilities read the variables themselves, so the values above
+   switch with the theme at runtime instead of being frozen at build. */
+@theme inline {
+  --color-canvas: var(--c-canvas);
+  --color-surface: var(--c-surface);
+  --color-line: var(--c-line);
+  --color-ink: var(--c-ink);
+  --color-muted: var(--c-muted);
+
+  --color-peach: var(--c-peach);
+  --color-peach-ink: var(--c-peach-ink);
+  --color-rose: var(--c-rose);
+  --color-rose-ink: var(--c-rose-ink);
+  --color-rose-strong: var(--c-rose-strong);
+  --color-sage: var(--c-sage);
+  --color-sage-ink: var(--c-sage-ink);
+  --color-sage-strong: var(--c-sage-strong);
+  --color-amber: var(--c-amber);
+  --color-amber-ink: var(--c-amber-ink);
+  --color-coral: var(--c-coral);
+  --color-coral-ink: var(--c-coral-ink);
+
+  --color-cta: var(--c-cta);
+  --color-on-cta: var(--c-on-cta);
+  --color-link: var(--c-link);
+  --color-tent: var(--c-tent);
+  --color-tent-glow: var(--c-tent-glow);
+
+  --color-nav: var(--c-nav);
+  --color-nav-icon: var(--c-nav-icon);
+  --color-nav-active: var(--c-nav-active);
+  --color-nav-active-ink: var(--c-nav-active-ink);
+  --color-badge: var(--c-badge);
+  --color-on-badge: var(--c-on-badge);
+
+  /*
+   * Bridge for the screens that are not redesigned yet. Remove each group
+   * once nothing uses it (grep for the class names).
+   *
+   *   white/NN  -> ink at NN%: the old translucent-white text and overlays
+   *                become translucent ink, which reads in both themes.
+   *   night-*   -> canvas and surface.
+   *   brand-*   -> the link colour for text, a soft fill for solid buttons.
+   *   ocean/aqua-> link and the success green.
+   *
+   * New code uses the semantic names above and never these.
+   */
+  --color-white: var(--c-ink);
+  --color-night-950: var(--c-canvas);
+  --color-night-900: var(--c-canvas);
+  --color-night-800: var(--c-surface);
+  --color-night-700: var(--c-surface);
+  --color-night-600: var(--c-line);
+  --color-brand-200: var(--c-link);
+  --color-brand-300: var(--c-link);
+  --color-brand-400: var(--c-link);
+  --color-brand-500: var(--c-legacy-accent);
+  --color-brand-600: var(--c-legacy-accent);
+  --color-ocean-400: var(--c-link);
+  --color-ocean-500: var(--c-link);
+  --color-aqua-300: var(--c-sage-strong);
+  --color-aqua-400: var(--c-sage-strong);
+  --color-aqua-500: var(--c-sage-strong);
+}
+
 @theme {
-  --font-sans: var(--font-heebo), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-sans: var(--font-assistant), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  /* Titles and big numbers. One weight only; never bold it. */
+  --font-display: var(--font-varela), var(--font-assistant), ui-sans-serif, system-ui, sans-serif;
 
-  /* Ground */
-  --color-night-950: #06060c;
-  --color-night-900: #0a0a14;
-  --color-night-800: #11111f;
-  --color-night-700: #1a1a2e;
-  --color-night-600: #26263f;
-
-  /* Brand: purple -> blue -> teal */
-  --color-brand-300: #c4b5fd;
-  --color-brand-400: #a78bfa;
-  --color-brand-500: #8b5cf6;
-  --color-brand-600: #7c3aed;
-  --color-ocean-400: #60a5fa;
-  --color-ocean-500: #3b82f6;
-  --color-aqua-300: #5eead4;
-  --color-aqua-400: #2dd4bf;
-  --color-aqua-500: #14b8a6;
-
-  --radius-glass: 1.25rem;
+  --radius-tile: 1rem;
+  --radius-card: 1.5rem;
+  --radius-hero: 2.125rem;
+  /* Old name, same as a card now. */
+  --radius-glass: 1.5rem;
 }
 
 /* Chart series, in this fixed order and never cycled: slot N always means
@@ -49,18 +202,16 @@
   --color-series-rest: #6b6b80;
 }
 
-/* The app is dark-only by design, but keeping the class-based variant means a
-   light theme could be added later without rewriting every utility. */
-@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 :root {
-  color-scheme: dark;
   /* The two fixed bars, each the only source of its own height: the bar sets
      its height from this, and whatever must clear or park against it (the
      layout's padding, /chat's filters, /room's header and composer) reads the
-     same variable. Each includes its safe-area inset. */
-  --app-header-h: calc(env(safe-area-inset-top, 0px) + 3.5rem);
-  --bottom-nav-h: calc(env(safe-area-inset-bottom, 0px) + 3.5rem);
+     same variable. Each includes its safe-area inset. The tab bar floats, so
+     its height includes the gap under it. */
+  --app-header-h: calc(env(safe-area-inset-top, 0px) + 4.25rem);
+  --bottom-nav-h: calc(env(safe-area-inset-bottom, 0px) + 5.5rem);
 }
 
 /* Set by /room while the on-screen keyboard is up: the bottom nav hides, so
@@ -99,31 +250,29 @@ body {
 }
 
 body {
-  background-color: var(--color-night-950);
-  color: #e7e7f2;
-  /* Soft brand glows behind everything, fixed so they don't scroll away. */
-  background-image:
-    radial-gradient(60rem 40rem at 85% -10%, color-mix(in oklab, var(--color-brand-600) 22%, transparent), transparent 70%),
-    radial-gradient(50rem 35rem at 10% 5%, color-mix(in oklab, var(--color-ocean-500) 16%, transparent), transparent 70%),
-    radial-gradient(45rem 35rem at 50% 105%, color-mix(in oklab, var(--color-aqua-500) 14%, transparent), transparent 70%);
-  background-attachment: fixed;
+  background-color: var(--c-canvas);
+  color: var(--c-ink);
   -webkit-font-smoothing: antialiased;
   /* Stops iOS Safari from tinting the whole UI on rubber-band overscroll. */
   overscroll-behavior-y: none;
 }
 
+/* A plain card: surface, hairline, no blur. The old frosted glass, kept as a
+   name so the screens not redesigned yet pick up the new card for free. */
 @utility glass {
-  background: color-mix(in oklab, var(--color-night-800) 62%, transparent);
-  backdrop-filter: blur(18px) saturate(1.3);
-  -webkit-backdrop-filter: blur(18px) saturate(1.3);
-  border: 1px solid rgb(255 255 255 / 0.08);
-  box-shadow:
-    0 1px 0 0 rgb(255 255 255 / 0.05) inset,
-    0 10px 40px -12px rgb(0 0 0 / 0.6);
+  background: var(--c-surface);
+  border: 1.5px solid var(--c-line);
 }
 
+@utility card {
+  background: var(--c-surface);
+  border: 1.5px solid var(--c-line);
+  border-radius: var(--radius-card);
+}
+
+/* Old accent glow; the new cards carry no glow. */
 @utility glow-brand {
-  box-shadow: 0 0 0 1px rgb(139 92 246 / 0.25), 0 12px 40px -12px rgb(139 92 246 / 0.55);
+  box-shadow: none;
 }
 
 /* Every interactive control must clear the 44px Apple/Android tap target. */
@@ -138,9 +287,9 @@ body {
 }
 
 @keyframes claim-pulse {
-  0%   { box-shadow: 0 0 0 0 rgb(167 139 250 / 0.55); }
-  70%  { box-shadow: 0 0 0 12px rgb(167 139 250 / 0); }
-  100% { box-shadow: 0 0 0 0 rgb(167 139 250 / 0); }
+  0%   { box-shadow: 0 0 0 0 color-mix(in oklab, var(--c-cta) 55%, transparent); }
+  70%  { box-shadow: 0 0 0 12px color-mix(in oklab, var(--c-cta) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--c-cta) 0%, transparent); }
 }
 /* The reduced-motion rule below caps this to ~0ms, so it degrades on its own. */
 .claim-pulse { animation: claim-pulse 0.7s ease-out; }

@@ -12,9 +12,14 @@ import { cn } from "@/lib/utils";
 /**
  * The primary tabs from lib/nav.ts; the other screens are in the header's menu.
  *
- * Its height is --bottom-nav-h (globals.css), which the layout's padding and
- * the room composer also read. The room sets data-keyboard="open" on <html>
- * while the keyboard is up, which hides the bar and zeroes that variable.
+ * A dark pill that floats over the page in both themes. The tab you are on
+ * shows its name; the others are icons with an aria-label, so the bar stays
+ * calm with three tabs or five.
+ *
+ * Its height, gap and safe-area inset add up to --bottom-nav-h (globals.css),
+ * which the layout's padding and the room composer also read. The room sets
+ * data-keyboard="open" on <html> while the keyboard is up, which hides the
+ * bar and zeroes that variable.
  */
 export function BottomNav() {
   const { page, local } = useTrip();
@@ -24,12 +29,12 @@ export function BottomNav() {
   const unread = useInbox().data?.counts.tags;
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 h-(--bottom-nav-h) border-t border-white/10 bg-night-950/80 backdrop-blur-xl in-data-[keyboard=open]:hidden">
-      <div
-        className="mx-auto flex h-full max-w-md items-stretch justify-between px-3 pt-1.5"
-        // Clears the iPhone home indicator; harmless zero on other devices.
-        style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.375rem)" }}
-      >
+    <nav
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex h-(--bottom-nav-h) items-end px-4 in-data-[keyboard=open]:hidden"
+      // Clears the iPhone home indicator; harmless zero on other devices.
+      style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)" }}
+    >
+      <div className="pointer-events-auto mx-auto flex h-17 w-full max-w-md items-center justify-around rounded-full bg-nav px-2.5 shadow-[0_10px_30px_var(--c-shadow)]">
         {PRIMARY.map(({ href, label, Icon }) => {
           const active = isActive(href, pathname);
           const badge = badgeFor(href, unread);
@@ -38,31 +43,32 @@ export function BottomNav() {
               key={href}
               href={page(href)}
               aria-current={active ? "page" : undefined}
+              aria-label={active ? undefined : badge > 0 ? `${label}, ${badge} חדשות` : label}
               className={cn(
-                "tap relative flex flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 transition-colors",
-                active ? "text-brand-300" : "text-white/45 active:text-white/70",
+                "tap relative flex h-12 items-center justify-center gap-2 rounded-full transition-colors",
+                active ? "px-5 text-nav-active-ink" : "w-12 text-nav-icon active:text-nav-active",
               )}
             >
               {active && (
                 // layoutId lets the pill slide between tabs instead of blinking.
                 <motion.span
                   layoutId="tab-pill"
-                  className="absolute inset-0 rounded-xl bg-brand-500/12"
+                  className="absolute inset-0 rounded-full bg-nav-active"
                   transition={{ type: "spring", stiffness: 480, damping: 36 }}
                 />
               )}
               <span className="relative">
-                <Icon className="size-5" strokeWidth={active ? 2.5 : 1.9} />
+                <Icon className={active ? "size-5" : "size-6"} strokeWidth={2} />
                 {badge > 0 && (
                   <span
-                    aria-label="יש תגובה שמחכה לך"
-                    className="absolute -end-2 -top-1 grid size-4 place-items-center rounded-full bg-brand-500 text-[9px] font-bold text-white ring-2 ring-night-950"
+                    aria-hidden
+                    className="absolute -end-2.5 -top-2 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-badge px-1 text-[11px] font-bold tabular-nums text-on-badge"
                   >
                     {badge}
                   </span>
                 )}
               </span>
-              <span className="relative text-[11px] font-medium leading-none">{label}</span>
+              {active && <span className="relative text-[15px] font-bold leading-none">{label}</span>}
             </Link>
           );
         })}

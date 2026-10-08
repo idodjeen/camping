@@ -10,6 +10,7 @@ import useSWR from "swr";
 import { Modal } from "@/components/modal";
 import { NotificationsBell } from "@/components/notifications";
 import { SideSheet } from "@/components/side-sheet";
+import { ThemeSwitch } from "@/components/theme-switch";
 import { fetcher, swrConfig } from "@/lib/api";
 import { useInbox } from "@/lib/inbox-client";
 import {
@@ -55,18 +56,18 @@ export function AppHeader({ trips }: { trips: TripOption[] }) {
 
   return (
     <>
-      <header className="sticky top-0 z-30 h-(--app-header-h) border-b border-white/10 bg-night-950/85 pt-[env(safe-area-inset-top,0px)] backdrop-blur-xl">
-        <div className="mx-auto flex h-full max-w-md items-center gap-2 px-3">
+      <header className="sticky top-0 z-30 h-(--app-header-h) bg-canvas/90 pt-[env(safe-area-inset-top,0px)] backdrop-blur-xl">
+        <div className="mx-auto flex h-full max-w-md items-center gap-2.5 px-4">
           <button
             onClick={() => setMenu(true)}
             aria-label={waiting > 0 ? `תפריט, ${waiting} ממתינות` : "תפריט"}
             aria-expanded={menu}
             aria-haspopup="dialog"
-            className="tap relative grid shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/5 text-white/70 transition active:scale-95"
+            className="relative grid size-[46px] shrink-0 place-items-center rounded-full border-[1.5px] border-line bg-surface text-ink transition active:scale-95"
           >
-            <Menu className="size-[18px]" />
+            <Menu className="size-5" />
             {waiting > 0 && (
-              <span className="absolute end-1 top-1 grid size-[17px] place-items-center rounded-full bg-brand-500 text-[9px] font-bold tabular-nums text-white ring-2 ring-night-950">
+              <span className="absolute -end-1 -top-1 grid h-[19px] min-w-[19px] place-items-center rounded-full border-2 border-canvas bg-cta px-1 text-[11px] font-bold tabular-nums text-on-cta">
                 {waiting}
               </span>
             )}
@@ -120,6 +121,7 @@ function NavMenu({
         href={outsideTrip ? (href as Route) : page(href)}
         label={label}
         Icon={Icon}
+        tone={TONE[href]}
         active={active}
         badge={badgeFor(href, tags)}
         onPick={onPick}
@@ -132,17 +134,34 @@ function NavMenu({
       {rows.filter((n) => !n.outsideTrip).map(row)}
       {roles.isAdmin && groupId !== undefined && (
         // Cast like useTrip().page(): typedRoutes can't see a runtime id, and /g/[groupId] is real.
-        <MenuRow href={`/g/${groupId}` as Route} label="ניהול הקבוצה" Icon={UserCog} onPick={onPick} />
+        <MenuRow href={`/g/${groupId}` as Route} label="ניהול הקבוצה" Icon={UserCog} tone={TONE["/group"]} onPick={onPick} />
       )}
       {rows.filter((n) => n.outsideTrip).map(row)}
+      <div className="px-1 pt-5">
+        <p className="mb-2 px-1 text-[13px] font-bold text-muted">מראה</p>
+        <ThemeSwitch />
+      </div>
     </nav>
   );
 }
+
+/** Each menu row's icon tile, so the rows are told apart at a glance. */
+const TONE: Record<string, string> = {
+  "/meals": "bg-amber text-amber-ink",
+  "/shopping": "bg-sage text-sage-ink",
+  "/expenses": "bg-peach text-peach-ink",
+  "/leaderboard": "bg-rose text-rose-ink",
+  "/me": "bg-coral text-coral-ink",
+  "/manage": "bg-coral text-coral-ink",
+  "/group": "bg-coral text-coral-ink",
+  "/admin": "bg-line text-ink",
+};
 
 function MenuRow({
   href,
   label,
   Icon,
+  tone = "bg-line text-ink",
   active = false,
   badge = 0,
   onPick,
@@ -150,6 +169,7 @@ function MenuRow({
   href: Route;
   label: string;
   Icon: LucideIcon;
+  tone?: string;
   active?: boolean;
   badge?: number;
   onPick: () => void;
@@ -162,21 +182,23 @@ function MenuRow({
       onClick={onPick}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "tap flex items-center gap-3 rounded-2xl px-3 transition-colors",
-        active ? "bg-brand-500/12 text-brand-200" : "text-white/75 active:bg-white/5",
+        "flex min-h-14 items-center gap-3 rounded-card px-2 transition-colors",
+        active ? "bg-surface ring-[1.5px] ring-line" : "active:bg-surface",
       )}
     >
-      <Icon className="size-5 shrink-0" strokeWidth={active ? 2.4 : 1.9} />
-      <span className="flex-1 text-sm font-semibold">{label}</span>
+      <span className={cn("grid size-9 shrink-0 place-items-center rounded-xl", tone)}>
+        <Icon className="size-[18px]" strokeWidth={2} />
+      </span>
+      <span className="flex-1 text-base font-semibold text-ink">{label}</span>
       {badge > 0 && (
         <span
           aria-label={badge === 1 ? "תיוג אחד מחכה לך" : `${badge} תיוגים מחכים לך`}
-          className="grid size-5 place-items-center rounded-full bg-brand-500 text-[10px] font-bold tabular-nums text-white"
+          className="grid h-[22px] min-w-[22px] place-items-center rounded-full bg-cta px-1.5 text-xs font-bold tabular-nums text-on-cta"
         >
           {badge}
         </span>
       )}
-      <ChevronLeft className="size-4 shrink-0 text-white/20 ltr:rotate-180" />
+      <ChevronLeft className="size-[18px] shrink-0 text-muted ltr:rotate-180" />
     </Link>
   );
 }
@@ -194,11 +216,11 @@ function TripSwitcher({ trips, elsewhere }: { trips: TripOption[]; elsewhere: bo
   const label = (
     <span className="min-w-0 text-center leading-tight">
       {current && (
-        <span className="block truncate text-[10px] font-semibold text-white/40">
+        <span className="block truncate text-[13px] text-muted">
           {current.groupName}
         </span>
       )}
-      <span className="block truncate text-sm font-bold text-white/85">
+      <span className="block truncate font-display text-[17px] text-ink">
         {current?.name ?? "הטיול"}
       </span>
     </span>
@@ -221,9 +243,9 @@ function TripSwitcher({ trips, elsewhere }: { trips: TripOption[]; elsewhere: bo
       >
         {label}
         <span className="relative shrink-0">
-          <ChevronDown className="size-4 text-white/35" />
+          <ChevronDown className="size-4 text-muted" />
           {elsewhere && (
-            <span className="absolute -end-0.5 -top-0.5 size-2 rounded-full bg-brand-400 ring-2 ring-night-950" />
+            <span className="absolute -end-0.5 -top-0.5 size-2 rounded-full bg-cta ring-2 ring-canvas" />
           )}
         </span>
       </button>
@@ -232,7 +254,7 @@ function TripSwitcher({ trips, elsewhere }: { trips: TripOption[]; elsewhere: bo
         <div className="space-y-4">
           {[...byGroup.values()].map((list) => (
             <section key={list[0].groupId}>
-              <h3 className="mb-1.5 text-xs font-semibold text-white/45">{list[0].groupName}</h3>
+              <h3 className="mb-1.5 px-1 text-[13px] font-bold text-muted">{list[0].groupName}</h3>
               <ul className="space-y-1">
                 {list.map((t) => (
                   <li key={t.id}>
@@ -241,8 +263,8 @@ function TripSwitcher({ trips, elsewhere }: { trips: TripOption[]; elsewhere: bo
                       onClick={() => setOpen(false)}
                       aria-current={t.id === id ? "page" : undefined}
                       className={cn(
-                        "tap flex items-center gap-2 rounded-xl px-3 text-sm font-semibold transition-colors",
-                        t.id === id ? "bg-brand-500/12 text-brand-200" : "text-white/75 active:bg-white/5",
+                        "tap flex items-center gap-2 rounded-tile px-3 text-base font-semibold transition-colors",
+                        t.id === id ? "bg-peach text-peach-ink" : "text-ink active:bg-line/60",
                       )}
                     >
                       <span className="min-w-0 flex-1 truncate">{t.name}</span>
