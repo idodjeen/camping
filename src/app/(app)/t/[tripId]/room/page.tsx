@@ -55,19 +55,23 @@ export default function RoomPage() {
   const myId = me?.user.id;
 
   // Being in the room is what reads it, the way opening a sheet reads a thread:
-  // tags on the bubbles, and the room's group in the bell. Keyed on the newest
-  // waiting row, so a message landing while you are here is read too.
-  const waiting = Math.max(
-    0,
-    ...messages.filter((m) => m.unread).map((m) => m.id),
-    inbox?.unread.find((g) => g.thread === THREAD.chat)?.newestId ?? 0,
-  );
+  // tags on the bubbles, and the room's group in the bell. Each source keeps
+  // its own high-water mark (comment ids and bell row ids are different
+  // sequences), so anything landing while you are here is read too.
+  const tagged = Math.max(0, ...messages.filter((m) => m.unread).map((m) => m.id));
+  const grouped = inbox?.unread.find((g) => g.thread === THREAD.chat)?.newestId ?? 0;
   const viewer = me?.user.isViewer;
+  const done = useRef({ tagged: 0, grouped: 0 });
   useEffect(() => {
-    if (waiting === 0 || viewer !== false) return;
+    if (viewer !== false) return;
+    if (tagged <= done.current.tagged && grouped <= done.current.grouped) return;
+    done.current = {
+      tagged: Math.max(tagged, done.current.tagged),
+      grouped: Math.max(grouped, done.current.grouped),
+    };
     // Keep the ring on the bubbles for this visit; the next poll drops it.
     void readThread(THREAD.chat).catch(() => {});
-  }, [waiting, viewer, readThread]);
+  }, [tagged, grouped, viewer, readThread]);
 
   // Open at the end. After that follow new messages only if you were already
   // reading the bottom — a 15s poll must not yank you away from older ones.
