@@ -19,7 +19,7 @@ export const NOTIFY_INFO: Record<NotifyType, { label: string; who: string }> = {
   shopping: { label: "קניות שלא נקנו", who: "לעידו וניר" },
 };
 
-const APP_URL = process.env.AUTH_URL ?? "https://camping-rosy.vercel.app";
+export const APP_URL = process.env.AUTH_URL ?? "https://camping-rosy.vercel.app";
 
 function escapeHtml(s: string) {
   return s
@@ -34,7 +34,7 @@ function escapeHtml(s: string) {
  * because the formatters produce newline-separated plain text — the same text
  * the in-app copy buttons hand to WhatsApp.
  */
-function wrap(heading: string, body: string, link = APP_URL) {
+export function wrap(heading: string, body: string, link = APP_URL) {
   return `<div dir="rtl" style="background:#0a0a14;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#e7e7f2">
   <div style="max-width:560px;margin:0 auto;background:#11111f;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:24px">
     <h1 style="margin:0 0 16px;font-size:20px;color:#a78bfa">${escapeHtml(heading)}</h1>

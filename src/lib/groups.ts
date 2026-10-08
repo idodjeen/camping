@@ -1,9 +1,10 @@
-import { asc, count, eq, inArray } from "drizzle-orm";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 import { headers } from "next/headers";
 
 import { db } from "@/db";
 import { groupMembers, groups, trip, users, type MemberRole } from "@/db/schema";
 import { clashes, cleanEmail, isEmail, nameProblem, type PersonInput } from "@/lib/people";
+import type { Invitee } from "@/lib/invite-email";
 import { HttpError } from "@/lib/session";
 import { createUser } from "@/lib/user";
 
@@ -13,6 +14,8 @@ export type GroupSummary = {
   name: string;
   createdAt: string;
   trips: number;
+  /** The same trips, newest first, so the super admin can open any of them. */
+  tripList: { id: number; name: string }[];
   members: GroupMemberRow[];
 };
 
@@ -29,9 +32,9 @@ export async function appOrigin() {
   return `${proto}://${host}`;
 }
 
-/** Every group with its people and how many trips it has: the super admin's list. */
+/** Every group with its people and its trips: the super admin's list. */
 export async function listGroups(): Promise<GroupSummary[]> {
-  const [rows, members, tripCounts] = await Promise.all([
+  const [rows, members, trips] = await Promise.all([
     db.select().from(groups).orderBy(asc(groups.id)),
     db
       .select({
@@ -43,14 +46,18 @@ export async function listGroups(): Promise<GroupSummary[]> {
       })
       .from(groupMembers)
       .innerJoin(users, eq(users.id, groupMembers.userId)),
-    db.select({ groupId: trip.groupId, n: count() }).from(trip).groupBy(trip.groupId),
+    db
+      .select({ groupId: trip.groupId, id: trip.id, name: trip.name })
+      .from(trip)
+      .orderBy(desc(trip.startDate), desc(trip.id)),
   ]);
 
   return rows.map((g) => ({
     id: g.id,
     name: g.name,
     createdAt: g.createdAt.toISOString(),
-    trips: tripCounts.find((t) => t.groupId === g.id)?.n ?? 0,
+    trips: trips.filter((t) => t.groupId === g.id).length,
+    tripList: trips.filter((t) => t.groupId === g.id).map(({ id, name }) => ({ id, name })),
     members: members
       .filter((m) => m.groupId === g.id)
       .map(({ groupId: _, ...m }) => m)
@@ -146,13 +153,16 @@ export async function createGroup(input: NewGroup, by: number) {
     const [group] = await tx.insert(groups).values({ name: input.name, createdBy: by }).returning();
 
     const kept: { email: string; typed: string; name: string }[] = [];
+    const people: Invitee[] = [];
     for (const [p, role] of roles) {
       const found = byEmail.get(p.email);
       if (found && found.name !== p.name) kept.push({ email: p.email, typed: p.name, name: found.name });
       const user = found ?? (await createUser(tx, p));
       await tx.insert(groupMembers).values({ groupId: group.id, userId: user.id, role, addedBy: by });
+      people.push({ userId: user.id, email: user.email, name: user.name });
     }
 
-    return { group: { id: group.id, name: group.name }, kept };
+    // `people` is for the invite emails; the route keeps it out of the response.
+    return { group: { id: group.id, name: group.name }, kept, people };
   });
 }
