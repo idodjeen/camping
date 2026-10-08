@@ -10,7 +10,9 @@ import { toast } from "@/components/toast";
 import { UserAvatar } from "@/components/user-avatar";
 import { ApiError, fetcher, send, swrConfig } from "@/lib/api";
 import { formatRelative } from "@/lib/dates";
+import { useInbox } from "@/lib/inbox-client";
 import { EVERYONE } from "@/lib/mention-all";
+import { THREAD } from "@/lib/threads";
 import { useTrip } from "@/lib/trip-client";
 import { cn } from "@/lib/utils";
 
@@ -23,7 +25,7 @@ type CommentView = {
   mentions: string[];
 };
 type Thread = { comments: CommentView[]; label: string };
-type Me = { user: { id: number; isAdmin: boolean }; people: Person[] };
+type Me = { user: { id: number; isAdmin: boolean; isViewer: boolean }; people: Person[] };
 
 export type Subject = "gear" | "shopping" | "meal";
 
@@ -117,15 +119,23 @@ export function CommentsSheet({
   const [busy, setBusy] = useState(false);
   const boxRef = useRef<HTMLTextAreaElement>(null);
 
-  // Opening the thread is what clears your badge for it — the nav counts come
-  // from /api/me and the pane's read/unread styling from the feed, so both are
-  // revalidated once the server has stamped read_at.
+  // Opening the thread reads it: the bell group, the badges and the
+  // notification on the phone all clear. Again if something new lands in it
+  // while it is open. Viewers have nothing to read (and would get a 403).
+  const { data: inbox, readThread } = useInbox();
+  const thread = THREAD.item(subject, id);
+  const waiting = inbox?.unread.some((g) => g.thread === thread) ?? false;
+  const viewer = me?.user.isViewer;
+  const read = useRef(false);
   useEffect(() => {
-    if (!open) return;
-    void send(api("/comments/read"), "POST", { subject, id })
-      .then(() => Promise.all([mutateMe(), globalMutate(api("/notifications"))]))
-      .catch(() => {});
-  }, [open, subject, id, mutateMe, globalMutate]);
+    if (!open) {
+      read.current = false;
+      return;
+    }
+    if (viewer !== false || (read.current && !waiting)) return;
+    read.current = true;
+    void readThread(thread).catch(() => {});
+  }, [open, viewer, waiting, thread, readThread]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -141,7 +151,7 @@ export function CommentsSheet({
       setDraft("");
       await mutate();
       await mutateMe();
-      await globalMutate(api("/notifications"));
+      await globalMutate(api("/inbox"));
       if (res.notified.length > 0) toast(`נשלח מייל ל${res.notified.join(", ")}`, "ok");
     } catch (err) {
       toast(err instanceof ApiError ? err.message : "לא הצלחנו לשלוח");

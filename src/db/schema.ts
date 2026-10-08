@@ -7,6 +7,7 @@ import {
   foreignKey,
   index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
@@ -14,6 +15,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -386,17 +388,44 @@ export const commentMentions = pgTable(
 
 /* --------------------------------------------------------- notifications */
 
-export const notificationKind = pgEnum("notification_kind", ["covered", "message"]);
+/**
+ * Every kind of bell row. Text plus a CHECK rather than a Postgres enum: the
+ * migrator runs all pending files in one transaction, and Postgres refuses to
+ * use an enum value in the transaction that added it. The list below is the
+ * CHECK; group F only writes the kinds after `covered`, it adds no migration.
+ */
+export const NOTIFICATION_KINDS = [
+  "mention",
+  "message",
+  "covered",
+  "uncovered",
+  "gear_added",
+  "shopping_added",
+  "bought",
+  "expense_added",
+  "expense_edited",
+  "expense_deleted",
+  "settlement",
+  "reminder",
+] as const;
+export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 /**
- * The bell's rows for everything that is not a tag ("mentions" already live in
- * `comment_mentions`, which the banner and the nav dots read).
+ * The bell: one row per recipient per event, for every kind (tags included
+ * since the unify migration; `comment_mentions` stays only until the cleanup).
  *
- * Written when the event happens — one row per recipient — rather than
- * computed on read, because "covered" is a moment (the last unit got claimed)
- * that is not recoverable from the current state, and because `read_at`
- * belongs to one person and one event. Both subject FKs cascade, so deleting
- * the message or the item takes its notifications with it.
+ * Written when the event happens rather than computed on read, because
+ * "covered" is a moment (the last unit got claimed) that is not recoverable
+ * from the current state, and because `read_at` belongs to one person and one
+ * event. Every reference is a composite (trip_id, x_id) key that cascades, so
+ * deleting the comment, item, expense or payment a row is about takes the row
+ * with it. Deleting a meal works through its comments.
+ *
+ * `thread_key` is the place a tap opens (gear:12, shopping:3, meal:5, chat,
+ * list:gear, money, ...): rows with the same key are one line in the bell and
+ * one push. It is nullable only so code from the previous deploy, which has
+ * never heard of it, can keep inserting between the migration and the deploy.
+ * Everything written by notify() sets it.
  */
 export const notifications = pgTable(
   "notifications",
@@ -406,18 +435,39 @@ export const notifications = pgTable(
     userId: integer("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    kind: notificationKind("kind").notNull(),
+    kind: text("kind", { enum: NOTIFICATION_KINDS }).notNull(),
     /** Who caused it: the author of the message, or whoever took the last unit. */
     actorId: integer("actor_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     commentId: integer("comment_id"),
     gearItemId: integer("gear_item_id"),
+    shoppingItemId: integer("shopping_item_id"),
+    expenseId: integer("expense_id"),
+    settlementId: integer("settlement_id"),
+    threadKey: text("thread_key"),
+    /** Snapshots that must outlive their subject, e.g. a deleted expense's name and amount. */
+    data: jsonb("data"),
     readAt: timestamp("read_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index("notifications_user_idx").on(t.userId, t.id),
+    // The bell, the badges and every push count read only the unread rows.
+    index("notifications_unread_idx")
+      .on(t.userId, t.tripId, t.threadKey)
+      .where(sql`${t.readAt} is null`),
+    // A comment tags a person once; this is what makes re-deriving tags idempotent.
+    uniqueIndex("notifications_mention_uq")
+      .on(t.commentId, t.userId)
+      .where(sql`${t.kind} = 'mention'`),
+    check(
+      "notifications_kind_ck",
+      sql`${t.kind} in (${sql.join(
+        NOTIFICATION_KINDS.map((k) => sql.raw(`'${k}'`)),
+        sql`, `,
+      )})`,
+    ),
     foreignKey({
       name: "notifications_comment_fk",
       columns: [t.tripId, t.commentId],
@@ -427,6 +477,21 @@ export const notifications = pgTable(
       name: "notifications_gear_item_fk",
       columns: [t.tripId, t.gearItemId],
       foreignColumns: [gearItems.tripId, gearItems.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "notifications_shopping_item_fk",
+      columns: [t.tripId, t.shoppingItemId],
+      foreignColumns: [shoppingItems.tripId, shoppingItems.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "notifications_expense_fk",
+      columns: [t.tripId, t.expenseId],
+      foreignColumns: [expenses.tripId, expenses.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "notifications_settlement_fk",
+      columns: [t.tripId, t.settlementId],
+      foreignColumns: [settlements.tripId, settlements.id],
     }).onDelete("cascade"),
   ],
 );
@@ -505,7 +570,11 @@ export const expenses = pgTable(
     /** Set on every edit; null for an expense that was never changed. */
     editedAt: timestamp("edited_at", { withTimezone: true }),
   },
-  (t) => [check("expenses_amount_positive", sql`${t.amount} > 0`)],
+  (t) => [
+    check("expenses_amount_positive", sql`${t.amount} > 0`),
+    // Target of notifications' composite FK; (id) alone is already unique.
+    unique("expenses_trip_id_uq").on(t.tripId, t.id),
+  ],
 );
 
 /**
@@ -549,6 +618,7 @@ export const settlements = pgTable(
   (t) => [
     check("settlements_amount_positive", sql`${t.amount} > 0`),
     check("settlements_distinct_people", sql`${t.fromUser} <> ${t.toUser}`),
+    unique("settlements_trip_id_uq").on(t.tripId, t.id),
   ],
 );
 

@@ -20,6 +20,8 @@ export type PushPayload = {
   url?: string;
   /** Same tag replaces an earlier notification instead of stacking. */
   tag?: string;
+  /** Unread threads in total; the service worker puts it on the app icon. */
+  badge?: number;
 };
 
 export function getPublicKey(): string | null {
@@ -66,36 +68,49 @@ export async function removeSubscription(userId: number, endpoint: string) {
   }
 }
 
-/**
- * Best-effort fan-out to every device of the given people. Never throws: push
- * is a courtesy on top of the bell row, and must not fail the action that
- * triggered it. Dead subscriptions (410 Gone / 404) are pruned as we find them.
- */
+/** Best-effort fan-out of one payload to every device of the given people. */
 export async function sendPush(userIds: number[], payload: PushPayload) {
-  if (userIds.length === 0 || !configure()) return;
+  await sendPushEach(userIds.map((userId) => ({ userId, payload })));
+}
+
+/**
+ * One payload per person, to every device they have: the counts in a
+ * collapsed push ("3 חדשות") differ per recipient.
+ *
+ * Never throws: push is a courtesy on top of the bell row, and must not fail
+ * the action that triggered it. Dead subscriptions (410 Gone / 404) are pruned
+ * as we find them; the app posts its subscription again on load, so a device
+ * pruned by mistake comes back the next time it is opened.
+ */
+export async function sendPushEach(items: { userId: number; payload: PushPayload }[]) {
+  if (items.length === 0 || !configure()) return;
 
   try {
     const subs = await db
       .select()
       .from(pushSubscriptions)
-      .where(inArray(pushSubscriptions.userId, userIds));
+      .where(inArray(pushSubscriptions.userId, [...new Set(items.map((i) => i.userId))]));
 
-    const body = JSON.stringify(payload);
     const gone: string[] = [];
 
     await Promise.all(
-      subs.map(async (s) => {
-        try {
-          await webpush.sendNotification(
-            { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
-            body,
-            { TTL: 60 * 60 * 24, urgency: "normal" },
-          );
-        } catch (err) {
-          const status = (err as { statusCode?: number }).statusCode;
-          if (status === 404 || status === 410) gone.push(s.endpoint);
-          else console.error("push failed", status, (err as Error).message);
-        }
+      items.flatMap(({ userId, payload }) => {
+        const body = JSON.stringify(payload);
+        return subs
+          .filter((s) => s.userId === userId)
+          .map(async (s) => {
+            try {
+              await webpush.sendNotification(
+                { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+                body,
+                { TTL: 60 * 60 * 24, urgency: "normal" },
+              );
+            } catch (err) {
+              const status = (err as { statusCode?: number }).statusCode;
+              if (status === 404 || status === 410) gone.push(s.endpoint);
+              else console.error("push failed", status, (err as Error).message);
+            }
+          });
       }),
     );
 

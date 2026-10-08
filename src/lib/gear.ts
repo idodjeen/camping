@@ -1,10 +1,10 @@
 import { and, eq, ne, sql } from "drizzle-orm";
 
 import { db } from "@/db";
-import { gearClaims, gearItems, users } from "@/db/schema";
-import { notifyCovered } from "@/lib/notifications";
-import { sendPush } from "@/lib/push";
+import { gearClaims, gearItems } from "@/db/schema";
+import { notify } from "@/lib/notifications";
 import { HttpError } from "@/lib/session";
+import { THREAD } from "@/lib/threads";
 
 /**
  * Claim, change or release an amount of a gear item.
@@ -75,23 +75,24 @@ export async function setClaim(tripId: number, userId: number, itemId: number, q
     // Newly covered: was short before this call, is full after it. Raising an
     // already-full item's own qty, or a re-tap of the same amount, stays quiet.
     const capacity = item.qtyNeeded ?? 1;
-    let covered: { name: string; ids: number[] } | null = null;
-    if (announces && othersTotal + (before?.qty ?? 0) < capacity && othersTotal + qty >= capacity) {
-      covered = { name: item.name, ids: await notifyCovered(tx, tripId, itemId, userId) };
-    }
+    const covered =
+      announces && othersTotal + (before?.qty ?? 0) < capacity && othersTotal + qty >= capacity
+        ? item.name
+        : null;
 
     return { claim, covered };
   });
 
-  // Push only after the transaction commits: a rolled-back claim must not
-  // buzz anyone's phone, and the network call should not hold the row lock.
-  if (covered && covered.ids.length > 0) {
-    const [actor] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId));
-    await sendPush(covered.ids, {
-      title: "פריט כוסה 🎉",
-      body: `${actor?.name ?? "מישהו"} לקח את האחרון: ${covered.name}`,
-      url: `/t/${tripId}/gear`,
-      tag: `covered-${itemId}`,
+  // Only after the transaction commits: a rolled-back claim must not reach
+  // anyone's bell or phone, and nothing slow should hold the row lock.
+  if (covered !== null) {
+    await notify({
+      tripId,
+      kind: "covered",
+      actorId: userId,
+      thread: THREAD.item("gear", itemId),
+      refs: { gearItemId: itemId },
+      push: { label: covered, preview: `לקח/ה את האחרון: ${covered}` },
     });
   }
   return result;

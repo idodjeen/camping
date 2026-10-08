@@ -82,7 +82,7 @@ export default function MePage() {
       {!data.user.isViewer && <NotificationPrefs
         prefs={data.notify}
         // The bell must drop (or regain) rows right away, not on the next 15s poll.
-        onChanged={() => void Promise.all([mutate(), globalMutate(api("/notifications"))])}
+        onChanged={() => void Promise.all([mutate(), globalMutate(api("/inbox"))])}
       />}
 
       <button

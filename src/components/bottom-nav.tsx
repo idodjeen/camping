@@ -3,10 +3,9 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import useSWR from "swr";
 
-import { fetcher, swrConfig } from "@/lib/api";
-import { PRIMARY, badgeFor, isActive, type Unread } from "@/lib/nav";
+import { useInbox } from "@/lib/inbox-client";
+import { PRIMARY, badgeFor, isActive } from "@/lib/nav";
 import { useTrip } from "@/lib/trip-client";
 import { cn } from "@/lib/utils";
 
@@ -18,13 +17,11 @@ import { cn } from "@/lib/utils";
  * while the keyboard is up, which hides the bar and zeroes that variable.
  */
 export function BottomNav() {
-  const { api, page, local } = useTrip();
+  const { page, local } = useTrip();
   // Tabs are compared as short paths ("/gear"), whatever trip this is.
   const pathname = local(usePathname());
-  // Same SWR key the dashboard and profile already poll, so this is free there
-  // and one shared request elsewhere.
-  const { data } = useSWR<{ unreadMentions: Unread }>(api("/me"), fetcher, swrConfig);
-  const unread = data?.unreadMentions;
+  // The bell's own poll, so the badges cost no extra request.
+  const unread = useInbox().data?.counts.tags;
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 h-(--bottom-nav-h) border-t border-white/10 bg-night-950/80 backdrop-blur-xl in-data-[keyboard=open]:hidden">
