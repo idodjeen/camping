@@ -1,7 +1,4 @@
-import { eq } from "drizzle-orm";
-
-import { db } from "@/db";
-import { trip } from "@/db/schema";
+import type { Trip } from "@/db/schema";
 
 export type WeatherDay = { date: string; max: number; min: number; rain: number; wind: number };
 
@@ -19,14 +16,12 @@ type Daily = {
  * Cached for an hour via `next.revalidate` and shared across all callers, so
  * five phones polling does not hammer a free service for data that changes
  * hourly at best. Extracted here so the countdown email and the /api/weather
- * route use one implementation rather than two that can drift.
+ * route use one implementation rather than two that can drift. Both already
+ * hold the trip, so it is passed in rather than read again.
  */
 export async function getForecast(
-  tripId: number,
+  t: Pick<Trip, "lat" | "lng" | "startDate" | "endDate">,
 ): Promise<{ available: boolean; days: WeatherDay[] }> {
-  const [t] = await db.select().from(trip).where(eq(trip.id, tripId));
-  if (!t) return { available: false, days: [] };
-
   const url = new URL("https://api.open-meteo.com/v1/forecast");
   url.searchParams.set("latitude", String(t.lat));
   url.searchParams.set("longitude", String(t.lng));

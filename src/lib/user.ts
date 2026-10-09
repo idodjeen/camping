@@ -15,7 +15,7 @@ const STORED_GMAIL_KEY = sql`case when split_part(${users.email}, '@', 2) in ('g
  * the one the group admin typed. The users table is small, so the fallback's
  * scan costs nothing.
  */
-function byEmail(rawEmail: string) {
+export function byEmail(rawEmail: string) {
   const email = cleanEmail(rawEmail);
   const key = gmailKey(email);
   return {
@@ -23,6 +23,16 @@ function byEmail(rawEmail: string) {
     order: [sql`${users.email} = ${email} desc`, users.id],
   };
 }
+
+/**
+ * Whether a `users` row belongs to at least one group, for a query on `users`.
+ * Aliased, so a query that also joins group_members can use it.
+ */
+export const IN_A_GROUP = sql<boolean>`exists (select 1 from ${groupMembers} as any_group where any_group.user_id = ${users.id})`;
+
+/** findActiveUser's rule, on a row a query already read. */
+export const isActive = (row: { user: { isSuperAdmin: boolean }; member: boolean }) =>
+  row.user.isSuperAdmin || row.member;
 
 export async function findUserByEmail(rawEmail: string) {
   const { where, order } = byEmail(rawEmail);
@@ -42,16 +52,12 @@ export async function findUserByEmail(rawEmail: string) {
 export async function findActiveUser(rawEmail: string) {
   const { where, order } = byEmail(rawEmail);
   const [row] = await db
-    .select({
-      user: users,
-      member: sql<boolean>`exists (select 1 from ${groupMembers} where ${groupMembers.userId} = ${users.id})`,
-    })
+    .select({ user: users, member: IN_A_GROUP })
     .from(users)
     .where(where)
     .orderBy(...order)
     .limit(1);
-  if (!row) return null;
-  return row.user.isSuperAdmin || row.member ? row.user : null;
+  return row && isActive(row) ? row.user : null;
 }
 
 /**

@@ -23,13 +23,13 @@ touch neighbouring rows, whoever merges second keeps both rows when syncing with
 |---|---|---|---|
 | [A01 Test setup](../.scratch/redesign-rollout/issues/01-test-setup.md) | ready-for-agent | | |
 | [A02 Shared design parts and states](../.scratch/redesign-rollout/issues/02-shared-design-parts.md) | ready-for-agent | | P02 also touches the filter chips and the side sheet: whichever merges second syncs with `main` |
-| [P01 Production skips docs-only commits](../.scratch/perf-sprint/issues/01-skip-docs-builds.md) | PR open | [#32](https://github.com/idodjeen/camping/pull/32) | |
-| [P02 Instant switching](../.scratch/perf-sprint/issues/02-instant-switching.md) | claimed | `claude/perf-instant-switch` | Built on P01's branch |
-| [P03 Less server work per request](../.scratch/perf-sprint/issues/03-less-server-work.md) | blocked: P02 | | Then measure P01-P03 and report to Ido |
-| [P04 Comment sheet only when opened](../.scratch/perf-sprint/issues/04-comment-sheet-on-open.md) | blocked: P03 and the measure step | | Merge after #31 (both touch `comments.tsx`) |
+| [P01 Production skips docs-only commits](../.scratch/perf-sprint/issues/01-skip-docs-builds.md) | done 2026-10-10 | [#32](https://github.com/idodjeen/camping/pull/32) | |
+| [P02 Instant switching](../.scratch/perf-sprint/issues/02-instant-switching.md) | done 2026-10-10 | [#34](https://github.com/idodjeen/camping/pull/34) | [#33](https://github.com/idodjeen/camping/pull/33) merged into #32's branch, not `main`; #34 is the same code |
+| [P03 Less server work per request](../.scratch/perf-sprint/issues/03-less-server-work.md) | done 2026-10-10 | [#35](https://github.com/idodjeen/camping/pull/35) | Merge #34 first. Then measure P01-P03 and report to Ido |
+| [P04 Comment sheet only when opened](../.scratch/perf-sprint/issues/04-comment-sheet-on-open.md) | blocked: the measure step | | Merge after #31 (both touch `comments.tsx`) |
 | [P05 Other tabs' data in the background](../.scratch/perf-sprint/issues/05-preload-other-tabs.md) | blocked: P04 | | |
-| [P06 Move to Frankfurt](../.scratch/perf-sprint/issues/06-frankfurt-move.md) | blocked: P03 and the measure step | | Ido runs the production database steps and gives each go |
-| [A03 Gear](../.scratch/redesign-rollout/issues/03-gear.md) | blocked: A02, P03 | | |
+| [P06 Move to Frankfurt](../.scratch/perf-sprint/issues/06-frankfurt-move.md) | blocked: the measure step | | Ido runs the production database steps and gives each go |
+| [A03 Gear](../.scratch/redesign-rollout/issues/03-gear.md) | blocked: A02 | | |
 | [A04 Item thread](../.scratch/redesign-rollout/issues/04-item-thread.md) | blocked: A02 | | |
 | [A05 General chat](../.scratch/redesign-rollout/issues/05-general-chat.md) | blocked: A02, A04 | | |
 | [A06 Shopping](../.scratch/redesign-rollout/issues/06-shopping.md) | blocked: A02 | | |
@@ -64,6 +64,8 @@ an ADR if they qualify), and a line under **Changes** below.
   (shared files between screens, and the new meal pop-up moved to B06).
 - 2026-10-10: Spec P (perf sprint, P01-P06) added before A03, from the screen-switching analysis. A03 now
   also waits for P03. Order: P01, P02, P03, measure and report to Ido, then P04, P05, P06.
+- 2026-10-10: P01 merged (#32). P02's #33 was stacked on #32 and merged into #32's branch, so #34
+  brings the same code to `main`.
 
 ## Order
 

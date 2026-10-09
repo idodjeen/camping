@@ -14,9 +14,9 @@ import {
 } from "lucide-react";
 
 /**
- * Every screen of a trip, in one list. The bottom tabs, the side menu, their
- * badges and the page slide order in template.tsx are all derived from it, so
- * adding a screen or promoting one to a tab is a one-line change here.
+ * Every screen of a trip, in one list. The bottom tabs, the side menu and
+ * their badges are all derived from it, so adding a screen or promoting one
+ * to a tab is a one-line change here.
  *
  * Hrefs are short paths inside the trip ("/gear"); useTrip().page() turns
  * them into "/t/7/gear", and local() turns the pathname back for isActive.
@@ -63,8 +63,7 @@ const appItem = <P extends string>(
   rest: Omit<NavItem, "href" | "outsideTrip">,
 ): NavItem => ({ href, outsideTrip: true, ...rest });
 
-// Order is the slide order: the tabs first, right to left in Hebrew, then the
-// menu from top to bottom.
+// The tabs first, right to left in Hebrew, then the menu from top to bottom.
 export const NAV: readonly NavItem[] = [
   item("/", { label: "בית", Icon: Home, primary: true }),
   item("/gear", { label: "ציוד", Icon: Backpack, primary: true }),
@@ -85,12 +84,9 @@ export const SECONDARY = NAV.filter((n) => !n.primary);
 const PARENT: Record<string, string> = { "/room": "/chat" };
 
 /** The nav row a short path belongs to (/room counts as צ׳אט). */
-export const navHref = (path: string) => PARENT[path] ?? path;
+const navHref = (path: string) => PARENT[path] ?? path;
 
 export const isActive = (href: string, path: string) => navHref(path) === href;
-
-/** Position in the slide order, or -1 for a screen outside the nav. */
-export const ORDER = NAV.filter((n) => !n.outsideTrip).map((n) => n.href);
 
 /** Unread tags waiting behind one nav row. */
 export function badgeFor(href: string, unread: Unread | undefined): number {
