@@ -7,6 +7,6 @@ export const dynamic = "force-dynamic";
 export function GET(_req: Request, ctx: TripParams) {
   return handle(async () => {
     const { trip } = await tripRoute(ctx);
-    return getForecast(trip.id);
+    return getForecast(trip);
   });
 }
