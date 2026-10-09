@@ -71,8 +71,8 @@ export default async function TripLayout({
       </WidgetBoundary>
       {/* Below the header, so it is never under the status bar; it scrolls away. */}
       {!access.canWrite && (
-        <div className="bg-white/10 px-4 py-1.5 text-center text-xs font-semibold text-white/70">
-          👀 מצב צפייה בלבד - אפשר לראות הכול, אי אפשר לערוך
+        <div className="mx-auto mt-2 w-[calc(100%-2rem)] max-w-md rounded-full bg-amber px-4 py-2 text-center text-[13px] font-bold text-amber-ink">
+          צפייה בלבד - אפשר לראות הכול, אי אפשר לערוך
         </div>
       )}
       {/* The header is sticky and in the flow, so the top needs no inset; the

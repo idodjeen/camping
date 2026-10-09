@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 
 /**
- * Live countdown to the trip, in Israel time.
+ * Live countdown to the trip, in Israel time, sized for the home screen's
+ * trip card. Once the trip has started it renders nothing: the card says
+ * "אנחנו בטיול" by itself.
  *
- * Renders nothing until mounted. The server and the browser would otherwise
- * compute a different "now" milliseconds apart, and React would flag a
- * hydration mismatch on a value that is different by definition on every tick.
+ * Renders a placeholder until mounted. The server and the browser would
+ * otherwise compute a different "now" milliseconds apart, and React would flag
+ * a hydration mismatch on a value that is different by definition on every tick.
  */
 export function Countdown({ startDate }: { startDate: string }) {
   const [left, setLeft] = useState<number | null>(null);
@@ -22,14 +24,9 @@ export function Countdown({ startDate }: { startDate: string }) {
   }, [startDate]);
 
   if (left === null) {
-    return <div className="h-[4.5rem] animate-pulse rounded-xl bg-white/5" aria-hidden />;
+    return <div className="h-[3.75rem] animate-pulse rounded-tile bg-surface/40" aria-hidden />;
   }
-
-  if (left <= 0) {
-    return (
-      <p className="py-3 text-2xl font-black text-aqua-300">יאללה, אנחנו בטיול 🔥</p>
-    );
-  }
+  if (left <= 0) return null;
 
   const s = Math.floor(left / 1000);
   const parts = [
@@ -40,13 +37,13 @@ export function Countdown({ startDate }: { startDate: string }) {
   ];
 
   return (
-    <div className="flex items-start justify-center gap-3" dir="rtl">
+    <div className="flex gap-2" role="timer" aria-label={`עוד ${parts[0].v} ימים ו-${parts[1].v} שעות`}>
       {parts.map((p) => (
-        <div key={p.label} className="min-w-[3.25rem]">
-          <div className="text-3xl font-black tabular-nums leading-none">
+        <div key={p.label} className="min-w-[3.4rem] flex-1 rounded-tile bg-surface/70 px-1 py-2 text-center">
+          <div className="font-display text-2xl leading-none tabular-nums text-ink">
             {String(p.v).padStart(2, "0")}
           </div>
-          <div className="mt-1 text-[11px] text-white/45">{p.label}</div>
+          <div className="mt-1 text-[13px] text-peach-ink">{p.label}</div>
         </div>
       ))}
     </div>
