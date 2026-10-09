@@ -56,6 +56,10 @@ _Avoid_: my gear (that is the gear you took on)
 
 ## Account
 
+**Guide** (המדריך הקצר):
+The short set of cards shown at a person's first sign-in, and replayable from the menu.
+_Avoid_: onboarding, tour, walkthrough
+
 **Account** (חשבון):
 A person's own page: profile, roles and notification settings.
 _Avoid_: me, profile page

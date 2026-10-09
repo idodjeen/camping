@@ -40,6 +40,9 @@ In order, one at a time unless both sides agree on the parallel rules below:
    F's only migration is `notify_prefs`.
 3. **Roadmap G** (edit messages, item 5).
 4. **Roadmap H** (cleanup), about a week after E, F and G are live.
+5. **The redesign sprint**, after PR #25 and items 1-4: `docs/roadmap-redesign.md`. Spec A rolls the
+   design out to every screen that has a board; Spec B designs and builds the 8 screens that don't.
+   The boards ticket (B01) can start any time.
 
 **Architecture design** can run alongside any of these: it only writes `docs/`. Brief:
 `docs/architecture-handoff.md`.
