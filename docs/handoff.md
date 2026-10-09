@@ -116,6 +116,10 @@ In order, one at a time unless both sides agree on the parallel rules below:
 **Code**
 - Every trip route starts with `requireTrip(tripId, "read" | "write" | "admin")` (`lib/access.ts`) and
   filters every query by that trip. Outsiders get 404, never 403. Lookups by id also match `trip_id`.
+  `requireTrip` reads the person and their access in one query, so a route needs no lookup of its own.
+- Independent queries in a handler go in one `Promise.all`: each query in a row is another round trip to
+  Neon (P03). A relational query's `extras` qualifies every column with its root table's alias, other
+  tables' included, so write a subquery there with its own SQL alias (`getDashboard` in `lib/queries.ts`).
 - Group-admin routes start with `requireGroupAdmin(groupId)` (or `groupRoute(ctx)`), also in
   `lib/access.ts`: 404 outside the group, 403 for members who aren't admins. Their logic lives in
   `lib/group-admin.ts`, and every change there first locks the group's row (`lockGroup`).
