@@ -135,9 +135,14 @@ In order, one at a time unless both sides agree on the parallel rules below:
 - Navigation: `NAV` in `lib/nav.ts`. Screens inside a trip are plain rows; app-wide pages like `/admin`
   use `appItem(…)` with `adminOnly` / `superAdminOnly` and `canSee()`. Per-group links
   (`/g/[groupId]`) are their own row in `NavMenu` (`components/app-header.tsx`).
+- Switching screens never waits for the server (P02): the tabs and menu rows are `<Link prefetch>`,
+  `t/[tripId]/loading.tsx` covers anything not prefetched, and filter chips change the URL with
+  `history.pushState`. A new link to a trip screen gets `prefetch` too; a new filter goes through
+  `FilterChips`, not a `<Link>`. Every tab, menu and chip tap calls `markTap()` (`lib/tap-timer.ts`).
 - Layout: bar heights only from `--app-header-h` / `--bottom-nav-h` (`globals.css`). Sticky under the
-  header uses `top-(--app-header-h)`, above the nav `bottom-(--bottom-nav-h)`. Nothing `position:
-  fixed` inside `template.tsx`'s subtree. Overlays portal to `<body>` and use `lib/use-overlay.ts`.
+  header uses `top-(--app-header-h)`, above the nav `bottom-(--bottom-nav-h)`. The screen transition is
+  the CSS `page-in` fade (`template.tsx`): opacity only, so keep transforms and filters off that
+  wrapper. Overlays portal to `<body>` and use `lib/use-overlay.ts`.
 - No zoom (#23): the viewport sets `maximum-scale=1, user-scalable=no`, and `<html>` has
   `touch-action: pan-x pan-y` (iOS ignores `user-scalable`). Fields are at least 16px on touch
   screens (`globals.css`), because iOS zooms into smaller ones on focus and a zoomed page also turns
