@@ -8,7 +8,8 @@
 ## In one paragraph
 
 One Next.js 16 app on Vercel, one Neon Postgres database per environment, and nothing else running:
-no cron, no queue, no worker, no `vercel.json`. Every request passes the proxy (a cookie check, no
+no cron, no queue, no worker. `vercel.json` holds only the rule that skips production builds for
+docs-only commits (`scripts/vercel-ignore.sh`). Every request passes the proxy (a cookie check, no
 database), then a route handler that re-reads the person and their role from the database
 (`src/lib/access.ts:73`). Screens stay fresh by polling every 15 seconds (`src/lib/api.ts:57`).
 The only work done after the response is web push, through `after()` (`src/lib/notifications.ts:193`).
@@ -350,7 +351,7 @@ Cost: S is under a day, M a few days, L a week or more.
 
 ### 1. Nothing runs on a schedule
 
-**Today.** No `vercel.json`, no cron route. Reminders are previewed and sent by hand by the super
+**Today.** No cron route (`vercel.json` has only the docs-only build rule). Reminders are previewed and sent by hand by the super
 admin, as sequential SMTP sends inside the request (`src/app/api/t/[tripId]/admin/notify/route.ts:50-66`).
 Notification rows are never pruned.
 

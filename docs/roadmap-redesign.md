@@ -4,10 +4,11 @@
 > Starts after PR #25 (design system, light and dark, new home), groups phase 7 and roadmap F, G and H.
 > Words: `GLOSSARY.md`. Decisions: `docs/adr/`. Design rules: `CLAUDE.md` (from PR #25).
 
-## The two specs
+## The specs
 
 | Spec | What it delivers | Tickets |
 |---|---|---|
+| **P. Perf sprint** ([spec](../.scratch/perf-sprint/spec.md)) | Screens switch without waiting for the server, the server does less per request, then the move to Frankfurt. Runs before A03, so the screens are rebuilt on the faster base | [P01-P06](../.scratch/perf-sprint/issues/) |
 | **A. Redesign rollout** ([spec](../.scratch/redesign-rollout/spec.md)) | Every screen that has a board on the design canvas, rebuilt to it in light and dark from shared parts. Look only, with three agreed exceptions: gear chips, trips grouped by group and phase, reminders moved to trip settings | [A01-A16](../.scratch/redesign-rollout/issues/) |
 | **B. New screens** ([spec](../.scratch/new-screens/spec.md)) | Boards for the 8 screens that have none, then: chat list, account and guide, personal list, new trip sheet, meals and categories tabs, no-access, what's new. Ends by deleting the old colour bridge | [B01-B10](../.scratch/new-screens/issues/) |
 
@@ -21,8 +22,14 @@ touch neighbouring rows, whoever merges second keeps both rows when syncing with
 | Ticket | Status | Branch / PR | Notes |
 |---|---|---|---|
 | [A01 Test setup](../.scratch/redesign-rollout/issues/01-test-setup.md) | ready-for-agent | | |
-| [A02 Shared design parts and states](../.scratch/redesign-rollout/issues/02-shared-design-parts.md) | ready-for-agent | | |
-| [A03 Gear](../.scratch/redesign-rollout/issues/03-gear.md) | blocked: A02 | | |
+| [A02 Shared design parts and states](../.scratch/redesign-rollout/issues/02-shared-design-parts.md) | ready-for-agent | | P02 also touches the filter chips and the side sheet: whichever merges second syncs with `main` |
+| [P01 Production skips docs-only commits](../.scratch/perf-sprint/issues/01-skip-docs-builds.md) | claimed | `claude/perf-skip-docs-builds` | |
+| [P02 Instant switching](../.scratch/perf-sprint/issues/02-instant-switching.md) | claimed | `claude/perf-instant-switch` | Built on P01's branch |
+| [P03 Less server work per request](../.scratch/perf-sprint/issues/03-less-server-work.md) | blocked: P02 | | Then measure P01-P03 and report to Ido |
+| [P04 Comment sheet only when opened](../.scratch/perf-sprint/issues/04-comment-sheet-on-open.md) | blocked: P03 and the measure step | | Merge after #31 (both touch `comments.tsx`) |
+| [P05 Other tabs' data in the background](../.scratch/perf-sprint/issues/05-preload-other-tabs.md) | blocked: P04 | | |
+| [P06 Move to Frankfurt](../.scratch/perf-sprint/issues/06-frankfurt-move.md) | blocked: P03 and the measure step | | Ido runs the production database steps and gives each go |
+| [A03 Gear](../.scratch/redesign-rollout/issues/03-gear.md) | blocked: A02, P03 | | |
 | [A04 Item thread](../.scratch/redesign-rollout/issues/04-item-thread.md) | blocked: A02 | | |
 | [A05 General chat](../.scratch/redesign-rollout/issues/05-general-chat.md) | blocked: A02, A04 | | |
 | [A06 Shopping](../.scratch/redesign-rollout/issues/06-shopping.md) | blocked: A02 | | |
@@ -55,11 +62,16 @@ an ADR if they qualify), and a line under **Changes** below.
 
 - 2026-10-09: planned. 35 decisions in the grilling session; ticket blocks adjusted after a code check
   (shared files between screens, and the new meal pop-up moved to B06).
+- 2026-10-10: Spec P (perf sprint, P01-P06) added before A03, from the screen-switching analysis. A03 now
+  also waits for P03. Order: P01, P02, P03, measure and report to Ido, then P04, P05, P06.
 
 ## Order
 
 ```mermaid
 flowchart LR
+  P01[P01 docs-only builds] --> P02[P02 instant switching] --> P03[P03 less server work] --> A03
+  P03 --> P04[P04 sheet on open] --> P05[P05 preload]
+  P03 --> P06[P06 Frankfurt]
   A01[A01 test setup] --> A09
   A01 --> B02
   A02[A02 shared parts] --> A03[A03 gear] & A04[A04 thread] & A06[A06 shopping] & A07[A07 meals] & A08[A08 expenses] & A09[A09 trips + memberships] & A11[A11 trip settings details] & A12[A12 sign-in] & A14[A14 leaderboard] & B08
@@ -79,7 +91,8 @@ flowchart LR
 
 (B09 also waits on every Spec A screen ticket; A16 waits on A03-A15. Both left out of the drawing.)
 
-- **Start with** A01, A02 and B01: none of them waits on anything.
+- **Perf first:** P01, P02 and P03 in that order, then the measure step, before A03 starts. A01, A02 and
+  B01 can run alongside: none of them waits on anything.
 - **Up to three** screen tickets at once, each in its own worktree. No ticket has a migration.
 - **Priority when choosing** among ready tickets: A follows gear, thread, general chat, shopping, meals,
   expenses, trips, notifications, trip settings, sign-in, group admin, leaderboard, super admin. B starts
