@@ -105,6 +105,9 @@ In order, one at a time unless both sides agree on the parallel rules below:
 - Feature PR titles in Hebrew, written for the campers; chores carry `[no-popup]`.
 - Never "Redeploy" an older production deployment on Vercel: it rebuilds that old commit and rolls
   production back (happened once, Oct 7).
+- A merge that changes nothing the app is built from (docs, `.scratch/`, markdown) doesn't rebuild
+  production: `scripts/vercel-ignore.sh` skips it (P01). Every production build leaves all functions
+  cold and reloads every open tab on its next tap, so batching code merges also helps. Previews always build.
 - An API response only gains fields for one release; a renamed endpoint keeps a thin adapter until H.
 
 **Code**
