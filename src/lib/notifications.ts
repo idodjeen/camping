@@ -279,6 +279,8 @@ export type InboxRow = {
   target: Target;
   /** The message text for tags and messages, the worded event for the newer kinds; empty for "covered". */
   text: string;
+  /** For tags and messages: when the author last edited the text (the preview is always the current text). */
+  editedAt: string | null;
   createdAt: string;
   readAt: string | null;
   actor: Person;
@@ -325,6 +327,7 @@ async function loadRows(userId: number, tripId: number, where: SQL | undefined, 
       n: notifications,
       actor: { id: actor.id, name: actor.name, slug: actor.slug, avatarUrl: actor.avatarUrl },
       body: comments.body,
+      editedAt: comments.editedAt,
     })
     .from(notifications)
     .innerJoin(users, eq(users.id, notifications.userId))
@@ -346,7 +349,7 @@ async function loadRows(userId: number, tripId: number, where: SQL | undefined, 
 
   const labels = await labelsFor(tripId, rows.map((r) => threadOf(r.n)));
   return rows.map(
-    ({ n, actor, body }): InboxRow => {
+    ({ n, actor, body, editedAt }): InboxRow => {
       const thread = threadOf(n);
       return {
         id: n.id,
@@ -355,6 +358,7 @@ async function loadRows(userId: number, tripId: number, where: SQL | undefined, 
         label: labels.get(thread) ?? "פריט שנמחק",
         target: targetOf(thread),
         text: body ?? eventText(n.kind, n.data, actor, userId),
+        editedAt: editedAt?.toISOString() ?? null,
         createdAt: n.createdAt.toISOString(),
         readAt: n.readAt?.toISOString() ?? null,
         actor,
