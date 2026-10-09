@@ -1,6 +1,7 @@
 import { tripRoute, type TripParams } from "@/lib/access";
-import { NOTIFY_TYPES, type NotifyType, buildMessages } from "@/lib/emails";
+import { buildMessages } from "@/lib/emails";
 import { sendAll } from "@/lib/mailer";
+import { NOTIFY_TYPES, type NotifyType } from "@/lib/reminders";
 import { handle, HttpError } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -15,13 +16,13 @@ function parseType(value: string | null): NotifyType {
 }
 
 /**
- * Super admin only, on purpose: these go out from Ido's personal Gmail, so a
- * group admin must not be able to send mail in his name. Group admins get a
+ * Super admin only, on purpose: these go out from the app owner's personal
+ * Gmail, so a group admin must not be able to send mail in their name. Group admins get a
  * copyable WhatsApp message instead (phase 4 of docs/groups-and-trips.md).
  */
 async function requireSender(ctx: TripParams) {
   const access = await tripRoute(ctx);
-  if (!access.user.isSuperAdmin) throw new HttpError(403, "רק עידו יכול לשלוח תזכורות");
+  if (!access.user.isSuperAdmin) throw new HttpError(403, "רק מנהל האפליקציה שולח תזכורות");
   return access;
 }
 

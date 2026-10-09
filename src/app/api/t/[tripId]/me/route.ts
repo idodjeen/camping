@@ -30,6 +30,8 @@ export function GET(_req: Request, ctx: TripParams) {
       .orderBy(asc(personalItems.sort), asc(personalItems.id));
 
     return {
+      // For text that names the trip: the reminder panel, the copied lists.
+      trip: { name: trip.name },
       user: {
         id: me.id,
         name: me.name,

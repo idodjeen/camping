@@ -112,7 +112,7 @@ One migration, run on the Neon dev branch first:
 6. Viewers had no rows, and nobody can read `VIEWER_USERS` back (Vercel marks it Sensitive). Since
    phase 2, each person on it is imported as a group 1 viewer on their first sign-in, and only
    then: if an admin later removes them, signing in again doesn't bring them back. The variable
-   and the import are deleted in phase 7.
+   and the import were deleted in phase 7; anyone still missing is added on `/g/1`.
 
 Verified on the dev branch (2026-10-06): every table's row count matches production, all content
 rows are in trip 1, balances match production to the agora, and links between trips are refused
@@ -125,7 +125,8 @@ not deploy before the column exists.
 ## Phases
 
 Each phase is its own PR, and the app keeps working after each one. Status on 2026-10-08: phases
-1-6 are live (PRs #5, #7, #9, #13, #15, #18); phase 7 is next. See `docs/handoff.md`.
+1-6 are live (PRs #5, #7, #9, #13, #15, #18); phase 7 is on branch `claude/groups-phase-7`. See
+`docs/handoff.md`.
 
 1. **Dev database and schema.** The Neon branch, the new tables, `trip_id` on every content table,
    and the backfill. The app still reads trip 1 everywhere, so nothing visible changes.

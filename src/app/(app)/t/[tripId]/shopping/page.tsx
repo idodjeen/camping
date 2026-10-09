@@ -16,7 +16,7 @@ import { ApiError, fetcher, send, swrConfig } from "@/lib/api";
 import { burstFrom } from "@/lib/confetti";
 import { formatShoppingList } from "@/lib/format-lists";
 import { SLOT_LABELS, formatTripDay } from "@/lib/dates";
-import { useTrip } from "@/lib/trip-client";
+import { useTrip, useTripName } from "@/lib/trip-client";
 import { cn } from "@/lib/utils";
 
 type Item = {
@@ -30,10 +30,22 @@ type Item = {
   unreadMentions: number;
   meals: { id: number; title: string; date: string; slot: string }[];
 };
-type Payload = { categories: { id: number; name: string; items: Item[] }[]; canBuy: boolean };
+type Payload = {
+  categories: { id: number; name: string; items: Item[] }[];
+  canBuy: boolean;
+  shoppers: string[];
+};
+
+/** "דנה", "דנה ורון", "דנה, רון ואור"; "ו-" before a name that isn't Hebrew ("ו-Dana"). */
+function joinNames(names: string[]) {
+  if (names.length <= 1) return names[0] ?? "";
+  const last = names.at(-1)!;
+  return `${names.slice(0, -1).join(", ")} ${/^[֐-׿]/.test(last) ? "ו" : "ו-"}${last}`;
+}
 
 export default function ShoppingPage() {
   const { api } = useTrip();
+  const tripName = useTripName();
   const { data, isLoading, mutate } = useSWR<Payload>(api("/shopping"), fetcher, swrConfig);
   const filter = useSearchParams().get("filter");
 
@@ -84,13 +96,15 @@ export default function ShoppingPage() {
       <PageTitle
         title="קניות"
         subtitle={`${bought} מתוך ${all.length} נקנו`}
-        action={<CopyButton getText={() => formatShoppingList(data?.categories ?? [])} />}
+        action={<CopyButton getText={() => formatShoppingList(data?.categories ?? [], { tripName })} />}
       />
 
       {!data?.canBuy && (
         <p className="glass mb-4 flex items-center gap-2 rounded-2xl px-4 py-3 text-xs text-white/50">
           <Lock className="size-3.5 shrink-0" />
-          רק עידו וניר מסמנים מה נקנה. אפשר לעקוב מכאן.
+          {data?.shoppers.length
+            ? `אחראי הקניות מסמנים מה נקנה: ${joinNames(data.shoppers)}. אפשר לעקוב מכאן.`
+            : "עוד לא נבחרו אחראי קניות לטיול הזה. מנהל הקבוצה בוחר אותם."}
         </p>
       )}
 

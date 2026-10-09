@@ -6,18 +6,9 @@ import { daysUntil, formatTripDay } from "@/lib/dates";
 import { formatGearList, formatMyList, formatShoppingList } from "@/lib/format-lists";
 import type { Outgoing } from "@/lib/mailer";
 import { getGear, getShopping } from "@/lib/queries";
+import type { NotifyType } from "@/lib/reminders";
 import { tripPeople } from "@/lib/trips";
 import { getForecast } from "@/lib/weather";
-
-export const NOTIFY_TYPES = ["unclaimed", "countdown", "packing", "shopping"] as const;
-export type NotifyType = (typeof NOTIFY_TYPES)[number];
-
-export const NOTIFY_INFO: Record<NotifyType, { label: string; who: string }> = {
-  unclaimed: { label: "ציוד שעוד לא נתפס", who: "לכולם" },
-  countdown: { label: "ספירה לאחור + מצב הטיול", who: "לכולם" },
-  packing: { label: "תזכורת אריזה אישית", who: "לכל אחד בנפרד" },
-  shopping: { label: "קניות שלא נקנו", who: "לעידו וניר" },
-};
 
 export const APP_URL = process.env.AUTH_URL ?? "https://camping-rosy.vercel.app";
 
@@ -56,7 +47,7 @@ export async function buildMessages(type: NotifyType, tripId: number): Promise<O
   const people = await tripPeople(tripId);
   const [t] = await db.select().from(trip).where(eq(trip.id, tripId));
   const w = (heading: string, body: string) => wrap(heading, body, `${APP_URL}/t/${tripId}`);
-  const tripName = t?.name ?? "מחנאות 2026";
+  const tripName = t?.name ?? "הטיול";
 
   if (type === "unclaimed") {
     const gear = await getGear(tripId);

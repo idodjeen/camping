@@ -2,6 +2,9 @@
 
 import type { Route } from "next";
 import { useParams } from "next/navigation";
+import useSWR from "swr";
+
+import { fetcher, swrConfig } from "@/lib/api";
 
 /**
  * The trip the current screen belongs to, read from the /t/[tripId] URL, and
@@ -24,4 +27,15 @@ export function useTrip() {
     local: (pathname: string) =>
       pathname.startsWith(base) ? pathname.slice(base.length) || "/" : pathname,
   };
+}
+
+/**
+ * The trip's name, for text that names it (copied lists, the reminder panel).
+ * Same key as the header's /me, so it costs no extra request. Undefined while
+ * loading.
+ */
+export function useTripName() {
+  const { api } = useTrip();
+  const { data } = useSWR<{ trip: { name: string } }>(api("/me"), fetcher, swrConfig);
+  return data?.trip.name;
 }

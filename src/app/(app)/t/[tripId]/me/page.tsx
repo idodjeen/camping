@@ -73,7 +73,7 @@ export default function MePage() {
         </div>
       </header>
 
-      {/* Reminders go out from Ido's Gmail, so only the super admin sends them. */}
+      {/* Reminders go out from the app owner's Gmail, so only the super admin sends them. */}
       {data.user.isSuperAdmin && <AdminNotify />}
 
       {/* Viewers have no notifications to configure. */}

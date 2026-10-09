@@ -3,7 +3,7 @@ import { signOut } from "@/auth";
 /**
  * Where Auth.js sends anyone it refuses (configured as `pages.error` in
  * auth.config.ts). The distinction matters for debugging: AccessDenied means
- * our allowlist rejected a real, valid sign-in, while Configuration means the
+ * the sign-in check (lib/user.ts) rejected a real, valid sign-in, while Configuration means the
  * server is misconfigured and nobody can log in at all.
  */
 const MESSAGES: Record<string, { title: string; body: React.ReactNode }> = {
@@ -11,9 +11,9 @@ const MESSAGES: Record<string, { title: string; body: React.ReactNode }> = {
     title: "אין גישה",
     body: (
       <>
-        החשבון הזה לא ברשימת המשתתפים של מחנאות 2026.
+        החשבון הזה לא שייך לאף קבוצה באפליקציה.
         <br />
-        אם זו טעות — דברו עם עידו.
+        אם זו טעות, בקשו ממנהל הקבוצה להוסיף את המייל הזה.
       </>
     ),
   },
@@ -23,7 +23,7 @@ const MESSAGES: Record<string, { title: string; body: React.ReactNode }> = {
       <>
         ההתחברות לא מוגדרת נכון בשרת.
         <br />
-        זו תקלה שלנו, לא שלכם — דברו עם עידו.
+        זו תקלה שלנו, לא שלכם. ספרו למנהל הקבוצה.
       </>
     ),
   },
