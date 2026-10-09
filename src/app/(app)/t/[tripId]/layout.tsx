@@ -62,11 +62,13 @@ export default async function TripLayout({
       <WidgetBoundary name="WhatsNew">
         <WhatsNew />
       </WidgetBoundary>
-      {/* Outside template.tsx on purpose: the template's transform would make
-          it the containing block of anything fixed inside the header. */}
+      {/* Outside template.tsx on purpose: the header stays put while the
+          screen under it changes. The menu's roles come from here, already
+          read, so its admin rows don't pop in after a request. */}
       <WidgetBoundary name="AppHeader">
         <AppHeader
           trips={trips.map((t) => ({ id: t.id, name: t.name, groupId: t.groupId, groupName: t.groupName }))}
+          roles={{ isAdmin: access.isAdmin, isSuperAdmin: me.isSuperAdmin }}
         />
       </WidgetBoundary>
       {/* Below the header, so it is never under the status bar; it scrolls away. */}
