@@ -10,7 +10,7 @@ import { asc } from "drizzle-orm";
 import { db } from "@/db";
 import { gearItems, users } from "@/db/schema";
 import { createComment } from "@/lib/comments";
-import { getInbox } from "@/lib/notifications";
+import { getInbox, hears } from "@/lib/notifications";
 
 const g = globalThis as unknown as { __campingDb?: unknown };
 class Rollback extends Error {}
@@ -34,8 +34,8 @@ async function main() {
         const rows = inbox.unread.flatMap((g) => (g.latest.text === body ? [g.latest] : []));
         const got = rows.filter((x) => x.kind === "message").length;
         console.log(
-          `${u.name.padEnd(10)} notifyMessages=${String(u.notifyMessages).padEnd(5)} ` +
-            `bell message rows=${got}  ${u.id === author.id ? "(author, expect 0)" : u.notifyMessages ? "(expect 1)" : "(opted out, expect 0)"}` +
+          `${u.name.padEnd(10)} chat=${String(hears(u, "message")).padEnd(5)} ` +
+            `bell message rows=${got}  ${u.id === author.id ? "(author, expect 0)" : hears(u, "message") ? "(expect 1)" : "(opted out, expect 0)"}` +
             `  tags=${rows.filter((x) => x.kind === "mention").length}`,
         );
       }

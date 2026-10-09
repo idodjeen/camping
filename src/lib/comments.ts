@@ -2,7 +2,7 @@ import { and, asc, desc, eq, inArray, isNull, not } from "drizzle-orm";
 
 import { db } from "@/db";
 import { comments, gearItems, meals, notifications, shoppingItems, users } from "@/db/schema";
-import { notify } from "@/lib/notifications";
+import { hears, notify } from "@/lib/notifications";
 import { EVERYONE } from "@/lib/mention-all";
 import { HttpError } from "@/lib/session";
 import { SUBJECTS, THREAD, type Subject } from "@/lib/threads";
@@ -159,7 +159,7 @@ export async function createComment(
     ...common,
     kind: "message",
     to: people
-      .filter((p) => !mentioned.some((m) => m.id === p.id && p.notifyMentions))
+      .filter((p) => !mentioned.some((m) => m.id === p.id && hears(p, "mention")))
       .map((p) => p.id),
   });
 

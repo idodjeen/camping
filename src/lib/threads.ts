@@ -12,6 +12,8 @@
  *   money                       the expenses screen
  *   reminder:<type>             what an admin reminder is about
  */
+import { NOTIFY_INFO, isNotifyType } from "@/lib/reminders";
+
 export const SUBJECTS = ["gear", "shopping", "meal"] as const;
 export type Subject = (typeof SUBJECTS)[number];
 
@@ -37,13 +39,14 @@ export function targetOf(key: string): Target {
   const rest = at < 0 ? "" : key.slice(at + 1);
 
   if (head === "list") return { page: rest === "shopping" ? "/shopping" : "/gear" };
+  if (head === "reminder" && isNotifyType(rest)) return { page: NOTIFY_INFO[rest].page };
 
   const subject = SUBJECTS.find((s) => s === head);
   const id = Number(rest);
   if (subject && Number.isInteger(id) && id > 0) {
     return { page: ITEM_PAGE[subject], sheet: { subject, id } };
   }
-  // Reminders and anything a later release adds: the trip's home.
+  // Anything a later release adds: the trip's home.
   return { page: "/" };
 }
 

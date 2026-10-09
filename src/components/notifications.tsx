@@ -1,7 +1,23 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, CheckCheck, Loader2, X } from "lucide-react";
+import {
+  Backpack,
+  Bell,
+  CheckCheck,
+  CircleCheck,
+  HandCoins,
+  Loader2,
+  Megaphone,
+  Pencil,
+  ShoppingBag,
+  ShoppingCart,
+  Trash2,
+  TriangleAlert,
+  Wallet,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
@@ -9,6 +25,7 @@ import { CommentsSheet, TaggedBadge } from "@/components/comments";
 import { Modal } from "@/components/modal";
 import { toast } from "@/components/toast";
 import { UserAvatar } from "@/components/user-avatar";
+import type { NotificationKind } from "@/db/schema";
 import { ApiError } from "@/lib/api";
 import { formatRelative } from "@/lib/dates";
 import { useInbox } from "@/lib/inbox-client";
@@ -24,6 +41,38 @@ const LIST_LABEL: Record<Subject, string> = { gear: "ציוד", shopping: "קנ�
 const where = (r: { label: string; target: Target }) =>
   r.target.sheet ? `${LIST_LABEL[r.target.sheet.subject]} · ${r.label}` : r.label;
 
+/** The bold line for the kinds the server words: what happened. */
+const EVENT: Partial<Record<NotificationKind, string>> = {
+  uncovered: "חזר להיות חסר",
+  gear_added: "פריט ציוד חדש",
+  shopping_added: "נוסף לקניות",
+  bought: "נקנה",
+  expense_added: "הוצאה חדשה",
+  expense_edited: "הוצאה עודכנה",
+  expense_deleted: "הוצאה נמחקה",
+  settlement: "תשלום סומן",
+  reminder: "תזכורת",
+};
+
+/** An icon per event kind; tags and messages have the writer's face instead. */
+const KIND_ICON: Partial<Record<NotificationKind, LucideIcon>> = {
+  covered: CircleCheck,
+  uncovered: TriangleAlert,
+  gear_added: Backpack,
+  shopping_added: ShoppingCart,
+  bought: ShoppingBag,
+  expense_added: Wallet,
+  expense_edited: Pencil,
+  expense_deleted: Trash2,
+  settlement: HandCoins,
+  reminder: Megaphone,
+};
+
+function KindIcon({ kind }: { kind: NotificationKind }) {
+  const Icon = KIND_ICON[kind];
+  return Icon ? <Icon aria-hidden className="inline size-3.5 shrink-0 self-center text-muted" /> : null;
+}
+
 /** What happened, as the bold line of a single row. */
 function headline(r: InboxRow) {
   switch (r.kind) {
@@ -34,9 +83,12 @@ function headline(r: InboxRow) {
     case "covered":
       return "הפריט מכוסה";
     default:
-      return r.label;
+      return EVENT[r.kind] ?? r.label;
   }
 }
+
+/** Tags and messages are someone's words; every other kind's text already names who did it. */
+const quotes = (k: NotificationKind) => k === "mention" || k === "message";
 
 function text(r: InboxRow) {
   return r.kind === "covered" ? `${r.actor.name} לקח/ה את היחידה האחרונה` : r.text;
@@ -53,9 +105,16 @@ function names(people: Person[]) {
 /** A group's bold line: one event reads as itself, several name who wrote. */
 const groupHeadline = (g: InboxGroup) => (g.count > 1 ? names(g.actors) : headline(g.latest));
 
-/** A group's preview: the latest event, saying whose it is when there are several. */
-const groupText = (g: InboxGroup) =>
-  g.count > 1 && g.latest.kind !== "covered" ? `${g.latest.actor.name}: ${text(g.latest)}` : text(g.latest);
+/**
+ * A group's preview: the latest event, saying whose it is when there are
+ * several. A shopping run by one person reads as one line.
+ */
+function groupText(g: InboxGroup) {
+  if (g.count > 1 && g.actors.length === 1 && g.kinds.length === 1 && g.kinds[0] === "bought") {
+    return `${g.actors[0].name} קנה/תה ${g.count} פריטים`;
+  }
+  return g.count > 1 && quotes(g.latest.kind) ? `${g.latest.actor.name}: ${text(g.latest)}` : text(g.latest);
+}
 
 /** Up to three overlapping faces, newest first. */
 function Faces({ people, size = 32 }: { people: Person[]; size?: number }) {
@@ -191,7 +250,7 @@ function NotificationsPane({ open, onClose }: { open: boolean; onClose: () => vo
             <p className="mt-2 text-sm leading-relaxed text-white/40">
               אין התראות עדיין.
               <br />
-              תיוגים, הודעות ופריטים שכוסו יופיעו כאן — אפשר לבחור מה בחשבון.
+              תיוגים, הודעות, ציוד, קניות וכסף יופיעו כאן — אפשר לבחור מה בחשבון.
             </p>
           </div>
         ) : (
@@ -205,6 +264,7 @@ function NotificationsPane({ open, onClose }: { open: boolean; onClose: () => vo
                 <Faces people={g.actors} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-1.5">
+                    <KindIcon kind={g.latest.kind} />
                     <span className="truncate text-xs font-bold">{groupHeadline(g)}</span>
                     <span className="shrink-0 rounded-md bg-white/8 px-1.5 py-0.5 text-[10px] text-white/50">
                       {where(g)}
@@ -247,6 +307,7 @@ function NotificationsPane({ open, onClose }: { open: boolean; onClose: () => vo
                 <Faces people={[r.actor]} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-1.5">
+                    <KindIcon kind={r.kind} />
                     <span className="truncate text-xs font-bold">{headline(r)}</span>
                     <span className="shrink-0 rounded-md bg-white/8 px-1.5 py-0.5 text-[10px] text-white/50">
                       {where(r)}
@@ -384,7 +445,7 @@ export function MentionBanner() {
                     dismissing never also opens the thread. */}
                 <button onClick={open} className="min-w-0 flex-1 text-start">
                   <p className="text-xs font-bold text-brand-200">
-                    {groupHeadline(g)}
+                    <KindIcon kind={g.latest.kind} /> {groupHeadline(g)}
                     <span className="font-normal text-white/45">
                       {" · "}
                       {where(g)}

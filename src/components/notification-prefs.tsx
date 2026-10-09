@@ -6,12 +6,14 @@ import { toast } from "@/components/toast";
 import { ApiError, send } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-export type NotifyPrefs = { mentions: boolean; covered: boolean; messages: boolean };
+/** The four switches, per person. /me also sends the old keys for a release; they're ignored here. */
+export type NotifyPrefs = { mentions: boolean; chat: boolean; lists: boolean; money: boolean };
 
 const OPTIONS: { key: keyof NotifyPrefs; label: string; hint: string }[] = [
-  { key: "covered", label: "פריטים שכוסו", hint: "כשפריט ציוד מגיע לכיסוי מלא" },
-  { key: "messages", label: "הודעות", hint: "כל הודעה חדשה בצ׳אט ובפריטים" },
   { key: "mentions", label: "תיוגים", hint: "כשמישהו כותב @השם שלך" },
+  { key: "chat", label: "הודעות", hint: "כל הודעה חדשה בצ׳אט ובפריטים" },
+  { key: "lists", label: "ציוד וקניות", hint: "פריט שכוסה או חזר להיות חסר, פריט חדש, משהו שנקנה" },
+  { key: "money", label: "כסף", hint: "הוצאה שנוגעת בך נוספה, השתנתה או נמחקה, ותשלום שסומן" },
 ];
 
 /**

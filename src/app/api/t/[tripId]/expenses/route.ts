@@ -5,7 +5,9 @@ import { expenseShares, expenses, settlements } from "@/db/schema";
 import { tripRoute, type TripParams } from "@/lib/access";
 import { parseExpenseInput } from "@/lib/expense-input";
 import { computeBalances, simplifyDebts, splitEqually } from "@/lib/expenses";
+import { notify } from "@/lib/notifications";
 import { handle } from "@/lib/session";
+import { THREAD } from "@/lib/threads";
 import { tripPeople } from "@/lib/trips";
 
 export const dynamic = "force-dynamic";
@@ -106,6 +108,22 @@ export function POST(req: Request, ctx: TripParams) {
       return created;
     });
 
+    // Everyone whose balance moved: the split, and the payer.
+    await notify({
+      tripId: trip.id,
+      kind: "expense_added",
+      actorId: me.id,
+      thread: THREAD.money,
+      to: [...shares.keys(), expense.paidBy],
+      refs: { expenseId: expense.id },
+      data: {
+        description: expense.description,
+        amount: expense.amount,
+        paidBy: expense.paidBy,
+        shares: Object.fromEntries(shares),
+      },
+      push: { label: "כסף" },
+    });
     return { expense };
   });
 }

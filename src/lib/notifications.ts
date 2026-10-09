@@ -15,16 +15,19 @@ import {
   tripMembers,
   users,
   type NotificationKind,
+  type NotifySwitches,
   type User,
 } from "@/db/schema";
+import { eventText } from "@/lib/notification-text";
 import { sendPushEach } from "@/lib/push";
 import { HttpError } from "@/lib/session";
 import { pushTag, staticLabel, targetOf, type Subject, type Target } from "@/lib/threads";
 
 /* ---------------------------------------------------------- who hears what */
 
-/** The switches in חשבון. Group F moves them to `users.notify_prefs`; until then, the three booleans. */
-type Switch = "mentions" | "chat" | "lists" | "money";
+/** The switches in חשבון, stored in `users.notify_prefs`. */
+type Switch = keyof NotifySwitches;
+const SWITCHES: Switch[] = ["mentions", "chat", "lists", "money"];
 
 const SWITCH_OF: Record<NotificationKind, Switch | null> = {
   mention: "mentions",
@@ -42,25 +45,16 @@ const SWITCH_OF: Record<NotificationKind, Switch | null> = {
   reminder: null,
 };
 
-const HEARS: Record<Switch, (u: User) => boolean> = {
-  mentions: (u) => u.notifyMentions,
-  chat: (u) => u.notifyMessages,
-  lists: (u) => u.notifyCovered,
-  money: () => true,
-};
+/** A switch is on unless it says false: a missing key reads as on. */
+const isOn = (u: User, s: Switch) => u.notifyPrefs?.[s] !== false;
 
-/** The same switches as SQL, for rows joined to their recipient's `users` row. */
-const SWITCH_SQL: Record<Switch, SQL> = {
-  mentions: sql`${users.notifyMentions}`,
-  chat: sql`${users.notifyMessages}`,
-  lists: sql`${users.notifyCovered}`,
-  money: sql`true`,
-};
+/** The same rule as SQL, for rows joined to their recipient's `users` row. */
+const switchSql = (s: Switch) => sql`coalesce((${users.notifyPrefs} ->> ${s})::boolean, true)`;
 
 /** Does this person want to hear about this kind? */
 export const hears = (u: User, kind: NotificationKind) => {
   const s = SWITCH_OF[kind];
-  return s === null || HEARS[s](u);
+  return s === null || isOn(u, s);
 };
 
 /**
@@ -70,12 +64,12 @@ export const hears = (u: User, kind: NotificationKind) => {
  * the history back rather than a gap.
  */
 function visibleTo(): SQL {
-  const whens = (Object.keys(HEARS) as Switch[]).map((s) => {
+  const whens = SWITCHES.map((s) => {
     const kinds = NOTIFICATION_KINDS.filter((k) => SWITCH_OF[k] === s);
     return sql`when ${notifications.kind} in (${sql.join(
       kinds.map((k) => sql`${k}`),
       sql`, `,
-    )}) then ${SWITCH_SQL[s]}`;
+    )}) then ${switchSql(s)}`;
   });
   return sql`(case ${sql.join(whens, sql` `)} else true end)`;
 }
@@ -133,10 +127,14 @@ export type NotifyInput = {
     expenseId?: number;
     settlementId?: number;
   };
-  /** Snapshots that must outlive the subject. */
+  /** Snapshots that must outlive the subject; for the newer kinds, what eventText() words. */
   data?: Record<string, unknown>;
-  /** For the push: what the thread is called, and this event's own text. */
-  push: { label: string; preview: string };
+  /**
+   * For the push: what the thread is called, and this event's own text.
+   * Without a preview, each person's text comes from eventText(), so a money
+   * push can say "החלק שלך".
+   */
+  push: { label: string; preview?: string };
 };
 
 /**
@@ -179,7 +177,7 @@ export async function notify(input: NotifyInput): Promise<void> {
 
     const hearing = rows.filter((u) => hears(u, kind)).map((u) => u.id);
     if (hearing.length > 0) {
-      await defer(() => pushThread(tripId, kind, actorId, thread, input.push, hearing));
+      await defer(() => pushThread(input, hearing));
     }
   } catch (err) {
     console.error("notify failed", input.kind, err);
@@ -188,7 +186,7 @@ export async function notify(input: NotifyInput): Promise<void> {
 
 /**
  * after() when there is a request to run after; inline otherwise (a script,
- * or a test calling setClaim directly), where after() throws.
+ * or a test calling changeClaim directly), where after() throws.
  */
 async function defer(task: () => Promise<void>) {
   const run = () => task().catch((err) => console.error("deferred push failed", err));
@@ -205,14 +203,8 @@ async function defer(task: () => Promise<void>) {
  * unread thread count for the app icon. The counts are read after the insert,
  * so they include this event.
  */
-async function pushThread(
-  tripId: number,
-  kind: NotificationKind,
-  actorId: number,
-  thread: string,
-  text: { label: string; preview: string },
-  userIds: number[],
-) {
+async function pushThread(input: NotifyInput, userIds: number[]) {
+  const { tripId, kind, actorId, thread, push } = input;
   const [actor] = await db.select({ name: users.name }).from(users).where(eq(users.id, actorId));
   const counts = await db
     .select({
@@ -235,6 +227,8 @@ async function pushThread(
 
   const name = actor?.name ?? "מישהו";
   const url = `/t/${tripId}${targetOf(thread).page}`;
+  const previewFor = (userId: number) =>
+    push.preview ?? eventText(kind, input.data, { id: actorId, name }, userId);
   await sendPushEach(
     userIds.map((userId) => {
       const c = byUser.get(userId);
@@ -242,7 +236,7 @@ async function pushThread(
       return {
         userId,
         payload: {
-          ...pushText(kind, n, name, text),
+          ...pushText(kind, n, name, { label: push.label, preview: previewFor(userId) }),
           url,
           tag: pushTag(tripId, thread),
           badge: Math.max(c?.threads ?? 1, 1),
@@ -283,7 +277,7 @@ export type InboxRow = {
   /** What the thread is called: the item's name, "צ׳אט כללי", "כסף". */
   label: string;
   target: Target;
-  /** The message text for tags and messages; empty for kinds the client words itself. */
+  /** The message text for tags and messages, the worded event for the newer kinds; empty for "covered". */
   text: string;
   createdAt: string;
   readAt: string | null;
@@ -300,6 +294,8 @@ export type InboxGroup = {
   tags: number;
   /** Everyone who wrote, newest first. */
   actors: Person[];
+  /** Every kind in the group, so "ניר קנה 12 פריטים" knows it's all purchases. */
+  kinds: NotificationKind[];
   latest: InboxRow;
   /** The newest row's id, so a read can stop at what was on screen. */
   newestId: number;
@@ -358,7 +354,7 @@ async function loadRows(userId: number, tripId: number, where: SQL | undefined, 
         thread,
         label: labels.get(thread) ?? "פריט שנמחק",
         target: targetOf(thread),
-        text: body ?? "",
+        text: body ?? eventText(n.kind, n.data, actor, userId),
         createdAt: n.createdAt.toISOString(),
         readAt: n.readAt?.toISOString() ?? null,
         actor,
@@ -420,6 +416,7 @@ function groupRows(rows: InboxRow[]): InboxGroup[] {
         count: 1,
         tags: r.kind === "mention" ? 1 : 0,
         actors: [r.actor],
+        kinds: [r.kind],
         latest: r,
         newestId: r.id,
       });
@@ -428,6 +425,7 @@ function groupRows(rows: InboxRow[]): InboxGroup[] {
     g.count += 1;
     if (r.kind === "mention") g.tags += 1;
     if (!g.actors.some((a) => a.id === r.actor.id)) g.actors.push(r.actor);
+    if (!g.kinds.includes(r.kind)) g.kinds.push(r.kind);
   }
   return [...groups.values()];
 }
@@ -601,21 +599,41 @@ export async function markNotificationRead(userId: number, tripId: number, id: n
 
 /* ------------------------------------------------------------------ prefs */
 
-export type NotifyPrefs = { mentions: boolean; covered: boolean; messages: boolean };
+/**
+ * What /me returns: the four switches, plus for one release the old keys a
+ * bundle from before the deploy reads (`covered` is lists, `messages` is chat).
+ */
+export type NotifyPrefs = Required<NotifySwitches> & { covered: boolean; messages: boolean };
 
-export const prefsOf = (u: User): NotifyPrefs => ({
-  mentions: u.notifyMentions,
-  covered: u.notifyCovered,
-  messages: u.notifyMessages,
-});
+export const prefsOf = (u: User): NotifyPrefs => {
+  const on = Object.fromEntries(SWITCHES.map((s) => [s, isOn(u, s)])) as Required<NotifySwitches>;
+  return { ...on, covered: on.lists, messages: on.chat };
+};
 
-export async function setPrefs(userId: number, patch: Partial<NotifyPrefs>) {
-  const set: Partial<Pick<User, "notifyMentions" | "notifyCovered" | "notifyMessages">> = {};
-  if (typeof patch.mentions === "boolean") set.notifyMentions = patch.mentions;
-  if (typeof patch.covered === "boolean") set.notifyCovered = patch.covered;
-  if (typeof patch.messages === "boolean") set.notifyMessages = patch.messages;
-  if (Object.keys(set).length === 0) throw new HttpError(400, "אין מה לעדכן");
+/** Old key -> switch, accepted for one release. */
+const ALIAS: Record<string, Switch> = { covered: "lists", messages: "chat" };
 
-  const [row] = await db.update(users).set(set).where(eq(users.id, userId)).returning();
+/**
+ * Flip some of my switches. Writes notify_prefs and, for one release, the old
+ * booleans too, so the previous bundle reads what this one wrote. Removed in H.
+ */
+export async function setPrefs(userId: number, body: unknown) {
+  const patch: NotifySwitches = {};
+  for (const [key, value] of Object.entries((body ?? {}) as Record<string, unknown>)) {
+    const s = (SWITCHES as string[]).includes(key) ? (key as Switch) : ALIAS[key];
+    if (s && typeof value === "boolean") patch[s] = value;
+  }
+  if (Object.keys(patch).length === 0) throw new HttpError(400, "אין מה לעדכן");
+
+  const legacy: Partial<Pick<User, "notifyMentions" | "notifyCovered" | "notifyMessages">> = {};
+  if (patch.mentions !== undefined) legacy.notifyMentions = patch.mentions;
+  if (patch.lists !== undefined) legacy.notifyCovered = patch.lists;
+  if (patch.chat !== undefined) legacy.notifyMessages = patch.chat;
+
+  const [row] = await db
+    .update(users)
+    .set({ ...legacy, notifyPrefs: sql`${users.notifyPrefs} || ${JSON.stringify(patch)}::jsonb` })
+    .where(eq(users.id, userId))
+    .returning();
   return prefsOf(row);
 }

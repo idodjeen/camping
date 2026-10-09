@@ -3,8 +3,10 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { shoppingCategories, shoppingItems } from "@/db/schema";
 import { tripRoute, type TripParams } from "@/lib/access";
+import { notify } from "@/lib/notifications";
 import { getShopping } from "@/lib/queries";
 import { handle, HttpError } from "@/lib/session";
+import { THREAD } from "@/lib/threads";
 import { tripPeople } from "@/lib/trips";
 
 export const dynamic = "force-dynamic";
@@ -53,8 +55,9 @@ export function POST(req: Request, ctx: TripParams) {
       );
     if (!category) throw new HttpError(404, "קטגוריה לא נמצאה");
 
+    let created;
     try {
-      const [created] = await db
+      [created] = await db
         .insert(shoppingItems)
         .values({
           tripId: trip.id,
@@ -64,12 +67,22 @@ export function POST(req: Request, ctx: TripParams) {
           createdBy: user.id,
         })
         .returning();
-      return { item: created };
     } catch {
       // Unlike gear_items, which is unique per (category_id, name), a shopping
       // item's name is unique across the whole trip, so the same name under a
       // different category still collides. Say so plainly instead of 500ing.
       throw new HttpError(409, "כבר יש פריט כזה ברשימה");
     }
+
+    await notify({
+      tripId: trip.id,
+      kind: "shopping_added",
+      actorId: user.id,
+      thread: THREAD.list("shopping"),
+      refs: { shoppingItemId: created.id },
+      data: { name: created.name },
+      push: { label: "קניות" },
+    });
+    return { item: created };
   });
 }

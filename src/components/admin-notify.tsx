@@ -73,7 +73,9 @@ export function AdminNotify() {
         <h2 className="text-sm font-semibold">שליחת תזכורת במייל</h2>
       </div>
       {tripName && (
-        <p className="-mt-1.5 mb-3 text-[11px] text-white/45">לאנשים בטיול: {tripName}</p>
+        <p className="-mt-1.5 mb-3 text-[11px] text-white/45">
+          לאנשים בטיול: {tripName} · נשלח גם בפוש ובפעמון
+        </p>
       )}
 
       <div className="grid grid-cols-2 gap-2">
@@ -109,7 +111,7 @@ export function AdminNotify() {
               </p>
             ) : preview && preview.count === 0 ? (
               <p className="mt-3 rounded-xl bg-white/5 p-3 text-xs text-aqua-300">
-                אין למי לשלוח — הכול מעודכן 🎉
+                אין למי לשלוח — הכול מעודכן
               </p>
             ) : preview ? (
               <>
