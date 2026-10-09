@@ -23,7 +23,7 @@ touch neighbouring rows, whoever merges second keeps both rows when syncing with
 |---|---|---|---|
 | [A01 Test setup](../.scratch/redesign-rollout/issues/01-test-setup.md) | ready-for-agent | | |
 | [A02 Shared design parts and states](../.scratch/redesign-rollout/issues/02-shared-design-parts.md) | ready-for-agent | | P02 also touches the filter chips and the side sheet: whichever merges second syncs with `main` |
-| [P01 Production skips docs-only commits](../.scratch/perf-sprint/issues/01-skip-docs-builds.md) | claimed | `claude/perf-skip-docs-builds` | |
+| [P01 Production skips docs-only commits](../.scratch/perf-sprint/issues/01-skip-docs-builds.md) | PR open | [#32](https://github.com/idodjeen/camping/pull/32) | |
 | [P02 Instant switching](../.scratch/perf-sprint/issues/02-instant-switching.md) | claimed | `claude/perf-instant-switch` | Built on P01's branch |
 | [P03 Less server work per request](../.scratch/perf-sprint/issues/03-less-server-work.md) | blocked: P02 | | Then measure P01-P03 and report to Ido |
 | [P04 Comment sheet only when opened](../.scratch/perf-sprint/issues/04-comment-sheet-on-open.md) | blocked: P03 and the measure step | | Merge after #31 (both touch `comments.tsx`) |

@@ -6,7 +6,7 @@ Vercel's Ignored Build Step runs `scripts/vercel-ignore.sh`, wired up in `vercel
 
 **Blocked by:** None
 
-**Status:** claimed (branch `claude/perf-skip-docs-builds`)
+**Status:** PR open (#32)
 
 **Files touched:** `vercel.json` (new), `scripts/vercel-ignore.sh` (new), `docs/handoff.md`,
 `docs/architecture.md`, and this sprint's docs.
