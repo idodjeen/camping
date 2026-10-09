@@ -111,7 +111,7 @@ export function AdminNotify() {
               </p>
             ) : preview && preview.count === 0 ? (
               <p className="mt-3 rounded-xl bg-white/5 p-3 text-xs text-aqua-300">
-                אין למי לשלוח — הכול מעודכן 🎉
+                אין למי לשלוח — הכול מעודכן
               </p>
             ) : preview ? (
               <>

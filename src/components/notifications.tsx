@@ -1,7 +1,23 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, CheckCheck, Loader2, X } from "lucide-react";
+import {
+  Backpack,
+  Bell,
+  CheckCheck,
+  CircleCheck,
+  HandCoins,
+  Loader2,
+  Megaphone,
+  Pencil,
+  ShoppingBag,
+  ShoppingCart,
+  Trash2,
+  TriangleAlert,
+  Wallet,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
@@ -25,18 +41,37 @@ const LIST_LABEL: Record<Subject, string> = { gear: "ציוד", shopping: "קנ�
 const where = (r: { label: string; target: Target }) =>
   r.target.sheet ? `${LIST_LABEL[r.target.sheet.subject]} · ${r.label}` : r.label;
 
-/** The bold line for the kinds the server words: an icon and what happened. */
+/** The bold line for the kinds the server words: what happened. */
 const EVENT: Partial<Record<NotificationKind, string>> = {
-  uncovered: "⚠️ חזר להיות חסר",
-  gear_added: "🎒 פריט ציוד חדש",
-  shopping_added: "🛒 נוסף לקניות",
-  bought: "🛍️ נקנה",
-  expense_added: "💸 הוצאה חדשה",
-  expense_edited: "✏️ הוצאה עודכנה",
-  expense_deleted: "🗑️ הוצאה נמחקה",
-  settlement: "🤝 תשלום סומן",
-  reminder: "📣 תזכורת",
+  uncovered: "חזר להיות חסר",
+  gear_added: "פריט ציוד חדש",
+  shopping_added: "נוסף לקניות",
+  bought: "נקנה",
+  expense_added: "הוצאה חדשה",
+  expense_edited: "הוצאה עודכנה",
+  expense_deleted: "הוצאה נמחקה",
+  settlement: "תשלום סומן",
+  reminder: "תזכורת",
 };
+
+/** An icon per event kind; tags and messages have the writer's face instead. */
+const KIND_ICON: Partial<Record<NotificationKind, LucideIcon>> = {
+  covered: CircleCheck,
+  uncovered: TriangleAlert,
+  gear_added: Backpack,
+  shopping_added: ShoppingCart,
+  bought: ShoppingBag,
+  expense_added: Wallet,
+  expense_edited: Pencil,
+  expense_deleted: Trash2,
+  settlement: HandCoins,
+  reminder: Megaphone,
+};
+
+function KindIcon({ kind }: { kind: NotificationKind }) {
+  const Icon = KIND_ICON[kind];
+  return Icon ? <Icon aria-hidden className="inline size-3.5 shrink-0 self-center text-muted" /> : null;
+}
 
 /** What happened, as the bold line of a single row. */
 function headline(r: InboxRow) {
@@ -46,7 +81,7 @@ function headline(r: InboxRow) {
     case "message":
       return `${r.actor.name} כתב/ה`;
     case "covered":
-      return "🎉 הפריט מכוסה";
+      return "הפריט מכוסה";
     default:
       return EVENT[r.kind] ?? r.label;
   }
@@ -229,6 +264,7 @@ function NotificationsPane({ open, onClose }: { open: boolean; onClose: () => vo
                 <Faces people={g.actors} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-1.5">
+                    <KindIcon kind={g.latest.kind} />
                     <span className="truncate text-xs font-bold">{groupHeadline(g)}</span>
                     <span className="shrink-0 rounded-md bg-white/8 px-1.5 py-0.5 text-[10px] text-white/50">
                       {where(g)}
@@ -271,6 +307,7 @@ function NotificationsPane({ open, onClose }: { open: boolean; onClose: () => vo
                 <Faces people={[r.actor]} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-1.5">
+                    <KindIcon kind={r.kind} />
                     <span className="truncate text-xs font-bold">{headline(r)}</span>
                     <span className="shrink-0 rounded-md bg-white/8 px-1.5 py-0.5 text-[10px] text-white/50">
                       {where(r)}
@@ -408,7 +445,7 @@ export function MentionBanner() {
                     dismissing never also opens the thread. */}
                 <button onClick={open} className="min-w-0 flex-1 text-start">
                   <p className="text-xs font-bold text-brand-200">
-                    {groupHeadline(g)}
+                    <KindIcon kind={g.latest.kind} /> {groupHeadline(g)}
                     <span className="font-normal text-white/45">
                       {" · "}
                       {where(g)}
