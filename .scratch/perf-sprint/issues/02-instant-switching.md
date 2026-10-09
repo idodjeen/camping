@@ -6,7 +6,7 @@ Real-user speed becomes visible: Speed Insights, and a timer from the tap to the
 
 **Blocked by:** P01 (built on its branch, so these tracker rows exist)
 
-**Status:** PR open (#33)
+**Status:** done 2026-10-10 (#34; #33 merged into #32's branch, not `main`)
 
 **Files touched:** `src/components/bottom-nav.tsx`, `src/components/app-header.tsx`,
 `src/components/side-sheet.tsx`, `src/components/filter-chips.tsx`,

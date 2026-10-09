@@ -103,6 +103,9 @@ In order, one at a time unless both sides agree on the parallel rules below:
   its English commit line. Merge with `gh pr merge <n> --squash --subject "<the Hebrew PR title> (#<n>)"`,
   or edit the title in GitHub's merge dialog.
 - Feature PR titles in Hebrew, written for the campers; chores carry `[no-popup]`.
+- **A stacked PR merges into its base branch, not `main`.** Merging #32 left its branch in place, so #33
+  (built on it) merged into that branch and never reached `main`. Before merging the second PR, check its
+  base reads `main`: `gh pr edit <n> --base main`, or delete the first branch when it merges.
 - Never "Redeploy" an older production deployment on Vercel: it rebuilds that old commit and rolls
   production back (happened once, Oct 7).
 - A merge that changes nothing the app is built from (docs, `.scratch/`, markdown) doesn't rebuild
