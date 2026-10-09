@@ -14,6 +14,9 @@
 const DONE = "✅";
 const TODO = "⬜";
 
+/** "ציוד — מחנאות 2026", or just "ציוד" while the trip's name is still loading. */
+const titled = (list: string, tripName?: string) => (tripName ? `${list} — ${tripName}` : list);
+
 export type GearClaimLite = { name: string; qty: number };
 export type GearItemLite = {
   name: string;
@@ -29,10 +32,10 @@ export type GearCategoryLite = { name: string; items: GearItemLite[] };
 
 export function formatGearList(
   categories: GearCategoryLite[],
-  opts?: { onlyMissing?: boolean },
+  opts?: { onlyMissing?: boolean; tripName?: string },
 ): string {
   const lines: string[] = [
-    opts?.onlyMissing ? "🎒 *ציוד שעוד לא נתפס*" : "🎒 *ציוד — מחנאות 2026*",
+    opts?.onlyMissing ? "🎒 *ציוד שעוד לא נתפס*" : `🎒 *${titled("ציוד", opts?.tripName)}*`,
   ];
 
   for (const cat of categories) {
@@ -75,10 +78,10 @@ export type ShoppingCategoryLite = { name: string; items: ShoppingItemLite[] };
 
 export function formatShoppingList(
   categories: ShoppingCategoryLite[],
-  opts?: { onlyRemaining?: boolean },
+  opts?: { onlyRemaining?: boolean; tripName?: string },
 ): string {
   const lines: string[] = [
-    opts?.onlyRemaining ? "🛒 *מה עוד צריך לקנות*" : "🛒 *קניות — מחנאות 2026*",
+    opts?.onlyRemaining ? "🛒 *מה עוד צריך לקנות*" : `🛒 *${titled("קניות", opts?.tripName)}*`,
   ];
 
   for (const cat of categories) {
@@ -152,8 +155,12 @@ export type MenuDayLite = {
 const SLOT_TEXT = { breakfast: "בוקר", lunch: "צהריים", dinner: "ערב" } as const;
 const SLOT_ICON = { breakfast: "☕️", lunch: "🔥", dinner: "🌙" } as const;
 
-export function formatMenu(days: MenuDayLite[], dayLabel: (d: string) => string): string {
-  const lines: string[] = ["🍽️ *תפריט — מחנאות 2026*"];
+export function formatMenu(
+  days: MenuDayLite[],
+  dayLabel: (d: string) => string,
+  tripName?: string,
+): string {
+  const lines: string[] = [`🍽️ *${titled("תפריט", tripName)}*`];
 
   for (const day of days) {
     lines.push("", `*${dayLabel(day.date)}*`);

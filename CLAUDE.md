@@ -21,3 +21,13 @@ The tokens live in code in `src/app/globals.css`; the design system mirrors them
 - States: skeletons for loading, an empty state with one action, errors that say what to do.
 - When a screen changes, update its board on the design canvas, and the design system when a
   token or component changes.
+
+## Agent skills
+
+### Issue tracker
+
+Specs and tickets live as local markdown under `.scratch/<feature-slug>/`. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root, created lazily. See `docs/agents/domain.md`.

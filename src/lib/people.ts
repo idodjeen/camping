@@ -67,7 +67,7 @@ export type ParsedLine = PersonInput & { line: string; error: string | null };
  *
  *   dana@gmail.com דנה
  *   רון: ron.levi@gmail.com
- *   a@x.com:דנה,b@x.com:רון      (the old VIEWER_USERS format)
+ *   a@x.com:דנה,b@x.com:רון
  *
  * Every line comes back, each with its own error, so the form can say exactly
  * which line to fix rather than refusing the whole paste.

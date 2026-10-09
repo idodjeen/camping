@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 export function PATCH(req: Request, ctx: { params: Promise<{ tripId: string; id: string }> }) {
   return handle(async () => {
     const { trip, user, isShopper } = await tripRoute(ctx, "write");
-    if (!isShopper) throw new HttpError(403, "רק עידו וניר מסמנים קניות");
+    if (!isShopper) throw new HttpError(403, "רק אחראי הקניות של הטיול מסמנים קניות");
 
     const id = intParam((await ctx.params).id);
     const body = (await req.json()) as { isBought?: boolean };

@@ -9,7 +9,7 @@ import { PageTitle, SkeletonList } from "@/components/skeletons";
 import { fetcher, swrConfig } from "@/lib/api";
 import { SLOT_LABELS, formatTripDay } from "@/lib/dates";
 import { formatMenu } from "@/lib/format-lists";
-import { useTrip } from "@/lib/trip-client";
+import { useTrip, useTripName } from "@/lib/trip-client";
 import { cn } from "@/lib/utils";
 
 type Meal = {
@@ -27,6 +27,7 @@ const SLOT_EMOJI = { breakfast: "☕️", lunch: "🔥", dinner: "🌙" } as con
 
 export default function MealsPage() {
   const { api } = useTrip();
+  const tripName = useTripName();
   const { data, isLoading } = useSWR<Payload>(api("/meals"), fetcher, swrConfig);
 
   if (isLoading && !data) {
@@ -43,7 +44,7 @@ export default function MealsPage() {
       <PageTitle
         title="ארוחות"
         subtitle="מה אוכלים, ומה צריך בשביל זה"
-        action={<CopyButton getText={() => formatMenu(data?.days ?? [], formatTripDay)} />}
+        action={<CopyButton getText={() => formatMenu(data?.days ?? [], formatTripDay, tripName)} />}
       />
 
       <div className="space-y-7">

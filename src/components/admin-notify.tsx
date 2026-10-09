@@ -6,15 +6,9 @@ import { useState } from "react";
 
 import { toast } from "@/components/toast";
 import { ApiError, fetcher, send } from "@/lib/api";
-import { useTrip } from "@/lib/trip-client";
+import { NOTIFY_INFO, NOTIFY_TYPES } from "@/lib/reminders";
+import { useTrip, useTripName } from "@/lib/trip-client";
 import { cn } from "@/lib/utils";
-
-const TYPES = [
-  { key: "unclaimed", label: "ציוד שחסר", who: "לכולם" },
-  { key: "countdown", label: "ספירה לאחור", who: "לכולם" },
-  { key: "packing", label: "תזכורת אריזה", who: "אישית לכל אחד" },
-  { key: "shopping", label: "קניות שנשארו", who: "לעידו וניר" },
-] as const;
 
 type Preview = {
   type: string;
@@ -23,11 +17,13 @@ type Preview = {
 };
 
 /**
- * Admin-only. Shows exactly what would be sent, to whom, before sending —
- * these land in four other people's inboxes and there is no undo.
+ * Super admin only. Shows exactly what would be sent, to whom, before
+ * sending: these land in other people's inboxes and there is no undo. Always
+ * about this trip and its people, so the heading names it.
  */
 export function AdminNotify() {
   const { api } = useTrip();
+  const tripName = useTripName();
   const [type, setType] = useState<string | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [loading, setLoading] = useState(false);
@@ -76,21 +72,24 @@ export function AdminNotify() {
         <Mail className="size-4 text-brand-300" />
         <h2 className="text-sm font-semibold">שליחת תזכורת במייל</h2>
       </div>
+      {tripName && (
+        <p className="-mt-1.5 mb-3 text-[11px] text-white/45">לאנשים בטיול: {tripName}</p>
+      )}
 
       <div className="grid grid-cols-2 gap-2">
-        {TYPES.map((t) => (
+        {NOTIFY_TYPES.map((key) => (
           <button
-            key={t.key}
-            onClick={() => pick(t.key)}
+            key={key}
+            onClick={() => pick(key)}
             className={cn(
               "tap rounded-xl border px-3 py-2 text-start transition active:scale-95",
-              type === t.key
+              type === key
                 ? "border-brand-400/40 bg-brand-500/15"
                 : "border-white/10 bg-white/5",
             )}
           >
-            <span className="block text-xs font-semibold">{t.label}</span>
-            <span className="block text-[10px] text-white/40">{t.who}</span>
+            <span className="block text-xs font-semibold">{NOTIFY_INFO[key].label}</span>
+            <span className="block text-[10px] text-white/40">{NOTIFY_INFO[key].who}</span>
           </button>
         ))}
       </div>

@@ -2,7 +2,6 @@ import { eq, or, sql } from "drizzle-orm";
 
 import { db, type Tx } from "@/db";
 import { groupMembers, users } from "@/db/schema";
-import { envViewer } from "@/lib/allowlist";
 import { cleanEmail, gmailKey } from "@/lib/people";
 
 /** gmailKey() of the stored email, in SQL; null for non-Gmail rows. */
@@ -59,14 +58,13 @@ export async function findActiveUser(rawEmail: string) {
  * The sign-in gate: a super admin, or anyone who belongs to at least one group.
  *
  * Rows are created by whoever adds a person to a group, never by signing in,
- * so a Google account nobody invited has no row and is turned away. The one
- * exception is the transitional VIEWER_USERS import below.
+ * so a Google account nobody invited has no row and is turned away.
  */
 export async function canSignIn(rawEmail: string): Promise<boolean> {
   const email = cleanEmail(rawEmail);
   const user = await findUserByEmail(email);
 
-  if (!user) return importEnvViewer(email);
+  if (!user) return false;
   if (user.isSuperAdmin) return true;
 
   const [membership] = await db
@@ -75,36 +73,6 @@ export async function canSignIn(rawEmail: string): Promise<boolean> {
     .where(eq(groupMembers.userId, user.id))
     .limit(1);
   return Boolean(membership);
-}
-
-/**
- * The group VIEWER_USERS always meant: the original one, from before groups.
- * Hard-coded because the import is temporary (phase 7 removes it).
- */
-const ORIGINAL_GROUP_ID = 1;
-
-/**
- * First sign-in of someone on VIEWER_USERS: give them a row and make them a
- * viewer of the original group.
- *
- * Only when they have no row at all. Once imported, the database is the truth:
- * if a group admin later removes them, signing in again must not bring them
- * back just because the env var still lists them.
- */
-async function importEnvViewer(email: string): Promise<boolean> {
-  const viewer = envViewer(email);
-  if (!viewer) return false;
-
-  await db.transaction(async (tx) => {
-    const row = await createUser(tx, { email, name: viewer.name });
-    await tx
-      .insert(groupMembers)
-      .values({ groupId: ORIGINAL_GROUP_ID, userId: row.id, role: "viewer" })
-      .onConflictDoNothing();
-  });
-
-  console.info(`imported VIEWER_USERS entry as a viewer of group ${ORIGINAL_GROUP_ID}`);
-  return true;
 }
 
 /**

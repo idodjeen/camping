@@ -170,7 +170,7 @@ export default function LeaderboardPage() {
           </li>
         </ul>
         <p className="mt-4 border-t border-white/10 pt-3 text-xs leading-relaxed text-white/40">
-          קניות לא נספרות בניקוד — רק עידו וניר יכולים לסמן שנקנה, אז זה לא היה הוגן. יש להן תואר
+          קניות לא נספרות בניקוד — רק אחראי הקניות יכולים לסמן שנקנה, אז זה לא היה הוגן. יש להן תואר
           משלהן 🛒
         </p>
       </Modal>

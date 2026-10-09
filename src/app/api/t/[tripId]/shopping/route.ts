@@ -5,15 +5,22 @@ import { shoppingCategories, shoppingItems } from "@/db/schema";
 import { tripRoute, type TripParams } from "@/lib/access";
 import { getShopping } from "@/lib/queries";
 import { handle, HttpError } from "@/lib/session";
+import { tripPeople } from "@/lib/trips";
 
 export const dynamic = "force-dynamic";
 
 export function GET(_req: Request, ctx: TripParams) {
   return handle(async () => {
     const { trip, user, isShopper } = await tripRoute(ctx);
-    // canBuy drives whether the client renders checkboxes. The PATCH handler
-    // re-checks it server-side; this is presentation only, never permission.
-    return { categories: await getShopping(trip.id, user.id), canBuy: isShopper };
+    const [categories, people] = await Promise.all([getShopping(trip.id, user.id), tripPeople(trip.id)]);
+    return {
+      categories,
+      // canBuy drives whether the client renders checkboxes. The PATCH handler
+      // re-checks it server-side; this is presentation only, never permission.
+      canBuy: isShopper,
+      // Named on the screen for everyone else: who to ask about a purchase.
+      shoppers: people.filter((p) => p.isShopper).map((p) => p.name),
+    };
   });
 }
 
