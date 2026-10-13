@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
+import { markTap } from "@/lib/tap-timer";
 import { cn } from "@/lib/utils";
 
 /**
@@ -11,6 +11,10 @@ import { cn } from "@/lib/utils";
  * That is what lets a progress ring on the dashboard deep-link straight into
  * "show me what's already covered", and it means the filtered view survives a
  * refresh or being sent to someone else.
+ *
+ * The URL changes through the History API, which Next.js keeps in step with
+ * useSearchParams, so a chip filters at once. A <Link> here made every tap a
+ * server round trip, because the trip screens are dynamic routes.
  */
 export function FilterChips({
   current,
@@ -20,16 +24,29 @@ export function FilterChips({
   options: { key: string | null; label: string; tone?: "alert" }[];
 }) {
   const path = usePathname();
+  const params = useSearchParams();
+
+  function pick(key: string | null) {
+    if (key === current) return;
+    const next = new URLSearchParams(params.toString());
+    if (key) next.set("filter", key);
+    else next.delete("filter");
+    const query = next.toString();
+    const url = query ? `${path}?${query}` : path;
+    markTap(url, "chip");
+    window.history.pushState(null, "", url);
+  }
 
   return (
     <div className="mb-4 flex flex-wrap gap-2">
       {options.map((o) => {
         const active = current === o.key;
         return (
-          <Link
+          <button
             key={o.label}
-            href={o.key ? { pathname: path, query: { filter: o.key } } : { pathname: path }}
-            scroll={false}
+            type="button"
+            onClick={() => pick(o.key)}
+            aria-pressed={active}
             className={cn(
               "tap flex items-center rounded-xl border px-3 text-xs font-semibold transition active:scale-95",
               active ? "border-brand-400/40 bg-brand-500/20 text-brand-200"
@@ -41,7 +58,7 @@ export function FilterChips({
             )}
           >
             {o.label}
-          </Link>
+          </button>
         );
       })}
     </div>

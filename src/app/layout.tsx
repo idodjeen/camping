@@ -1,3 +1,4 @@
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata, Viewport } from "next";
 import { Assistant, Varela_Round } from "next/font/google";
 
@@ -61,7 +62,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
-      <body className="font-sans antialiased">{children}</body>
+      <body className="font-sans antialiased">
+        {children}
+        {/* Real-user load times and responsiveness, in the Vercel dashboard. */}
+        <SpeedInsights />
+      </body>
     </html>
   );
 }
