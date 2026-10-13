@@ -70,7 +70,7 @@ export async function buildMessages(type: NotifyType, tripId: number): Promise<O
     const [gear, shopping, forecast] = await Promise.all([
       getGear(tripId),
       getShopping(tripId),
-      getForecast(tripId),
+      t ? getForecast(t) : { available: false, days: [] },
     ]);
     const required = gear.flatMap((c) => c.items).filter((i) => !i.isOptional);
     const shopItems = shopping.flatMap((c) => c.items);

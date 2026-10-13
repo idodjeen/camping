@@ -11,7 +11,7 @@ One Next.js 16 app on Vercel, one Neon Postgres database per environment, and no
 no cron, no queue, no worker. `vercel.json` holds only the rule that skips production builds for
 docs-only commits (`scripts/vercel-ignore.sh`). Every request passes the proxy (a cookie check, no
 database), then a route handler that re-reads the person and their role from the database
-(`src/lib/access.ts:73`). Screens stay fresh by polling every 15 seconds (`src/lib/api.ts:57`).
+(`src/lib/access.ts:112`). Screens stay fresh by polling every 15 seconds (`src/lib/api.ts:57`).
 The only work done after the response is web push, through `after()` (`src/lib/notifications.ts:193`).
 Email goes out from Ido's Gmail over SMTP, inside the request that caused it.
 
@@ -51,7 +51,7 @@ What to notice:
 - The Pool driver, not neon-http, because gear claims need `SELECT ... FOR UPDATE` in a real
   transaction (`src/db/index.ts:7-10`, `src/lib/gear.ts:36`).
 - Open-Meteo is fetched with `next: { revalidate: 3600 }`, so one response serves every caller for
-  an hour (`src/lib/weather.ts:42`), and the client never polls it (`src/components/weather-card.tsx:16`).
+  an hour (`src/lib/weather.ts:37`), and the client never polls it (`src/components/weather-card.tsx:16`).
 - No photos service is wired: `CLOUDINARY_*` exist on Vercel Production but nothing in `src/` reads them.
 
 Checked against: `src/db/index.ts`, `src/lib/weather.ts`, `src/lib/mailer.ts`, `src/lib/push.ts`,
@@ -115,14 +115,15 @@ What to notice:
   Its matcher skips auth routes, static assets and `sw.js` (`src/proxy.ts:12`).
 - An expired session on an API call is a redirect that `fetch` follows to the login page's HTML;
   `fetcher` detects `res.redirected` and reports 401 instead of an empty object (`src/lib/api.ts:24-29`).
-- Every request re-reads the person (`src/lib/session.ts:15-20`, `src/lib/user.ts:43-56`), so removal
-  from the last group takes effect on the next request, despite 30-day JWTs.
-- 404 for outsiders, 403 for members who lack the level (`src/lib/access.ts:78-86`, `:135-136`).
+- Every request re-reads the person (`src/lib/session.ts:15-25`, `src/lib/user.ts:52-61`; trip routes in
+  the same query as their access, `src/lib/access.ts:93-110`), so removal from the last group takes
+  effect on the next request, despite 30-day JWTs.
+- 404 for outsiders, 403 for members who lack the level (`src/lib/access.ts:120-131`, `:180-181`).
   Pages do the same through `notFound()` (`src/app/(app)/t/[tripId]/layout.tsx:37`).
 - `/api/release` and `/api/version` have no handler-level check: only the proxy's cookie check
   guards them, so a removed person with a live cookie still gets 200 (`src/app/api/release/route.ts:12`,
   `src/app/api/version/route.ts:13`). Both return deploy metadata only.
-- Super-admin routes use `requireSuperAdmin()` (`src/lib/session.ts:45-49`); admin reminders check
+- Super-admin routes use `requireSuperAdmin()` (`src/lib/session.ts:52-56`); admin reminders check
   `isSuperAdmin` after a read-level `tripRoute` (`src/app/api/t/[tripId]/admin/notify/route.ts:22-26`).
 
 Checked against: `src/proxy.ts`, `src/auth.config.ts`, `src/lib/session.ts`, `src/lib/access.ts`,
@@ -294,13 +295,13 @@ sequenceDiagram
     P-->>U: encrypted JWT cookie, 30 days
   end
   U->>P: later requests: proxy decodes cookie only
-  P->>DB: handler: findActiveUser(email) on every call
+  P->>DB: handler: re-reads the person on every call (requireTrip: with the trip access, one query)
 ```
 
 What to notice:
 - On production the relay steps disappear: Google calls production's own callback.
-- The gate is the database: a super admin, or anyone in at least one group (`src/lib/user.ts:65-78`).
-  Gmail addresses match across dots, `+tags` and googlemail.com (`src/lib/user.ts:9-26`). A refusal is
+- The gate is the database: a super admin, or anyone in at least one group (`src/lib/user.ts:69-82`).
+  Gmail addresses match across dots, `+tags` and googlemail.com (`src/lib/user.ts:7-25`). A refusal is
   logged with the address (`src/auth.ts:16-24`).
 - One leftover path: an address on `VIEWER_USERS` with no row is imported as a viewer of group 1
   (`src/lib/user.ts:84-108`). Phase 7 removes it.
@@ -366,9 +367,10 @@ and the job must use `notify()`, not a new path. **Cost: M.**
 
 **Today.** One open trip screen polls `/inbox`, `/me` and its own list every 15s, plus `/api/release`
 every 60s. The home screen adds `/dashboard` and `/leaderboard`. That is about 780 requests per hour
-on the gear screen and about 1,020 on home, per visible tab. Each request costs two queries before
-the handler (`findActiveUser`, `loadTripAccess`); `/inbox` adds four to ten (`src/lib/notifications.ts:479-499`),
-`/me` about four (`src/app/api/t/[tripId]/me/route.ts`).
+on the gear screen and about 1,020 on home, per visible tab. Each request costs one query before
+the handler (`requireTrip` reads the person and their trip access together, since P03); `/inbox` adds
+four to ten (`src/lib/notifications.ts:477-497`), `/me` four, run together
+(`src/app/api/t/[tripId]/me/route.ts`).
 
 **Estimate.** 10 campers with the app open 1 hour a day is about 300,000 function invocations and
 about 2 million queries a month. Two cost effects: Vercel invocations and CPU time, and Neon compute
@@ -398,7 +400,7 @@ risks the account itself. The change is local: `getTransport()` and `sendAll()` 
 
 ### 4. Keeping groups apart
 
-**Today.** Three layers: the gate per request (`src/lib/access.ts:73-88`), every query filtered by
+**Today.** Three layers: the gate per request (`src/lib/access.ts:112-133`), every query filtered by
 the gate's trip, and composite keys (diagram 4b). RLS left out on purpose (`docs/groups-and-trips.md`,
 "Keeping groups apart"). All 29 trip route files start with `tripRoute(ctx, level)`.
 
@@ -546,7 +548,7 @@ Confirmed, all still present on `main`:
 | Not listed | `AUTH_URL` on Production: the link in every email (`src/lib/emails.ts:22`) |
 | Not listed | `ALLOWED_USERS` still on Production and Preview; read only by the seed and `/api/version` |
 | `notify()` and the 12-kind CHECK | Only `mention`, `message`, `covered` are written today |
-| `requireTrip` in `src/lib/session.ts` (`docs/groups-and-trips.md`) | `src/lib/access.ts:73` |
+| `requireTrip` in `src/lib/session.ts` (`docs/groups-and-trips.md`) | `src/lib/access.ts:112` |
 | `maxDuration` not mentioned | 60s on six routes that send mail or forward: comments, chat, admin/notify, admin/groups, g/members, legacy |
 
 The 42 route files and their methods match the brief's API table.
