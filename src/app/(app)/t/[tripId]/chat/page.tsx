@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 
-import { CommentsSheet, type Subject } from "@/components/comments";
+import { CommentsSheet, Edited, type Subject } from "@/components/comments";
 import { PageTitle, SkeletonList } from "@/components/skeletons";
 import { UserAvatar } from "@/components/user-avatar";
 import { fetcher, swrConfig } from "@/lib/api";
@@ -197,7 +197,10 @@ export default function ChatPage() {
                   >
                     <div className="flex items-baseline gap-2">
                       <span className="text-xs font-bold">{mine ? "אני" : m.author.name}</span>
-                      <span className="text-[10px] text-white/30">{formatRelative(m.createdAt)}</span>
+                      <span className="text-[10px] text-white/30">
+                        {formatRelative(m.createdAt)}
+                        <Edited at={m.editedAt} />
+                      </span>
                       {m.taggedMe && !mine && (
                         <span className="text-[10px] font-semibold text-brand-300">תייגו אותך</span>
                       )}

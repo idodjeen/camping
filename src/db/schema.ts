@@ -352,6 +352,8 @@ export const comments = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     body: text("body").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    /** When the author last changed the text; null if never. Shown as "(נערך)". */
+    editedAt: timestamp("edited_at", { withTimezone: true }),
   },
   (t) => [
     check(

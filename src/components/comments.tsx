@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { AtSign, Loader2, MessageCircle, Send, Trash2, Users } from "lucide-react";
+import { AtSign, Check, Loader2, MessageCircle, Pencil, Send, Trash2, Users, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 
@@ -21,6 +21,7 @@ type CommentView = {
   id: number;
   body: string;
   createdAt: string;
+  editedAt: string | null;
   author: Person;
   mentions: string[];
 };
@@ -118,6 +119,13 @@ export function CommentsSheet({
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const boxRef = useRef<HTMLTextAreaElement>(null);
+  const edit = useEditing(draft, setDraft, boxRef);
+  // Closing the sheet leaves edit mode, so it reopens as a plain composer.
+  const editingNow = edit.editing !== null;
+  const cancelEdit = edit.cancel;
+  useEffect(() => {
+    if (!open && editingNow) cancelEdit();
+  }, [open, editingNow, cancelEdit]);
 
   // Opening the thread reads it: the bell group, the badges and the
   // notification on the phone all clear. Again if something new lands in it
@@ -143,18 +151,26 @@ export function CommentsSheet({
     if (!body) return;
     setBusy(true);
     try {
-      const res = await send<{ notified: string[] }>(api("/comments"), "POST", {
-        subject,
-        id,
-        body,
-      });
-      setDraft("");
+      let notified: string[];
+      if (edit.editing) {
+        notified = await edit.save(body);
+      } else {
+        notified = (
+          await send<{ notified: string[] }>(api("/comments"), "POST", { subject, id, body })
+        ).notified;
+        setDraft("");
+      }
       await mutate();
       await mutateMe();
       await globalMutate(api("/inbox"));
-      if (res.notified.length > 0) toast(`נשלח מייל ל${res.notified.join(", ")}`, "ok");
+      if (notified.length > 0) toast(`נשלח מייל ל${notified.join(", ")}`, "ok");
     } catch (err) {
-      toast(err instanceof ApiError ? err.message : "לא הצלחנו לשלוח");
+      // Deleted on another device meanwhile: say so, leave edit mode, show what's there.
+      if (err instanceof ApiError && err.status === 404 && edit.editing) {
+        edit.cancel();
+        void mutate();
+      }
+      toast(err instanceof ApiError ? err.message : edit.editing ? "לא הצלחנו לשמור" : "לא הצלחנו לשלוח");
     } finally {
       setBusy(false);
     }
@@ -203,12 +219,23 @@ export function CommentsSheet({
                 <div className="min-w-0 flex-1 rounded-2xl rounded-ts-sm bg-white/5 px-3 py-2">
                   <div className="flex items-baseline gap-2">
                     <span className="text-xs font-bold">{c.author.name}</span>
-                    <span className="text-[10px] text-white/30">{formatRelative(c.createdAt)}</span>
+                    <span className="text-[10px] text-white/30">
+                      {formatRelative(c.createdAt)}
+                      <Edited at={c.editedAt} />
+                    </span>
+                    {c.author.id === myId && !viewer && (
+                      <span className="ms-auto">
+                        <EditButton onClick={() => edit.start(c)} />
+                      </span>
+                    )}
                     {(c.author.id === myId || me?.user.isAdmin) && (
                       <button
                         onClick={() => remove(c.id)}
                         aria-label="למחוק תגובה"
-                        className="ms-auto text-white/25 active:text-rose-300"
+                        className={cn(
+                          "text-white/25 active:text-rose-300",
+                          !(c.author.id === myId && !viewer) && "ms-auto",
+                        )}
                       >
                         <Trash2 className="size-3.5" />
                       </button>
@@ -225,19 +252,103 @@ export function CommentsSheet({
       </div>
 
       <form onSubmit={submit} className="mt-4 border-t border-white/10 pt-3">
-        <MentionBox value={draft} onChange={setDraft} people={people} boxRef={boxRef} />
+        {edit.editing && <EditBar onCancel={edit.cancel} />}
+        <MentionBox
+          value={draft}
+          onChange={setDraft}
+          people={people}
+          boxRef={boxRef}
+          onEscape={edit.editing ? edit.cancel : undefined}
+        />
         <button
           type="submit"
           disabled={busy || !draft.trim()}
           className="tap mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500/25 text-sm font-semibold text-brand-100 transition active:scale-95 disabled:opacity-30"
         >
-          {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-          לשלוח
+          {busy ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : edit.editing ? (
+            <Check className="size-4" />
+          ) : (
+            <Send className="size-4" />
+          )}
+          {edit.editing ? "שמירה" : "לשלוח"}
         </button>
       </form>
     </Modal>
   );
 }
+
+/**
+ * Editing your own message happens in the composer, not in the bubble, so the
+ * list never reflows (the room follows new messages by scroll position). The
+ * draft you had is put aside and comes back on cancel or after saving.
+ */
+export function useEditing(draft: string, setDraft: (v: string) => void, boxRef: React.RefObject<HTMLTextAreaElement | null>) {
+  const { api } = useTrip();
+  const [editing, setEditing] = useState<{ id: number; stash: string } | null>(null);
+
+  function start(c: { id: number; body: string }) {
+    setEditing({ id: c.id, stash: editing ? editing.stash : draft });
+    setDraft(c.body);
+    boxRef.current?.focus();
+  }
+
+  function cancel() {
+    if (!editing) return;
+    setDraft(editing.stash);
+    setEditing(null);
+  }
+
+  /** Saves; returns who was newly tagged. Throws the API error for the caller's toast. */
+  async function save(body: string) {
+    if (!editing) return [];
+    const res = await send<{ notified: string[] }>(api(`/comments/${editing.id}`), "PATCH", { body });
+    setDraft(editing.stash);
+    setEditing(null);
+    return res.notified;
+  }
+
+  return { editing, start, cancel, save };
+}
+
+/** Above the composer while editing: what's going on, and the way out. */
+export function EditBar({ onCancel }: { onCancel: () => void }) {
+  return (
+    <div className="mb-2 flex items-center gap-2 rounded-xl border border-line bg-surface ps-3 text-[13px] font-semibold text-ink">
+      <Pencil aria-hidden className="size-3.5 text-muted" />
+      <span className="flex-1">עריכת הודעה</span>
+      <button
+        type="button"
+        onClick={onCancel}
+        aria-label="ביטול עריכה"
+        className="tap grid place-items-center text-muted active:scale-95"
+      >
+        <X className="size-4" />
+      </button>
+    </div>
+  );
+}
+
+/**
+ * The pencil on your own bubble. Small to look at, but its hit area is
+ * stretched to 44px so it fits a bubble's header without growing it.
+ */
+export function EditButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="לערוך הודעה"
+      className="relative grid size-6 place-items-center text-muted after:absolute after:-inset-2.5 after:content-[''] active:scale-95"
+    >
+      <Pencil className="size-3.5" />
+    </button>
+  );
+}
+
+/** Beside the time on an edited message. Inherits the time's size and colour. */
+export const Edited = ({ at }: { at: string | null }) => (at ? <span> (נערך)</span> : null);
 
 /**
  * Textarea with an @ picker.
@@ -253,6 +364,7 @@ export function MentionBox({
   boxRef,
   rows = 2,
   placeholder = "לכתוב תגובה… אפשר לתייג עם @",
+  onEscape,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -260,6 +372,8 @@ export function MentionBox({
   boxRef: React.RefObject<HTMLTextAreaElement | null>;
   rows?: number;
   placeholder?: string;
+  /** Escape while no picker is open, e.g. to leave edit mode. Stops the sheet closing too. */
+  onEscape?: () => void;
 }) {
   // The word being typed after an @, if the caret sits inside one.
   const partial = /(?:^|\s)@([^\s@]*)$/.exec(value)?.[1];
@@ -282,6 +396,13 @@ export function MentionBox({
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       e.currentTarget.form?.requestSubmit();
+      return;
+    }
+    if (e.key === "Escape" && onEscape && options.length === 0) {
+      // The overlay closes on Escape from a window listener; this one is first.
+      e.preventDefault();
+      e.stopPropagation();
+      onEscape();
       return;
     }
     if (options.length === 0 || e.nativeEvent.isComposing) return;

@@ -1,11 +1,11 @@
 "use client";
 
-import { ArrowRight, Loader2, MessagesSquare, Send, Trash2 } from "lucide-react";
+import { ArrowRight, Check, Loader2, MessagesSquare, Send, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 
-import { MentionBox, highlight } from "@/components/comments";
+import { EditBar, EditButton, Edited, MentionBox, highlight, useEditing } from "@/components/comments";
 import { toast } from "@/components/toast";
 import { UserAvatar } from "@/components/user-avatar";
 import { ApiError, fetcher, send, swrConfig } from "@/lib/api";
@@ -48,6 +48,7 @@ export default function RoomPage() {
   const boxRef = useRef<HTMLTextAreaElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastId = useRef<number | null>(null);
+  const edit = useEditing(draft, setDraft, boxRef);
   useKeyboardFlag();
 
   const messages = data?.messages ?? [];
@@ -93,13 +94,24 @@ export default function RoomPage() {
     if (!body) return;
     setBusy(true);
     try {
-      const res = await send<{ notified: string[] }>(api("/chat"), "POST", { body });
-      setDraft("");
-      lastId.current = null; // your own message always scrolls into view
+      let notified: string[];
+      if (edit.editing) {
+        // Updates in place: no scroll, the bubble keeps its spot.
+        notified = await edit.save(body);
+      } else {
+        notified = (await send<{ notified: string[] }>(api("/chat"), "POST", { body })).notified;
+        setDraft("");
+        lastId.current = null; // your own message always scrolls into view
+      }
       await mutate();
-      if (res.notified.length > 0) toast(`נשלח מייל ל${res.notified.join(", ")}`, "ok");
+      if (notified.length > 0) toast(`נשלח מייל ל${notified.join(", ")}`, "ok");
     } catch (err) {
-      toast(err instanceof ApiError ? err.message : "לא הצלחנו לשלוח");
+      // Deleted on another device meanwhile: say so, leave edit mode, show what's there.
+      if (err instanceof ApiError && err.status === 404 && edit.editing) {
+        edit.cancel();
+        void mutate();
+      }
+      toast(err instanceof ApiError ? err.message : edit.editing ? "לא הצלחנו לשמור" : "לא הצלחנו לשלוח");
     } finally {
       setBusy(false);
     }
@@ -194,7 +206,11 @@ export default function RoomPage() {
                       {highlight(m.body, people)}
                     </p>
                     <div className="mt-0.5 flex items-center gap-2 text-[10px] text-white/30">
-                      <span>{formatRelative(m.createdAt)}</span>
+                      <span>
+                        {formatRelative(m.createdAt)}
+                        <Edited at={m.editedAt} />
+                      </span>
+                      {mine && !viewer && <EditButton onClick={() => edit.start(m)} />}
                       {(mine || me?.user.isAdmin) && (
                         <button
                           onClick={() => remove(m.id)}
@@ -228,6 +244,7 @@ export default function RoomPage() {
           onSubmit={submit}
           className="sticky bottom-(--bottom-nav-h) z-20 -mx-5 mt-4 border-t border-white/10 bg-night-950/90 px-5 py-2.5 backdrop-blur-xl"
         >
+          {edit.editing && <EditBar onCancel={edit.cancel} />}
           <div className="flex items-end gap-2">
             <div className="min-w-0 flex-1">
               <MentionBox
@@ -237,15 +254,22 @@ export default function RoomPage() {
                 boxRef={boxRef}
                 rows={1}
                 placeholder="הודעה לכולם… אפשר לתייג עם @"
+                onEscape={edit.editing ? edit.cancel : undefined}
               />
             </div>
             <button
               type="submit"
               disabled={busy || !draft.trim()}
-              aria-label="לשלוח"
+              aria-label={edit.editing ? "שמירה" : "לשלוח"}
               className="tap grid shrink-0 place-items-center rounded-xl bg-brand-500/25 px-3 text-brand-100 transition active:scale-95 disabled:opacity-30"
             >
-              {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+              {busy ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : edit.editing ? (
+                <Check className="size-4" />
+              ) : (
+                <Send className="size-4" />
+              )}
             </button>
           </div>
         </form>
