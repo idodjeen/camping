@@ -21,7 +21,7 @@ touch neighbouring rows, whoever merges second keeps both rows when syncing with
 
 | Ticket | Status | Branch / PR | Notes |
 |---|---|---|---|
-| [A01 Test setup](../.scratch/redesign-rollout/issues/01-test-setup.md) | ready-for-agent | | |
+| [A01 Test setup](../.scratch/redesign-rollout/issues/01-test-setup.md) | done 2026-10-13 | `claude/a01-test-setup` | `npm test` is Vitest + PGlite |
 | [A02 Shared design parts and states](../.scratch/redesign-rollout/issues/02-shared-design-parts.md) | ready-for-agent | | P02 also touches the filter chips and the side sheet: whichever merges second syncs with `main` |
 | [P01 Production skips docs-only commits](../.scratch/perf-sprint/issues/01-skip-docs-builds.md) | done 2026-10-10 | [#32](https://github.com/idodjeen/camping/pull/32) | |
 | [P02 Instant switching](../.scratch/perf-sprint/issues/02-instant-switching.md) | done 2026-10-10 | [#34](https://github.com/idodjeen/camping/pull/34) | [#33](https://github.com/idodjeen/camping/pull/33) merged into #32's branch, not `main`; #34 is the same code |
@@ -35,16 +35,16 @@ touch neighbouring rows, whoever merges second keeps both rows when syncing with
 | [A06 Shopping](../.scratch/redesign-rollout/issues/06-shopping.md) | blocked: A02 | | |
 | [A07 Meals](../.scratch/redesign-rollout/issues/07-meals.md) | blocked: A02 | | |
 | [A08 Expenses and the new expense pop-up](../.scratch/redesign-rollout/issues/08-expenses.md) | blocked: A02 | | |
-| [A09 Trips, memberships and the trip switcher](../.scratch/redesign-rollout/issues/09-trips-and-memberships.md) | blocked: A01, A02 | | |
+| [A09 Trips, memberships and the trip switcher](../.scratch/redesign-rollout/issues/09-trips-and-memberships.md) | blocked: A02 | | |
 | [A10 Notifications](../.scratch/redesign-rollout/issues/10-notifications.md) | blocked: A02, A04 | | |
 | [A11 Trip settings details and the reminder card](../.scratch/redesign-rollout/issues/11-trip-settings-details.md) | blocked: A02 | | |
 | [A12 Sign-in](../.scratch/redesign-rollout/issues/12-sign-in.md) | blocked: A02 | | |
-| [A13 Group admin](../.scratch/redesign-rollout/issues/13-group-admin.md) | blocked: A02, A11 | | |
+| [A13 Group admin](../.scratch/redesign-rollout/issues/13-group-admin.md) | blocked: A02, A11 | | Keeps the trip frame (Ido, 2026-10-13) |
 | [A14 Leaderboard](../.scratch/redesign-rollout/issues/14-leaderboard.md) | blocked: A02 | | |
-| [A15 Super admin](../.scratch/redesign-rollout/issues/15-super-admin.md) | blocked: A02, A13 | | |
+| [A15 Super admin](../.scratch/redesign-rollout/issues/15-super-admin.md) | blocked: A02, A13 | | Keeps the trip frame (Ido, 2026-10-13) |
 | [A16 Real-phone check, rollout](../.scratch/redesign-rollout/issues/16-phone-check.md) | blocked: A03-A15 | | |
 | [B01 Draw the 8 boards](../.scratch/new-screens/issues/01-boards.md) | ready-for-agent | | |
-| [B02 Chat list](../.scratch/new-screens/issues/02-chat-list.md) | blocked: B01, A01, A02, A04 | | |
+| [B02 Chat list](../.scratch/new-screens/issues/02-chat-list.md) | blocked: B01, A02, A04 | | |
 | [B03 Account, guide and menu](../.scratch/new-screens/issues/03-account-and-guide.md) | blocked: B01, A09, A11 | | |
 | [B04 Personal list](../.scratch/new-screens/issues/04-personal-list.md) | blocked: B01, A03 | | |
 | [B05 New trip sheet](../.scratch/new-screens/issues/05-new-trip-sheet.md) | blocked: B01, A09, A13 | | |
@@ -66,6 +66,10 @@ an ADR if they qualify), and a line under **Changes** below.
   also waits for P03. Order: P01, P02, P03, measure and report to Ido, then P04, P05, P06.
 - 2026-10-10: P01 merged (#32). P02's #33 was stacked on #32 and merged into #32's branch, so #34
   brings the same code to `main`.
+
+- 2026-10-13: Ido: the group admin and super admin pages keep the trip frame (header and tab bar) and get a
+  loading state (A13, A15). P03 merged, so A03 waits only on A02 again. A01 done: `npm test` runs
+  Vitest 3 + PGlite (Vitest 5 needs Node 22.12+).
 
 ## Order
 
