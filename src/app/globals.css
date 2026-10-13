@@ -286,6 +286,14 @@ body {
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--pb-safe-extra, 0px));
 }
 
+/* Every trip screen fades in from 40% (app/(app)/t/[tripId]/template.tsx).
+   No fill-mode, so nothing stays on the element once it ends; the
+   reduced-motion rule below caps it to ~0ms. */
+@keyframes page-in {
+  from { opacity: 0.4; }
+}
+.page-in { animation: page-in 150ms ease-out; }
+
 @keyframes claim-pulse {
   0%   { box-shadow: 0 0 0 0 color-mix(in oklab, var(--c-cta) 55%, transparent); }
   70%  { box-shadow: 0 0 0 12px color-mix(in oklab, var(--c-cta) 0%, transparent); }

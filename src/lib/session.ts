@@ -13,10 +13,15 @@ import type { User } from "@/db/schema";
  * group a request is about, and live in lib/access.ts.
  */
 export async function getCurrentUser(): Promise<User | null> {
-  const session = await auth();
-  const email = session?.user?.email;
+  const email = await sessionEmail();
   if (!email) return null;
   return findActiveUser(email);
+}
+
+/** The session's email, with no database read: the JWT carries it. */
+export async function sessionEmail(): Promise<string | null> {
+  const session = await auth();
+  return session?.user?.email ?? null;
 }
 
 export class HttpError extends Error {
@@ -28,13 +33,15 @@ export class HttpError extends Error {
   }
 }
 
+export const notSignedIn = () => new HttpError(401, "לא מחובר");
+
 /**
  * Any signed-in person, for the few routes that are about the person rather
  * than a trip: notification preferences, push devices, onboarding.
  */
 export async function requireSignedIn(): Promise<User> {
   const user = await getCurrentUser();
-  if (!user) throw new HttpError(401, "לא מחובר");
+  if (!user) throw notSignedIn();
   return user;
 }
 

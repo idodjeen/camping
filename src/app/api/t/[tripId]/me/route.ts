@@ -15,19 +15,23 @@ export function GET(_req: Request, ctx: TripParams) {
     const access = await tripRoute(ctx);
     const { trip, user: me } = access;
 
-    const claims = await db.query.gearClaims.findMany({
-      where: eq(gearClaims.userId, me.id),
-      with: { item: { with: { category: true } } },
-    });
-
-    // Scoped to the session user's id. The client never supplies a user id
-    // anywhere in this file; that is the entire privacy guarantee for the
-    // personal list.
-    const personal = await db
-      .select()
-      .from(personalItems)
-      .where(and(eq(personalItems.userId, me.id), eq(personalItems.tripId, trip.id)))
-      .orderBy(asc(personalItems.sort), asc(personalItems.id));
+    // Independent reads, so one round trip for all four.
+    const [claims, personal, unreadMentions, people] = await Promise.all([
+      db.query.gearClaims.findMany({
+        where: eq(gearClaims.userId, me.id),
+        with: { item: { with: { category: true } } },
+      }),
+      // Scoped to the session user's id. The client never supplies a user id
+      // anywhere in this file; that is the entire privacy guarantee for the
+      // personal list.
+      db
+        .select()
+        .from(personalItems)
+        .where(and(eq(personalItems.userId, me.id), eq(personalItems.tripId, trip.id)))
+        .orderBy(asc(personalItems.sort), asc(personalItems.id)),
+      legacyUnreadMentions(me.id, trip.id),
+      tripPeople(trip.id),
+    ]);
 
     return {
       // For text that names the trip: the reminder panel, the copied lists.
@@ -57,10 +61,10 @@ export function GET(_req: Request, ctx: TripParams) {
         .sort((a, b) => a.categoryName.localeCompare(b.categoryName, "he")),
       personal,
       // ADAPTER for one release, removed in H: the nav now counts from /inbox.
-      unreadMentions: await legacyUnreadMentions(me.id, trip.id),
+      unreadMentions,
       // The trip's people, for the @ picker. Small enough to ride along rather
       // than making the composer fetch a roster of its own.
-      people: (await tripPeople(trip.id)).map((u) => ({
+      people: people.map((u) => ({
         id: u.id,
         name: u.name,
         slug: u.slug,

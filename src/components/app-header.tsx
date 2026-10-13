@@ -5,13 +5,11 @@ import type { Route } from "next";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import useSWR from "swr";
 
 import { Modal } from "@/components/modal";
 import { NotificationsBell } from "@/components/notifications";
 import { SideSheet } from "@/components/side-sheet";
 import { ThemeSwitch } from "@/components/theme-switch";
-import { fetcher, swrConfig } from "@/lib/api";
 import { useInbox } from "@/lib/inbox-client";
 import {
   SECONDARY,
@@ -23,13 +21,12 @@ import {
   type NavItem,
   type Unread,
 } from "@/lib/nav";
+import { markTap } from "@/lib/tap-timer";
 import { useTrip } from "@/lib/trip-client";
 import { cn } from "@/lib/utils";
 
 /** A trip the switcher can open; the layout loads the list on the server. */
 export type TripOption = { id: number; name: string; groupId: number; groupName: string };
-
-type Me = { user: { isAdmin: boolean; isSuperAdmin: boolean } };
 
 /**
  * The header on every trip screen: the menu at the start edge, the group and
@@ -40,18 +37,16 @@ type Me = { user: { isAdmin: boolean; isSuperAdmin: boolean } };
  * page and its sheets are never trapped by the template's transform. Its
  * height is --app-header-h (globals.css), which the bars that park under it
  * also read.
+ *
+ * `roles` come from the layout, which already read them on the server, so the
+ * menu's admin rows are there the first time it opens.
  */
-export function AppHeader({ trips }: { trips: TripOption[] }) {
-  const { api, id } = useTrip();
-  const { data } = useSWR<Me>(api("/me"), fetcher, swrConfig);
+export function AppHeader({ trips, roles }: { trips: TripOption[]; roles: MenuRoles }) {
+  const { id } = useTrip();
   // Same key the bell and the bottom nav poll, so the badges cost no extra request.
   const { data: inbox } = useInbox();
   const tags = inbox?.counts.tags;
   const [menu, setMenu] = useState(false);
-  const roles: MenuRoles = {
-    isAdmin: data?.user.isAdmin ?? false,
-    isSuperAdmin: data?.user.isSuperAdmin ?? false,
-  };
   const waiting = menuBadge(tags, roles);
 
   return (
@@ -177,9 +172,15 @@ function MenuRow({
   return (
     <Link
       href={href}
+      // Rendered only while the menu is open, so this prefetches as it opens
+      // and the tap a moment later doesn't wait for the server.
+      prefetch
       // Closes from the tap itself, not on a pathname change, so tapping
       // the screen you are already on closes the menu too.
-      onClick={onPick}
+      onClick={() => {
+        onPick();
+        markTap(href, "menu");
+      }}
       aria-current={active ? "page" : undefined}
       className={cn(
         "flex min-h-14 items-center gap-3 rounded-card px-2 transition-colors",

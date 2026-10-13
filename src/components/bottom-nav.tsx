@@ -3,9 +3,11 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
 import { useInbox } from "@/lib/inbox-client";
 import { PRIMARY, badgeFor, isActive } from "@/lib/nav";
+import { markTap } from "@/lib/tap-timer";
 import { useTrip } from "@/lib/trip-client";
 import { cn } from "@/lib/utils";
 
@@ -20,11 +22,17 @@ import { cn } from "@/lib/utils";
  * which the layout's padding and the room composer also read. The room sets
  * data-keyboard="open" on <html> while the keyboard is up, which hides the
  * bar and zeroes that variable.
+ *
+ * Every tab is prefetched in full, so a tap switches without waiting for the
+ * server. The tapped tab lights up on the tap itself: `tapped` wins while the
+ * URL is still the one it was tapped on, and falls away once the route moves.
  */
 export function BottomNav() {
   const { page, local } = useTrip();
   // Tabs are compared as short paths ("/gear"), whatever trip this is.
   const pathname = local(usePathname());
+  const [tapped, setTapped] = useState<{ href: string; on: string } | null>(null);
+  const current = tapped?.on === pathname ? tapped.href : pathname;
   // The bell's own poll, so the badges cost no extra request.
   const unread = useInbox().data?.counts.tags;
 
@@ -36,12 +44,17 @@ export function BottomNav() {
     >
       <div className="pointer-events-auto mx-auto flex h-17 w-full max-w-md items-center justify-around rounded-full bg-nav px-2.5 shadow-[0_10px_30px_var(--c-shadow)]">
         {PRIMARY.map(({ href, label, Icon }) => {
-          const active = isActive(href, pathname);
+          const active = isActive(href, current);
           const badge = badgeFor(href, unread);
           return (
             <Link
               key={href}
               href={page(href)}
+              prefetch
+              onClick={() => {
+                setTapped({ href, on: pathname });
+                markTap(page(href), "tab");
+              }}
               aria-current={active ? "page" : undefined}
               aria-label={active ? undefined : badge > 0 ? `${label}, ${badge} חדשות` : label}
               className={cn(
