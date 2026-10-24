@@ -35,6 +35,8 @@ export type CommentView = {
   id: number;
   body: string;
   createdAt: string;
+  /** Set once the author has changed the text: "(נערך)". */
+  editedAt: string | null;
   author: { id: number; name: string; slug: string; avatarUrl: string | null };
   mentions: string[];
 };
@@ -74,6 +76,7 @@ export async function getThread(
     id: c.id,
     body: c.body,
     createdAt: c.createdAt.toISOString(),
+    editedAt: c.editedAt?.toISOString() ?? null,
     author: {
       id: c.author.id,
       name: c.author.name,
@@ -96,7 +99,7 @@ export async function getThread(
  * The negative lookahead stops "@ניר" also matching a longer name starting
  * with the same letters.
  */
-export function findMentions(body: string, people: { id: number; name: string }[]) {
+export function findMentions<P extends { id: number; name: string }>(body: string, people: P[]): P[] {
   const has = (name: string) => {
     const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     return new RegExp(`@${escaped}(?![\\p{L}\\p{N}])`, "u").test(body + " ");
@@ -107,6 +110,33 @@ export function findMentions(body: string, people: { id: number; name: string }[
   return people.filter((p) => has(p.name));
 }
 
+/** The same 400s for sending and editing. */
+function cleanBody(raw: string) {
+  const body = raw.trim();
+  if (!body) throw new HttpError(400, "אי אפשר לשלוח תגובה ריקה");
+  if (body.length > 1000) throw new HttpError(400, "התגובה ארוכה מדי");
+  return body;
+}
+
+/** What every notify() about one comment shares: its thread, its row, its push text. */
+function notifyBase(
+  tripId: number,
+  authorId: number,
+  subject: Subject | null,
+  subjectId: number | null,
+  commentId: number,
+  label: string,
+  body: string,
+) {
+  return {
+    tripId,
+    actorId: authorId,
+    thread: subject ? THREAD.item(subject, subjectId!) : THREAD.chat,
+    refs: { commentId },
+    push: { label, preview: body.length > 120 ? `${body.slice(0, 117)}…` : body },
+  };
+}
+
 export async function createComment(
   tripId: number,
   authorId: number,
@@ -115,9 +145,7 @@ export async function createComment(
   subjectId: number | null,
   rawBody: string,
 ) {
-  const body = rawBody.trim();
-  if (!body) throw new HttpError(400, "אי אפשר לשלוח תגובה ריקה");
-  if (body.length > 1000) throw new HttpError(400, "התגובה ארוכה מדי");
+  const body = cleanBody(rawBody);
 
   // A comment on an item from another trip would be refused by the composite
   // FK anyway; checking first turns that 500 into a clean 404.
@@ -143,13 +171,7 @@ export async function createComment(
 
   // Best-effort, like the email: notify() logs and never throws, so losing a
   // bell row can't lose the message.
-  const common = {
-    tripId,
-    actorId: authorId,
-    thread: subject ? THREAD.item(subject, subjectId!) : THREAD.chat,
-    refs: { commentId: created.id },
-    push: { label, preview: body.length > 120 ? `${body.slice(0, 117)}…` : body },
-  };
+  const common = notifyBase(tripId, authorId, subject, subjectId, created.id, label, body);
   await notify({ ...common, kind: "mention", to: mentioned.map((p) => p.id) });
   // Everyone else who asked to hear about messages. Not anyone tagged *with*
   // tags switched on: they already have the tag, and two bell rows for one
@@ -164,6 +186,136 @@ export async function createComment(
   });
 
   return { comment: created, mentioned };
+}
+
+/** Which list a comment hangs off, from its three subject columns; null is the general chat. */
+const subjectOf = (c: { gearItemId: number | null; shoppingItemId: number | null; mealId: number | null }) =>
+  c.gearItemId !== null ? (["gear", c.gearItemId] as const)
+  : c.shoppingItemId !== null ? (["shopping", c.shoppingItemId] as const)
+  : c.mealId !== null ? (["meal", c.mealId] as const)
+  : ([null, null] as const);
+
+/**
+ * The author changes their own message. Tags are derived from the text, so
+ * they are derived again: people newly named are tagged and hear about it
+ * (bell, push, and the caller emails them); people no longer named lose the
+ * tag and keep the plain message row they'd have had if never tagged, with the
+ * tag's read state; everyone else hears nothing.
+ *
+ * The row lock serialises two devices editing at once, so the before and after
+ * of one edit are never mixed with another's. A body that is the same after
+ * trimming changes nothing, not even edited_at.
+ */
+export async function updateComment(tripId: number, userId: number, commentId: number, rawBody: string) {
+  const body = cleanBody(rawBody);
+  const people = await tripPeople(tripId);
+
+  const result = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(comments)
+      .where(and(eq(comments.id, commentId), eq(comments.tripId, tripId)))
+      .for("update");
+    if (!row) throw new HttpError(404, "ההודעה לא נמצאה");
+    // Authors only; group admins can delete anyone's message but not put words in it.
+    if (row.userId !== userId) throw new HttpError(403, "אפשר לערוך רק הודעות שלך");
+    if (row.body === body) return { row, added: [] as typeof people };
+
+    const tags = await tx
+      .select({ userId: notifications.userId, readAt: notifications.readAt })
+      .from(notifications)
+      .where(and(eq(notifications.commentId, commentId), eq(notifications.kind, "mention")));
+    const before = new Set(tags.map((t) => t.userId));
+    const after = findMentions(body, people).filter((p) => p.id !== userId);
+    const added = after.filter((p) => !before.has(p.id));
+    const removed = tags.filter((t) => !after.some((p) => p.id === t.userId));
+
+    const [updated] = await tx
+      .update(comments)
+      .set({ body, editedAt: new Date() })
+      .where(eq(comments.id, commentId))
+      .returning();
+
+    if (removed.length > 0) {
+      await tx.delete(notifications).where(
+        and(
+          eq(notifications.commentId, commentId),
+          eq(notifications.kind, "mention"),
+          inArray(notifications.userId, removed.map((r) => r.userId)),
+        ),
+      );
+      // The plain message row they'd have had without the tag, if they hear
+      // messages and don't already have one (tagged with tags muted, they do).
+      const [subject, subjectId] = subjectOf(row);
+      const has = new Set(
+        (
+          await tx
+            .select({ userId: notifications.userId })
+            .from(notifications)
+            .where(and(eq(notifications.commentId, commentId), eq(notifications.kind, "message")))
+        ).map((r) => r.userId),
+      );
+      const rows = removed.filter((r) => {
+        const p = people.find((x) => x.id === r.userId);
+        return p && hears(p, "message") && !has.has(r.userId);
+      });
+      if (rows.length > 0) {
+        await tx.insert(notifications).values(
+          rows.map((r) => ({
+            tripId,
+            userId: r.userId,
+            kind: "message" as const,
+            actorId: userId,
+            threadKey: subject ? THREAD.item(subject, subjectId!) : THREAD.chat,
+            commentId,
+            readAt: r.readAt,
+          })),
+        );
+      }
+    }
+    return { row: updated, added };
+  });
+
+  const { row, added } = result;
+  const [subject, subjectId] = subjectOf(row);
+  const label = subject ? await subjectLabel(tripId, subject, subjectId!) : "צ׳אט כללי";
+  if (added.length > 0) {
+    // After the commit, like every notify(): tag rows, and a push to the newly
+    // tagged only. The mention index makes a second device's edit a no-op here.
+    await notify({
+      ...notifyBase(tripId, userId, subject, subjectId, commentId, label, body),
+      kind: "mention",
+      to: added.map((p) => p.id),
+    });
+    // The tag replaces their plain message row, as when sending: one bell row
+    // per message. Only where the tag row really landed (notify() never throws).
+    const hearing = added.filter((p) => hears(p, "mention")).map((p) => p.id);
+    const tagged =
+      hearing.length === 0
+        ? []
+        : (
+            await db
+              .select({ userId: notifications.userId })
+              .from(notifications)
+              .where(
+                and(
+                  eq(notifications.commentId, commentId),
+                  eq(notifications.kind, "mention"),
+                  inArray(notifications.userId, hearing),
+                ),
+              )
+          ).map((r) => r.userId);
+    if (tagged.length > 0) {
+      await db.delete(notifications).where(
+        and(
+          eq(notifications.commentId, commentId),
+          eq(notifications.kind, "message"),
+          inArray(notifications.userId, tagged),
+        ),
+      );
+    }
+  }
+  return { comment: row, added, label };
 }
 
 /**
@@ -197,6 +349,7 @@ export type ChatMessage = {
   subjectLabel: string;
   body: string;
   createdAt: string;
+  editedAt: string | null;
   author: { id: number; name: string; slug: string; avatarUrl: string | null };
   /** Is this message addressed to me, and have I not opened it yet? */
   taggedMe: boolean;
@@ -263,6 +416,7 @@ export async function listChat(
       subjectLabel: label,
       body: c.body,
       createdAt: c.createdAt.toISOString(),
+      editedAt: c.editedAt?.toISOString() ?? null,
       author: {
         id: c.author.id,
         name: c.author.name,
