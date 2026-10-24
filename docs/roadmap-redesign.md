@@ -30,7 +30,7 @@ touch neighbouring rows, whoever merges second keeps both rows when syncing with
 | [P05 Other tabs' data in the background](../.scratch/perf-sprint/issues/05-preload-other-tabs.md) | blocked: P04 | | |
 | [P06 Move to Frankfurt](../.scratch/perf-sprint/issues/06-frankfurt-move.md) | blocked: the measure step | | Ido runs the production database steps and gives each go |
 | [A03 Gear](../.scratch/redesign-rollout/issues/03-gear.md) | ready-for-agent | | |
-| [A04 Item thread](../.scratch/redesign-rollout/issues/04-item-thread.md) | claimed | `claude/a04-thread` | Stacked on #37 and #31 |
+| [A04 Item thread](../.scratch/redesign-rollout/issues/04-item-thread.md) | done 2026-10-24 | [#39](https://github.com/idodjeen/camping/pull/39) | Stacked on #37 and #31: merge both first. P04 after this (both touch `comments.tsx`) |
 | [A05 General chat](../.scratch/redesign-rollout/issues/05-general-chat.md) | ready-for-agent | | |
 | [A06 Shopping](../.scratch/redesign-rollout/issues/06-shopping.md) | ready-for-agent | | |
 | [A07 Meals](../.scratch/redesign-rollout/issues/07-meals.md) | ready-for-agent | | |
