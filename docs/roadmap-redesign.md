@@ -22,7 +22,7 @@ touch neighbouring rows, whoever merges second keeps both rows when syncing with
 | Ticket | Status | Branch / PR | Notes |
 |---|---|---|---|
 | [A01 Test setup](../.scratch/redesign-rollout/issues/01-test-setup.md) | ready-for-agent | | |
-| [A02 Shared design parts and states](../.scratch/redesign-rollout/issues/02-shared-design-parts.md) | done 2026-10-24 | `claude/a02-shared-parts` | P02 also touches the filter chips and the side sheet: whichever merges second syncs with `main` |
+| [A02 Shared design parts and states](../.scratch/redesign-rollout/issues/02-shared-design-parts.md) | done 2026-10-24 | [#37](https://github.com/idodjeen/camping/pull/37) | P02 also touches the filter chips and the side sheet: whichever merges second syncs with `main` |
 | [P01 Production skips docs-only commits](../.scratch/perf-sprint/issues/01-skip-docs-builds.md) | done 2026-10-10 | [#32](https://github.com/idodjeen/camping/pull/32) | |
 | [P02 Instant switching](../.scratch/perf-sprint/issues/02-instant-switching.md) | done 2026-10-10 | [#34](https://github.com/idodjeen/camping/pull/34) | [#33](https://github.com/idodjeen/camping/pull/33) merged into #32's branch, not `main`; #34 is the same code |
 | [P03 Less server work per request](../.scratch/perf-sprint/issues/03-less-server-work.md) | done 2026-10-13 | [#35](https://github.com/idodjeen/camping/pull/35) | Then measure P01-P03 and report to Ido |
