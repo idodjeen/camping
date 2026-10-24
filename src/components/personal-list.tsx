@@ -6,6 +6,7 @@ import { useState } from "react";
 import useSWR from "swr";
 
 import { Modal } from "@/components/modal";
+import { CheckBox } from "@/components/ui/controls";
 import { toast } from "@/components/toast";
 import { ApiError, fetcher, send, swrConfig } from "@/lib/api";
 import { burstFrom } from "@/lib/confetti";
@@ -317,34 +318,5 @@ export function PersonalList() {
           </form>
         </Modal>
       </section>
-  );
-}
-
-export function CheckBox({
-  checked,
-  onToggle,
-  label,
-  id,
-}: {
-  id?: string;
-  checked: boolean;
-  onToggle: (el: Element | null) => void;
-  label: string;
-}) {
-  return (
-    <button
-      id={id}
-      onClick={(e) => onToggle(e.currentTarget)}
-      aria-pressed={checked}
-      aria-label={label}
-      className={cn(
-        "tap grid size-7 shrink-0 place-items-center rounded-lg border transition active:scale-90",
-        checked
-          ? "border-aqua-400/50 bg-aqua-500/25 text-aqua-200"
-          : "border-white/15 bg-white/5 text-transparent",
-      )}
-    >
-      <Check className="size-4" strokeWidth={3} />
-    </button>
   );
 }

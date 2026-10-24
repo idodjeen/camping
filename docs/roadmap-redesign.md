@@ -22,35 +22,35 @@ touch neighbouring rows, whoever merges second keeps both rows when syncing with
 | Ticket | Status | Branch / PR | Notes |
 |---|---|---|---|
 | [A01 Test setup](../.scratch/redesign-rollout/issues/01-test-setup.md) | ready-for-agent | | |
-| [A02 Shared design parts and states](../.scratch/redesign-rollout/issues/02-shared-design-parts.md) | ready-for-agent | | P02 also touches the filter chips and the side sheet: whichever merges second syncs with `main` |
+| [A02 Shared design parts and states](../.scratch/redesign-rollout/issues/02-shared-design-parts.md) | done 2026-10-24 | `claude/a02-shared-parts` | P02 also touches the filter chips and the side sheet: whichever merges second syncs with `main` |
 | [P01 Production skips docs-only commits](../.scratch/perf-sprint/issues/01-skip-docs-builds.md) | done 2026-10-10 | [#32](https://github.com/idodjeen/camping/pull/32) | |
 | [P02 Instant switching](../.scratch/perf-sprint/issues/02-instant-switching.md) | done 2026-10-10 | [#34](https://github.com/idodjeen/camping/pull/34) | [#33](https://github.com/idodjeen/camping/pull/33) merged into #32's branch, not `main`; #34 is the same code |
 | [P03 Less server work per request](../.scratch/perf-sprint/issues/03-less-server-work.md) | done 2026-10-13 | [#35](https://github.com/idodjeen/camping/pull/35) | Then measure P01-P03 and report to Ido |
 | [P04 Comment sheet only when opened](../.scratch/perf-sprint/issues/04-comment-sheet-on-open.md) | blocked: the measure step | | Merge after #31 (both touch `comments.tsx`) |
 | [P05 Other tabs' data in the background](../.scratch/perf-sprint/issues/05-preload-other-tabs.md) | blocked: P04 | | |
 | [P06 Move to Frankfurt](../.scratch/perf-sprint/issues/06-frankfurt-move.md) | blocked: the measure step | | Ido runs the production database steps and gives each go |
-| [A03 Gear](../.scratch/redesign-rollout/issues/03-gear.md) | blocked: A02 | | |
-| [A04 Item thread](../.scratch/redesign-rollout/issues/04-item-thread.md) | blocked: A02 | | |
-| [A05 General chat](../.scratch/redesign-rollout/issues/05-general-chat.md) | blocked: A02, A04 | | |
-| [A06 Shopping](../.scratch/redesign-rollout/issues/06-shopping.md) | blocked: A02 | | |
-| [A07 Meals](../.scratch/redesign-rollout/issues/07-meals.md) | blocked: A02 | | |
-| [A08 Expenses and the new expense pop-up](../.scratch/redesign-rollout/issues/08-expenses.md) | blocked: A02 | | |
-| [A09 Trips, memberships and the trip switcher](../.scratch/redesign-rollout/issues/09-trips-and-memberships.md) | blocked: A01, A02 | | |
-| [A10 Notifications](../.scratch/redesign-rollout/issues/10-notifications.md) | blocked: A02, A04 | | |
-| [A11 Trip settings details and the reminder card](../.scratch/redesign-rollout/issues/11-trip-settings-details.md) | blocked: A02 | | |
-| [A12 Sign-in](../.scratch/redesign-rollout/issues/12-sign-in.md) | blocked: A02 | | |
-| [A13 Group admin](../.scratch/redesign-rollout/issues/13-group-admin.md) | blocked: A02, A11 | | |
-| [A14 Leaderboard](../.scratch/redesign-rollout/issues/14-leaderboard.md) | blocked: A02 | | |
-| [A15 Super admin](../.scratch/redesign-rollout/issues/15-super-admin.md) | blocked: A02, A13 | | |
+| [A03 Gear](../.scratch/redesign-rollout/issues/03-gear.md) | ready-for-agent | | |
+| [A04 Item thread](../.scratch/redesign-rollout/issues/04-item-thread.md) | ready-for-agent | | |
+| [A05 General chat](../.scratch/redesign-rollout/issues/05-general-chat.md) | blocked: A04 | | |
+| [A06 Shopping](../.scratch/redesign-rollout/issues/06-shopping.md) | ready-for-agent | | |
+| [A07 Meals](../.scratch/redesign-rollout/issues/07-meals.md) | ready-for-agent | | |
+| [A08 Expenses and the new expense pop-up](../.scratch/redesign-rollout/issues/08-expenses.md) | ready-for-agent | | |
+| [A09 Trips, memberships and the trip switcher](../.scratch/redesign-rollout/issues/09-trips-and-memberships.md) | blocked: A01 | | |
+| [A10 Notifications](../.scratch/redesign-rollout/issues/10-notifications.md) | blocked: A04 | | |
+| [A11 Trip settings details and the reminder card](../.scratch/redesign-rollout/issues/11-trip-settings-details.md) | ready-for-agent | | |
+| [A12 Sign-in](../.scratch/redesign-rollout/issues/12-sign-in.md) | ready-for-agent | | |
+| [A13 Group admin](../.scratch/redesign-rollout/issues/13-group-admin.md) | blocked: A11 | | |
+| [A14 Leaderboard](../.scratch/redesign-rollout/issues/14-leaderboard.md) | ready-for-agent | | |
+| [A15 Super admin](../.scratch/redesign-rollout/issues/15-super-admin.md) | blocked: A13 | | |
 | [A16 Real-phone check, rollout](../.scratch/redesign-rollout/issues/16-phone-check.md) | blocked: A03-A15 | | |
 | [B01 Draw the 8 boards](../.scratch/new-screens/issues/01-boards.md) | ready-for-agent | | |
-| [B02 Chat list](../.scratch/new-screens/issues/02-chat-list.md) | blocked: B01, A01, A02, A04 | | |
+| [B02 Chat list](../.scratch/new-screens/issues/02-chat-list.md) | blocked: B01, A01, A04 | | |
 | [B03 Account, guide and menu](../.scratch/new-screens/issues/03-account-and-guide.md) | blocked: B01, A09, A11 | | |
 | [B04 Personal list](../.scratch/new-screens/issues/04-personal-list.md) | blocked: B01, A03 | | |
 | [B05 New trip sheet](../.scratch/new-screens/issues/05-new-trip-sheet.md) | blocked: B01, A09, A13 | | |
 | [B06 Meals and categories tabs](../.scratch/new-screens/issues/06-meals-and-categories-tabs.md) | blocked: B01, A11 | | |
 | [B07 No-access](../.scratch/new-screens/issues/07-no-access.md) | blocked: B01, A11, A13, A15, B06 | | |
-| [B08 What's new](../.scratch/new-screens/issues/08-whats-new.md) | blocked: B01, A02 | | |
+| [B08 What's new](../.scratch/new-screens/issues/08-whats-new.md) | blocked: B01 | | |
 | [B09 Finish the redesign](../.scratch/new-screens/issues/09-finish-the-redesign.md) | blocked: A03-A15, B02-B08 | | |
 | [B10 Real-phone check, new screens](../.scratch/new-screens/issues/10-phone-check.md) | blocked: B02-B09 | | |
 
@@ -66,6 +66,10 @@ an ADR if they qualify), and a line under **Changes** below.
   also waits for P03. Order: P01, P02, P03, measure and report to Ido, then P04, P05, P06.
 - 2026-10-10: P01 merged (#32). P02's #33 was stacked on #32 and merged into #32's branch, so #34
   brings the same code to `main`.
+
+- 2026-10-24: A02 done: the shared parts are in `components/ui/`, with a dev-only gallery at `/dev/ui`.
+  A03, A04, A06, A07, A08, A11, A12 and A14 are ready. A new `scrim` token fixes backdrops that lightened
+  the page in dark mode.
 
 ## Order
 

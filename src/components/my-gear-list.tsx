@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import useSWR from "swr";
 
-import { CheckBox } from "@/components/personal-list";
+import { CheckBox } from "@/components/ui/controls";
 import { toast } from "@/components/toast";
 import { ApiError, fetcher, send, swrConfig } from "@/lib/api";
 import { burstFrom } from "@/lib/confetti";

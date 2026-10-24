@@ -1,6 +1,10 @@
 "use client";
 
+import { RotateCw, TriangleAlert } from "lucide-react";
 import { useEffect } from "react";
+
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/surfaces";
 
 /**
  * What error.tsx and global-error.tsx both show: retry first, since a failed
@@ -13,34 +17,28 @@ export function ErrorCard({ error, retry }: { error: Error & { digest?: string }
   }, [error]);
 
   return (
-    <div className="glass w-full rounded-glass p-8 text-center">
-      <div className="mx-auto mb-5 flex size-14 items-center justify-center rounded-2xl bg-gradient-to-br from-rose-500/80 to-orange-500/80 text-2xl">
-        😵
-      </div>
-      <h1 className="text-xl font-bold">משהו השתבש</h1>
-      <p className="mt-2 text-sm leading-relaxed text-white/60">
+    <Card className="flex w-full flex-col items-center gap-2 p-6 text-center">
+      <span aria-hidden className="mb-1 grid size-[52px] place-items-center rounded-full bg-rose text-rose-ink">
+        <TriangleAlert className="size-6" />
+      </span>
+      <h1 className="font-display text-[22px]">משהו השתבש</h1>
+      <p className="text-sm leading-relaxed text-muted">
         המסך הזה לא נטען. אפשר לנסות שוב, ואם זה לא עוזר, לרענן את האפליקציה.
       </p>
-      <div className="mt-6 flex flex-col gap-2.5">
-        <button
-          onClick={() => retry()}
-          className="tap w-full rounded-2xl bg-gradient-to-l from-brand-500 to-ocean-500 px-5 text-sm font-bold text-white shadow-lg transition active:scale-[0.98]"
-        >
+      <div className="mt-3 flex w-full flex-col gap-2.5">
+        <Button full icon={<RotateCw className="size-[18px]" />} onClick={() => retry()}>
           לנסות שוב
-        </button>
-        <button
-          onClick={() => window.location.reload()}
-          className="tap w-full rounded-2xl border border-white/10 bg-white/5 px-5 text-sm font-semibold transition active:scale-[0.98]"
-        >
+        </Button>
+        <Button variant="secondary" full onClick={() => window.location.reload()}>
           לרענן את האפליקציה
-        </button>
+        </Button>
       </div>
       {/* Server errors reach the client as a digest only; it matches the Vercel log line. */}
       {error.digest && (
-        <p className="mt-5 font-mono text-[11px] tracking-wide text-white/25" dir="ltr">
+        <p className="mt-3 font-mono text-[13px] tracking-wide text-muted" dir="ltr">
           {error.digest}
         </p>
       )}
-    </div>
+    </Card>
   );
 }
