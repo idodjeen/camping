@@ -3,6 +3,7 @@
 import { Share2 } from "lucide-react";
 
 import { toast } from "@/components/toast";
+import { Button } from "@/components/ui/button";
 
 /**
  * Copy a list as WhatsApp-ready text, or hand it to the native share sheet.
@@ -26,7 +27,7 @@ export function CopyButton({
     const copy = () =>
       navigator.clipboard
         .writeText(text)
-        .then(() => toast("הועתק — אפשר להדביק בוואטסאפ", "ok"))
+        .then(() => toast("הועתק - אפשר להדביק בוואטסאפ", "ok"))
         .catch(() => toast("לא הצלחנו להעתיק"));
 
     if (typeof navigator.share === "function") {
@@ -42,13 +43,8 @@ export function CopyButton({
   }
 
   return (
-    <button
-      onClick={onClick}
-      aria-label={label}
-      className="tap flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-white/60 transition active:scale-95"
-    >
-      <Share2 className="size-3.5" />
+    <Button variant="secondary" size="xs" onClick={onClick} icon={<Share2 className="size-4" />}>
       {label}
-    </button>
+    </Button>
   );
 }

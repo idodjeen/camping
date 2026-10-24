@@ -2,8 +2,8 @@
 
 import { usePathname, useSearchParams } from "next/navigation";
 
+import { Chip, ChipRow } from "@/components/ui/controls";
 import { markTap } from "@/lib/tap-timer";
-import { cn } from "@/lib/utils";
 
 /**
  * Filter chips backed by the URL rather than local state.
@@ -15,6 +15,9 @@ import { cn } from "@/lib/utils";
  * The URL changes through the History API, which Next.js keeps in step with
  * useSearchParams, so a chip filters at once. A <Link> here made every tap a
  * server round trip, because the trip screens are dynamic routes.
+ *
+ * An "alert" chip (תייגו אותך) stays coloured while inactive: it answers a
+ * badge, so it has to be findable the moment the page lands.
  */
 export function FilterChips({
   current,
@@ -38,29 +41,12 @@ export function FilterChips({
   }
 
   return (
-    <div className="mb-4 flex flex-wrap gap-2">
-      {options.map((o) => {
-        const active = current === o.key;
-        return (
-          <button
-            key={o.label}
-            type="button"
-            onClick={() => pick(o.key)}
-            aria-pressed={active}
-            className={cn(
-              "tap flex items-center rounded-xl border px-3 text-xs font-semibold transition active:scale-95",
-              active ? "border-brand-400/40 bg-brand-500/20 text-brand-200"
-              // An alert chip stays coloured while inactive: it is the answer
-              // to "the nav badge said 2 — where are they?", so it has to be
-              // findable the moment the page lands, not after you read it.
-              : o.tone === "alert" ? "border-brand-400/35 bg-brand-500/15 text-brand-200"
-              : "border-white/10 bg-white/5 text-white/45",
-            )}
-          >
-            {o.label}
-          </button>
-        );
-      })}
-    </div>
+    <ChipRow>
+      {options.map((o) => (
+        <Chip key={o.label} active={current === o.key} alert={o.tone === "alert"} onClick={() => pick(o.key)}>
+          {o.label}
+        </Chip>
+      ))}
+    </ChipRow>
   );
 }

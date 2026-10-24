@@ -7,6 +7,8 @@ import { OnboardingGate } from "@/components/onboarding";
 import { PushSync } from "@/components/push-sync";
 import { RememberTrip } from "@/components/remember-trip";
 import { Toaster } from "@/components/toast";
+import { ConfirmHost } from "@/components/ui/confirm";
+import { Banner } from "@/components/ui/surfaces";
 import { WhatsNew } from "@/components/whats-new";
 import { WidgetBoundary } from "@/components/widget-boundary";
 import { loadTripAccess } from "@/lib/access";
@@ -43,6 +45,7 @@ export default async function TripLayout({
       </WidgetBoundary>
       <WidgetBoundary name="Toaster">
         <Toaster />
+        <ConfirmHost />
       </WidgetBoundary>
       {/* Mounted here rather than per page so a tag that lands while you are
           on the gear list still reaches you. */}
@@ -73,9 +76,9 @@ export default async function TripLayout({
       </WidgetBoundary>
       {/* Below the header, so it is never under the status bar; it scrolls away. */}
       {!access.canWrite && (
-        <div className="mx-auto mt-2 w-[calc(100%-2rem)] max-w-md rounded-full bg-amber px-4 py-2 text-center text-[13px] font-bold text-amber-ink">
+        <Banner className="mx-auto mt-2 w-[calc(100%-2rem)] max-w-md">
           צפייה בלבד - אפשר לראות הכול, אי אפשר לערוך
-        </div>
+        </Banner>
       )}
       {/* The header is sticky and in the flow, so the top needs no inset; the
           bottom clears the fixed nav (its height includes the home indicator). */}
