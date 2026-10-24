@@ -92,3 +92,27 @@ export function formatRelative(iso: string): string {
   if (days === 2) return "לפני יומיים";
   return `לפני ${days} ימים`;
 }
+
+/**
+ * The day a message was sent, for the headings that group a conversation:
+ * "היום" / "אתמול" / "23.9". Days are cut in Israel time, like everything else.
+ */
+export function dayLabel(iso: string): { key: string; label: string } {
+  const fmt = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(d);
+  const key = fmt(new Date(iso));
+  const now = new Date();
+  if (key === fmt(now)) return { key, label: "היום" };
+  if (key === fmt(new Date(now.getTime() - 86_400_000))) return { key, label: "אתמול" };
+  const [, m, d] = key.split("-");
+  return { key, label: `${Number(d)}.${Number(m)}` };
+}
+
+/** "18:20" in Israel, for a message under its day heading. */
+export function clockTime(iso: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(iso));
+}

@@ -22,11 +22,20 @@ export function Modal({
   open,
   onClose,
   title,
+  eyebrow,
+  footer,
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
+  /** A quiet line above the title, like "תגובות" over the item's name. */
+  eyebrow?: string;
+  /**
+   * Pinned under the scrolling content, like a thread's composer: it never
+   * scrolls away, and it takes over the bottom safe-area padding.
+   */
+  footer?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const mounted = useOverlay(open, onClose);
@@ -73,7 +82,10 @@ export function Modal({
             >
               <div aria-hidden className="mx-auto mb-3 h-[5px] w-11 rounded-full bg-line" />
               <div className="flex items-center gap-2.5">
-                <h2 className="min-w-0 flex-1 truncate font-display text-[22px]">{title}</h2>
+                <div className="min-w-0 flex-1 leading-tight">
+                  {eyebrow && <p className="text-[13px] text-muted">{eyebrow}</p>}
+                  <h2 className="truncate font-display text-[22px]">{title}</h2>
+                </div>
                 <IconButton
                   aria-label="סגירה"
                   onClick={onClose}
@@ -84,9 +96,20 @@ export function Modal({
                 </IconButton>
               </div>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-[calc(env(safe-area-inset-bottom,0px)+1.75rem)]">
+            <div
+              className={
+                footer
+                  ? "min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4"
+                  : "min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-[calc(env(safe-area-inset-bottom,0px)+1.75rem)]"
+              }
+            >
               {children}
             </div>
+            {footer && (
+              <div className="shrink-0 border-t-[1.5px] border-line px-4 pt-2.5 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)]">
+                {footer}
+              </div>
+            )}
           </motion.div>
         </motion.div>
       )}

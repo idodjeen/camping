@@ -9,7 +9,7 @@ import { EditBar, EditButton, Edited, MentionBox, highlight, useEditing } from "
 import { toast } from "@/components/toast";
 import { UserAvatar } from "@/components/user-avatar";
 import { ApiError, fetcher, send, swrConfig } from "@/lib/api";
-import { formatRelative } from "@/lib/dates";
+import { dayLabel, formatRelative } from "@/lib/dates";
 import type { ChatMessage } from "@/lib/comments";
 import { useInbox } from "@/lib/inbox-client";
 import { THREAD } from "@/lib/threads";
@@ -19,18 +19,6 @@ import { cn } from "@/lib/utils";
 
 type Person = { id: number; name: string; slug: string; avatarUrl: string | null };
 type Me = { user: { id: number; isAdmin: boolean; isViewer: boolean }; people: Person[] };
-
-
-/** "היום" / "אתמול" / "23.9" — days are cut in Israel time, like everything else here. */
-function dayLabel(iso: string): { key: string; label: string } {
-  const fmt = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem" }).format(d);
-  const key = fmt(new Date(iso));
-  const now = new Date();
-  if (key === fmt(now)) return { key, label: "היום" };
-  if (key === fmt(new Date(now.getTime() - 86_400_000))) return { key, label: "אתמול" };
-  const [, m, d] = key.split("-");
-  return { key, label: `${Number(d)}.${Number(m)}` };
-}
 
 /** The crew's group chat: not about any item, just talking. */
 export default function RoomPage() {

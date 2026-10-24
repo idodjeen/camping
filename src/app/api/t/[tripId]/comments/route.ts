@@ -3,7 +3,7 @@ import { inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { tripRoute, type TripParams } from "@/lib/access";
-import { createComment, getThread, parseSubject, subjectLabel } from "@/lib/comments";
+import { createComment, getThread, itemSummary, parseSubject, subjectLabel } from "@/lib/comments";
 import { buildMentionEmails } from "@/lib/emails";
 import { sendAll } from "@/lib/mailer";
 import { handle, HttpError } from "@/lib/session";
@@ -20,9 +20,14 @@ export function GET(req: Request, ctx: TripParams) {
     const id = Number(url.searchParams.get("id"));
     if (!Number.isInteger(id)) throw new HttpError(400, "מזהה לא תקין");
 
-    // subjectLabel 404s for an item outside this trip, before any thread is read.
-    const label = await subjectLabel(trip.id, subject, id);
-    return { comments: await getThread(trip.id, subject, id), label };
+    // itemSummary 404s for an item outside this trip. The thread is read
+    // alongside it (one round trip, not two): it is filtered by this trip
+    // too, so it can never return another trip's messages.
+    const [item, comments] = await Promise.all([
+      itemSummary(trip.id, subject, id),
+      getThread(trip.id, subject, id),
+    ]);
+    return { comments, label: item.label, item };
   });
 }
 

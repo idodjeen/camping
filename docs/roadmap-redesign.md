@@ -30,13 +30,13 @@ touch neighbouring rows, whoever merges second keeps both rows when syncing with
 | [P05 Other tabs' data in the background](../.scratch/perf-sprint/issues/05-preload-other-tabs.md) | blocked: P04 | | |
 | [P06 Move to Frankfurt](../.scratch/perf-sprint/issues/06-frankfurt-move.md) | blocked: the measure step | | Ido runs the production database steps and gives each go |
 | [A03 Gear](../.scratch/redesign-rollout/issues/03-gear.md) | ready-for-agent | | |
-| [A04 Item thread](../.scratch/redesign-rollout/issues/04-item-thread.md) | ready-for-agent | | |
-| [A05 General chat](../.scratch/redesign-rollout/issues/05-general-chat.md) | blocked: A04 | | |
+| [A04 Item thread](../.scratch/redesign-rollout/issues/04-item-thread.md) | claimed | `claude/a04-thread` | Stacked on #37 and #31 |
+| [A05 General chat](../.scratch/redesign-rollout/issues/05-general-chat.md) | ready-for-agent | | |
 | [A06 Shopping](../.scratch/redesign-rollout/issues/06-shopping.md) | ready-for-agent | | |
 | [A07 Meals](../.scratch/redesign-rollout/issues/07-meals.md) | ready-for-agent | | |
 | [A08 Expenses and the new expense pop-up](../.scratch/redesign-rollout/issues/08-expenses.md) | ready-for-agent | | |
 | [A09 Trips, memberships and the trip switcher](../.scratch/redesign-rollout/issues/09-trips-and-memberships.md) | blocked: A01 | | |
-| [A10 Notifications](../.scratch/redesign-rollout/issues/10-notifications.md) | blocked: A04 | | |
+| [A10 Notifications](../.scratch/redesign-rollout/issues/10-notifications.md) | ready-for-agent | | |
 | [A11 Trip settings details and the reminder card](../.scratch/redesign-rollout/issues/11-trip-settings-details.md) | ready-for-agent | | |
 | [A12 Sign-in](../.scratch/redesign-rollout/issues/12-sign-in.md) | ready-for-agent | | |
 | [A13 Group admin](../.scratch/redesign-rollout/issues/13-group-admin.md) | blocked: A11 | | |
@@ -44,7 +44,7 @@ touch neighbouring rows, whoever merges second keeps both rows when syncing with
 | [A15 Super admin](../.scratch/redesign-rollout/issues/15-super-admin.md) | blocked: A13 | | |
 | [A16 Real-phone check, rollout](../.scratch/redesign-rollout/issues/16-phone-check.md) | blocked: A03-A15 | | |
 | [B01 Draw the 8 boards](../.scratch/new-screens/issues/01-boards.md) | ready-for-agent | | |
-| [B02 Chat list](../.scratch/new-screens/issues/02-chat-list.md) | blocked: B01, A01, A04 | | |
+| [B02 Chat list](../.scratch/new-screens/issues/02-chat-list.md) | blocked: B01, A01 | | |
 | [B03 Account, guide and menu](../.scratch/new-screens/issues/03-account-and-guide.md) | blocked: B01, A09, A11 | | |
 | [B04 Personal list](../.scratch/new-screens/issues/04-personal-list.md) | blocked: B01, A03 | | |
 | [B05 New trip sheet](../.scratch/new-screens/issues/05-new-trip-sheet.md) | blocked: B01, A09, A13 | | |

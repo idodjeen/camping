@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, inArray, isNull, not } from "drizzle-orm";
 
 import { db } from "@/db";
-import { comments, gearItems, meals, notifications, shoppingItems, users } from "@/db/schema";
+import { comments, gearClaims, gearItems, meals, notifications, shoppingItems, users } from "@/db/schema";
 import { hears, notify } from "@/lib/notifications";
 import { EVERYONE } from "@/lib/mention-all";
 import { HttpError } from "@/lib/session";
@@ -445,6 +445,98 @@ export async function deleteComment(
 
   await db.delete(comments).where(eq(comments.id, commentId));
   return { deleted: true };
+}
+
+type Brief = { id: number; name: string; slug: string; avatarUrl: string | null };
+const brief = (u: Brief): Brief => ({ id: u.id, name: u.name, slug: u.slug, avatarUrl: u.avatarUrl });
+
+/**
+ * The item a thread is about, for the card at the top of its sheet: what it
+ * is, what is still missing, and its category. The client words it, so the
+ * numbers can sit in their own left-to-right spans.
+ */
+export type ItemSummary =
+  | {
+      kind: "gear";
+      label: string;
+      category: string;
+      /** How many are needed; open-quantity items have no cap. */
+      needed: number;
+      open: boolean;
+      claimed: number;
+      /** Who brings it. */
+      people: Brief[];
+    }
+  | {
+      kind: "shopping";
+      label: string;
+      category: string;
+      quantity: string | null;
+      bought: boolean;
+      /** Who bought it, once bought. */
+      people: Brief[];
+    }
+  | {
+      kind: "meal";
+      label: string;
+      date: string;
+      slot: string;
+      /** Linked ingredients, and how many of them are not bought yet. */
+      ingredients: number;
+      toBuy: number;
+      people: Brief[];
+    };
+
+/**
+ * One query per subject, and the same 404 as subjectLabel for an item that is
+ * not in this trip.
+ */
+export async function itemSummary(tripId: number, subject: Subject, subjectId: number): Promise<ItemSummary> {
+  if (subject === "gear") {
+    const item = await db.query.gearItems.findFirst({
+      where: and(eq(gearItems.id, subjectId), eq(gearItems.tripId, tripId)),
+      with: { category: true, claims: { with: { user: true }, orderBy: [asc(gearClaims.createdAt)] } },
+    });
+    if (!item) throw new HttpError(404, "הפריט לא נמצא");
+    return {
+      kind: "gear",
+      label: item.name,
+      category: item.category.name,
+      needed: item.qtyNeeded ?? 1,
+      open: item.isOpenQuantity,
+      claimed: item.claims.reduce((n, c) => n + c.qty, 0),
+      people: item.claims.map((c) => brief(c.user)),
+    };
+  }
+  if (subject === "shopping") {
+    const item = await db.query.shoppingItems.findFirst({
+      where: and(eq(shoppingItems.id, subjectId), eq(shoppingItems.tripId, tripId)),
+      with: { category: true, buyer: true },
+    });
+    if (!item) throw new HttpError(404, "הפריט לא נמצא");
+    return {
+      kind: "shopping",
+      label: item.name,
+      category: item.category.name,
+      quantity: item.quantityText,
+      bought: item.isBought,
+      people: item.isBought && item.buyer ? [brief(item.buyer)] : [],
+    };
+  }
+  const meal = await db.query.meals.findFirst({
+    where: and(eq(meals.id, subjectId), eq(meals.tripId, tripId)),
+    with: { shoppingLinks: { with: { shoppingItem: true } } },
+  });
+  if (!meal) throw new HttpError(404, "הפריט לא נמצא");
+  return {
+    kind: "meal",
+    label: meal.title,
+    date: meal.date,
+    slot: meal.slot,
+    ingredients: meal.shoppingLinks.length,
+    toBuy: meal.shoppingLinks.filter((l) => !l.shoppingItem.isBought).length,
+    people: [],
+  };
 }
 
 /**
