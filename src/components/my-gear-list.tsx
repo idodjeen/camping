@@ -1,13 +1,16 @@
 "use client";
 
 import { motion } from "framer-motion";
-import Link from "next/link";
+import { Package } from "lucide-react";
 import useSWR from "swr";
 
-import { CheckBox } from "@/components/personal-list";
 import { toast } from "@/components/toast";
+import { Button } from "@/components/ui/button";
+import { CheckBox } from "@/components/ui/controls";
+import { Badge, EmptyState } from "@/components/ui/surfaces";
 import { ApiError, fetcher, send, swrConfig } from "@/lib/api";
 import { burstFrom } from "@/lib/confetti";
+import { markTap } from "@/lib/tap-timer";
 import { useTrip } from "@/lib/trip-client";
 import { cn } from "@/lib/utils";
 
@@ -56,44 +59,64 @@ export function MyGearList() {
   if (!data) return null;
   const packed = data.claims.filter((c) => c.isPacked).length;
 
+  // Back to the full list the way the chips go: the URL changes in place.
+  function showAll() {
+    const url = page("/gear");
+    markTap(url, "chip");
+    window.history.pushState(null, "", url);
+  }
+
   return (
-    <section className="mb-8">
-      <h2 className="mb-2 px-1 text-sm font-semibold text-white/50">
-        ציוד מחנאות שאני מביא {data.claims.length > 0 && `· ${packed}/${data.claims.length} ארוז`}
-      </h2>
+    <section className="mb-8 flex flex-col gap-2.5">
+      <div className="flex items-baseline justify-between gap-2 px-1">
+        <h2 className="font-display text-lg">ציוד מחנאות שאני מביא</h2>
+        {data.claims.length > 0 && (
+          <span className="shrink-0 text-sm text-muted">
+            <span dir="ltr">
+              {packed}/{data.claims.length}
+            </span>{" "}
+            ארוז
+          </span>
+        )}
+      </div>
 
       {data.claims.length === 0 ? (
-        <p className="glass rounded-2xl px-4 py-5 text-center text-sm text-white/45">
-          עוד לא התחייבת על ציוד.
-          <br />
-          <Link href={page("/gear")} className="text-brand-300 underline underline-offset-2">
-            חזור לרשימה המלאה
-          </Link>{" "}
-          ותפוס משהו.
-        </p>
+        <EmptyState
+          icon={<Package />}
+          tone="rose"
+          title="עוד לא לקחת ציוד"
+          body="ברשימה המלאה אפשר ללחוץ ״אני מביא״ על מה שחסר."
+          action={
+            <Button variant="secondary" size="sm" onClick={showAll}>
+              לרשימה המלאה
+            </Button>
+          }
+        />
       ) : (
-        <div className="space-y-2">
-          {data.claims.map((c) => (
-            <motion.div key={c.itemId} layout className="glass flex items-center gap-3 rounded-2xl p-3.5">
-              <CheckBox
-                checked={c.isPacked}
-                onToggle={(el) => togglePacked(c.itemId, !c.isPacked, el)}
-                label={c.isPacked ? "לבטל ארוז" : "לסמן כארוז"}
-              />
-              <div className="min-w-0 flex-1">
-                <span className={cn("font-semibold", c.isPacked && "text-white/40 line-through")}>
-                  {c.name}
-                </span>
+        data.claims.map((c) => (
+          <motion.div
+            key={c.itemId}
+            layout="position"
+            className="flex items-center gap-2 rounded-[24px] border-[1.5px] border-line bg-surface py-1.5 ps-1.5 pe-4"
+          >
+            <CheckBox
+              checked={c.isPacked}
+              onToggle={(el) => togglePacked(c.itemId, !c.isPacked, el)}
+              label={c.isPacked ? "לבטל ארוז" : "לסמן כארוז"}
+            />
+            <div className="min-w-0 flex-1 py-1.5 leading-snug">
+              <p className={cn("text-base font-bold", c.isPacked && "text-muted line-through")}>
+                {c.name}
                 {c.qty > 1 && (
-                  <span className="ms-2 rounded-md bg-brand-500/20 px-1.5 py-0.5 text-[11px] font-bold text-brand-200">
-                    ×{c.qty}
-                  </span>
+                  <Badge tone="peach" className="ms-2 h-6 align-middle">
+                    <span dir="ltr">×{c.qty}</span>
+                  </Badge>
                 )}
-                <p className="text-[11px] text-white/35">{c.categoryName}</p>
-              </div>
-            </motion.div>
-          ))}
-        </div>
+              </p>
+              <p className="text-[13px] text-muted">{c.categoryName}</p>
+            </div>
+          </motion.div>
+        ))
       )}
     </section>
   );

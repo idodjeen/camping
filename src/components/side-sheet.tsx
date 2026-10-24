@@ -49,7 +49,7 @@ export function SideSheet({
           onClick={onClose}
           // A plain dim, no blur: a full-screen blur over a page that changes
           // underneath the closing sheet is expensive on phones.
-          className="fixed inset-0 z-[65] bg-ink/30"
+          className="fixed inset-0 z-[65] bg-scrim"
         >
           <motion.div
             role="dialog"

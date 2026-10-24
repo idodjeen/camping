@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { AdminGroups } from "@/components/admin-groups";
 import { Toaster } from "@/components/toast";
+import { ConfirmHost } from "@/components/ui/confirm";
 import { appOrigin, listGroups } from "@/lib/groups";
 import { requirePageUser } from "@/lib/session";
 
@@ -36,6 +37,7 @@ export default async function AdminPage() {
   return (
     <main className="mx-auto w-full max-w-md px-5 pt-[calc(env(safe-area-inset-top,0px)+1.25rem)] pb-10">
       <Toaster />
+      <ConfirmHost />
       <Link
         href="/"
         className="tap -ms-2 mb-2 inline-flex items-center gap-1 rounded-xl px-2 text-sm font-semibold text-white/55"

@@ -57,6 +57,9 @@
   --c-on-badge: #2a1410;
 
   --c-shadow: rgb(59 34 48 / 0.18);
+  /* What dims the page behind a sheet or a dialog. Not ink: in dark, ink is
+     the light cream, and a cream veil lightens the page instead. */
+  --c-scrim: rgb(59 34 48 / 0.38);
 
   /* Screens not redesigned yet still use the old night/brand/white classes.
      They are mapped onto the new palette below; this is the solid fill their
@@ -101,6 +104,7 @@
   --c-on-badge: #2a1410;
 
   --c-shadow: rgb(0 0 0 / 0.45);
+  --c-scrim: rgb(0 0 0 / 0.55);
 
   --c-legacy-accent: #6a3328;
 }
@@ -139,6 +143,7 @@
   --color-nav-active-ink: var(--c-nav-active-ink);
   --color-badge: var(--c-badge);
   --color-on-badge: var(--c-on-badge);
+  --color-scrim: var(--c-scrim);
 
   /*
    * Bridge for the screens that are not redesigned yet. Remove each group

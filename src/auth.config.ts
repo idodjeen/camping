@@ -33,6 +33,9 @@ export const authConfig = {
     authorized({ auth, request }) {
       const { pathname } = request.nextUrl;
       if (pathname === "/login" || pathname === "/no-access") return true;
+      // The design parts gallery, for checking parts in both themes without
+      // signing in. Development only: the page itself 404s in production.
+      if (process.env.NODE_ENV !== "production" && pathname === "/dev/ui") return true;
       return Boolean(auth?.user);
     },
   },
