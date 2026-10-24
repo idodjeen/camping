@@ -17,3 +17,5 @@
   measured on the group admin page, which works the same way).
   P02 prefetches the menu row, so the wait goes; the jump out of the shell stays. Not redesigned in P02, per
   Ido: decide here whether this page keeps the trip shell or leaves it on purpose, and give it a loading state.
+- 2026-10-13, Ido: keep the trip frame. Opened from the trip menu, this page stays inside the trip shell (header and
+  bottom bar stay put) and shows a loading state while it loads.

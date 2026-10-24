@@ -163,6 +163,11 @@ In order, one at a time unless both sides agree on the parallel rules below:
 
 ## Testing
 
+- **Gates: `npm test`, `npm run typecheck`, `npm run build`.** `npm test` is Vitest against PGlite, an
+  in-process Postgres with every migration applied, fresh per test file (ADR 0001). It needs no network
+  and no env files, and never touches `dev`. Tests sit next to the lib code (`src/lib/*.test.ts`) and
+  call lib functions with plain ids; build scenarios with `src/test/seed.ts`. Routes and screens are
+  not unit tested.
 - **Previews are first-class.** They run on `dev`, sign-in works through `AUTH_REDIRECT_PROXY_URL`,
   and since 2026-10-08 they can send push with their own VAPID pair. A preview is the deployment
   Vercel builds for every pushed branch, at `camping-git-<branch>-idodjeen.vercel.app`; Ido signs in
