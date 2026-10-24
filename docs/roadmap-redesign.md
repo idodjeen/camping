@@ -29,7 +29,7 @@ touch neighbouring rows, whoever merges second keeps both rows when syncing with
 | [P04 Comment sheet only when opened](../.scratch/perf-sprint/issues/04-comment-sheet-on-open.md) | blocked: the measure step | | Merge after #31 (both touch `comments.tsx`) |
 | [P05 Other tabs' data in the background](../.scratch/perf-sprint/issues/05-preload-other-tabs.md) | blocked: P04 | | |
 | [P06 Move to Frankfurt](../.scratch/perf-sprint/issues/06-frankfurt-move.md) | blocked: the measure step | | Ido runs the production database steps and gives each go |
-| [A03 Gear](../.scratch/redesign-rollout/issues/03-gear.md) | claimed | `claude/a03-gear` | |
+| [A03 Gear](../.scratch/redesign-rollout/issues/03-gear.md) | done 2026-10-24 | [#38](https://github.com/idodjeen/camping/pull/38) | Stacked on #37; differences from the board in the ticket |
 | [A04 Item thread](../.scratch/redesign-rollout/issues/04-item-thread.md) | ready-for-agent | | |
 | [A05 General chat](../.scratch/redesign-rollout/issues/05-general-chat.md) | blocked: A04 | | |
 | [A06 Shopping](../.scratch/redesign-rollout/issues/06-shopping.md) | ready-for-agent | | |
