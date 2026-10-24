@@ -24,7 +24,7 @@ export function FilterChips({
   options,
 }: {
   current: string | null;
-  options: { key: string | null; label: string; tone?: "alert" }[];
+  options: { key: string | null; label: string; count?: number; tone?: "alert" }[];
 }) {
   const path = usePathname();
   const params = useSearchParams();
@@ -43,7 +43,13 @@ export function FilterChips({
   return (
     <ChipRow>
       {options.map((o) => (
-        <Chip key={o.label} active={current === o.key} alert={o.tone === "alert"} onClick={() => pick(o.key)}>
+        <Chip
+          key={o.label}
+          active={current === o.key}
+          alert={o.tone === "alert"}
+          count={o.count}
+          onClick={() => pick(o.key)}
+        >
           {o.label}
         </Chip>
       ))}

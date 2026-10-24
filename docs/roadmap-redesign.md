@@ -29,7 +29,7 @@ touch neighbouring rows, whoever merges second keeps both rows when syncing with
 | [P04 Comment sheet only when opened](../.scratch/perf-sprint/issues/04-comment-sheet-on-open.md) | blocked: the measure step | | Merge after #31 (both touch `comments.tsx`) |
 | [P05 Other tabs' data in the background](../.scratch/perf-sprint/issues/05-preload-other-tabs.md) | blocked: P04 | | |
 | [P06 Move to Frankfurt](../.scratch/perf-sprint/issues/06-frankfurt-move.md) | blocked: the measure step | | Ido runs the production database steps and gives each go |
-| [A03 Gear](../.scratch/redesign-rollout/issues/03-gear.md) | ready-for-agent | | |
+| [A03 Gear](../.scratch/redesign-rollout/issues/03-gear.md) | claimed | `claude/a03-gear` | |
 | [A04 Item thread](../.scratch/redesign-rollout/issues/04-item-thread.md) | ready-for-agent | | |
 | [A05 General chat](../.scratch/redesign-rollout/issues/05-general-chat.md) | blocked: A04 | | |
 | [A06 Shopping](../.scratch/redesign-rollout/issues/06-shopping.md) | ready-for-agent | | |
@@ -46,7 +46,7 @@ touch neighbouring rows, whoever merges second keeps both rows when syncing with
 | [B01 Draw the 8 boards](../.scratch/new-screens/issues/01-boards.md) | ready-for-agent | | |
 | [B02 Chat list](../.scratch/new-screens/issues/02-chat-list.md) | blocked: B01, A01, A04 | | |
 | [B03 Account, guide and menu](../.scratch/new-screens/issues/03-account-and-guide.md) | blocked: B01, A09, A11 | | |
-| [B04 Personal list](../.scratch/new-screens/issues/04-personal-list.md) | blocked: B01, A03 | | |
+| [B04 Personal list](../.scratch/new-screens/issues/04-personal-list.md) | blocked: B01 | | |
 | [B05 New trip sheet](../.scratch/new-screens/issues/05-new-trip-sheet.md) | blocked: B01, A09, A13 | | |
 | [B06 Meals and categories tabs](../.scratch/new-screens/issues/06-meals-and-categories-tabs.md) | blocked: B01, A11 | | |
 | [B07 No-access](../.scratch/new-screens/issues/07-no-access.md) | blocked: B01, A11, A13, A15, B06 | | |

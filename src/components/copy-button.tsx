@@ -3,7 +3,7 @@
 import { Share2 } from "lucide-react";
 
 import { toast } from "@/components/toast";
-import { Button } from "@/components/ui/button";
+import { Button, IconButton } from "@/components/ui/button";
 
 /**
  * Copy a list as WhatsApp-ready text, or hand it to the native share sheet.
@@ -17,9 +17,12 @@ import { Button } from "@/components/ui/button";
 export function CopyButton({
   getText,
   label = "שיתוף",
+  round,
 }: {
   getText: () => string;
   label?: string;
+  /** A round icon button, with `label` as its accessible name. */
+  round?: boolean;
 }) {
   function onClick() {
     const text = getText();
@@ -40,6 +43,14 @@ export function CopyButton({
     }
 
     void copy();
+  }
+
+  if (round) {
+    return (
+      <IconButton aria-label={label} title={label} onClick={onClick} className="size-11">
+        <Share2 className="size-[19px]" />
+      </IconButton>
+    );
   }
 
   return (

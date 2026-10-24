@@ -1,22 +1,43 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
-import { Check, Loader2, Minus, Plus, Sparkles, X } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { motion } from "framer-motion";
+import {
+  Armchair,
+  AtSign,
+  Check,
+  CookingPot,
+  Droplet,
+  Flame,
+  Lightbulb,
+  Minus,
+  Moon,
+  Package,
+  Plus,
+  Tent,
+  Undo2,
+  WifiOff,
+} from "lucide-react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import useSWR from "swr";
 
-import { AvatarStack } from "@/components/avatar-stack";
-import { CommentsButton, TaggedBadge } from "@/components/comments";
+import { CommentsButton } from "@/components/comments";
 import { CopyButton } from "@/components/copy-button";
 import { FilterChips } from "@/components/filter-chips";
+import { Modal } from "@/components/modal";
 import { MyGearList, type MyClaim } from "@/components/my-gear-list";
 import { PersonalList } from "@/components/personal-list";
-import { PageTitle, SkeletonList } from "@/components/skeletons";
+import { SkeletonList } from "@/components/skeletons";
 import { toast } from "@/components/toast";
+import { Button } from "@/components/ui/button";
+import { Field, TextField, inputClass } from "@/components/ui/controls";
+import { Badge, EmptyState, ErrorState, IconTile } from "@/components/ui/surfaces";
+import type { Tone } from "@/components/ui/tone";
+import { UserAvatar } from "@/components/user-avatar";
 import { ApiError, fetcher, send, swrConfig } from "@/lib/api";
 import { burstFrom } from "@/lib/confetti";
 import { formatGearList, formatMyList } from "@/lib/format-lists";
+import { markTap } from "@/lib/tap-timer";
 import { useTrip, useTripName } from "@/lib/trip-client";
 import { cn } from "@/lib/utils";
 
@@ -45,18 +66,30 @@ type Item = {
 };
 type Category = { id: number; name: string; items: Item[] };
 type Payload = { categories: Category[] };
+type Me = {
+  user: { id: number; name: string; isViewer: boolean };
+  claims: MyClaim[];
+  personal: { id: number; name: string; isPacked: boolean; qty: number | null }[];
+};
+
+/** What each filter in the URL shows. `done` has no chip: the home screen's ring links to it. */
+const SHOWS: Record<string, (i: Item) => boolean> = {
+  todo: (i) => !i.isFull,
+  done: (i) => i.isFull,
+  mentions: (i) => i.unreadMentions > 0,
+};
 
 export default function GearPage() {
   const { api } = useTrip();
   const tripName = useTripName();
-  const { data, isLoading, mutate } = useSWR<Payload>(api("/gear"), fetcher, swrConfig);
-  const { data: me } = useSWR<{
-    user: { id: number; name: string };
-    claims: MyClaim[];
-    personal: { id: number; name: string; isPacked: boolean; qty: number | null }[];
-  }>(api("/me"), fetcher, swrConfig);
+  const { data, error, isLoading, mutate } = useSWR<Payload>(api("/gear"), fetcher, swrConfig);
+  const { data: me } = useSWR<Me>(api("/me"), fetcher, swrConfig);
   const myId = me?.user.id;
+  // Viewers see no take or add buttons. Until /me answers nobody does, so a
+  // viewer never sees a button flash in and vanish.
+  const canEdit = me ? !me.user.isViewer : false;
   const [flashId, setFlashId] = useState<number | null>(null);
+  const [adding, setAdding] = useState(false);
   // The filter lives in the URL so the dashboard rings can link straight into
   // a filtered view, and so the view survives a refresh or a shared link.
   const filter = useSearchParams().get("filter");
@@ -69,7 +102,7 @@ export default function GearPage() {
 
     // Celebrate on the tap itself rather than after the round-trip to Neon.
     // The row already updates optimistically, so waiting for the server made
-    // the confetti arrive detached from the press — it read as nothing having
+    // the confetti arrive detached from the press: it read as nothing having
     // happened, then something random happening. The rare cost is a burst for
     // a claim that loses the race for the last unit, which the toast explains.
     if (isTakingMore) {
@@ -112,129 +145,522 @@ export default function GearPage() {
         { optimisticData: optimistic, rollbackOnError: true, revalidate: false },
       );
     } catch (err) {
+      // The server says why, kindly: someone took the last one first, or you can only view.
       toast(err instanceof ApiError ? err.message : "לא הצלחנו לעדכן");
     }
   }
 
-  if (isLoading && !data) {
+  if (!data) {
+    if (error && !isLoading) {
+      return (
+        <ErrorState
+          icon={<WifiOff />}
+          title="לא הצלחנו לטעון את הציוד"
+          body="בדקו את החיבור ונסו שוב."
+          onRetry={() => mutate()}
+        />
+      );
+    }
     return (
       <>
-        <PageTitle title="ציוד" />
+        <div className="mb-4 h-[104px] animate-pulse rounded-[30px] bg-rose" aria-hidden />
         <SkeletonList rows={6} />
       </>
     );
   }
 
-  const all = data?.categories.flatMap((c) => c.items) ?? [];
+  const all = data.categories.flatMap((c) => c.items);
   const required = all.filter((i) => !i.isOptional);
   const covered = required.filter((i) => i.isFull).length;
-  const isMyView = filter === "mine" || filter === "personal";
+  const missing = all.filter((i) => !i.isFull).length;
   const tagged = all.filter((i) => i.unreadMentions > 0).length;
+  const isMyView = filter === "mine" || filter === "personal";
+  const shows = (filter && SHOWS[filter]) || (() => true);
+  const hasItems = all.length > 0;
 
-  return (
-    <>
-      <PageTitle
-        title="ציוד"
-        subtitle={`${covered} מתוך ${required.length} פריטים מכוסים`}
-        action={
-          filter === "mine" || filter === "personal" ? (
-            <CopyButton
-              label="הרשימה שלי"
-              getText={() =>
-                formatMyList(
-                  me?.user.name ?? "",
-                  filter === "mine" ? (me?.claims ?? []) : [],
-                  filter === "personal" ? (me?.personal ?? []) : [],
-                )
-              }
-            />
-          ) : (
-            <CopyButton getText={() => formatGearList(data?.categories ?? [], { tripName })} />
+  const copy =
+    isMyView ? (
+      <CopyButton
+        round
+        label="שיתוף הרשימה שלי"
+        getText={() =>
+          formatMyList(
+            me?.user.name ?? "",
+            filter === "mine" ? (me?.claims ?? []) : [],
+            filter === "personal" ? (me?.personal ?? []) : [],
           )
         }
       />
+    ) : (
+      <CopyButton round label="שיתוף רשימת הציוד" getText={() => formatGearList(data.categories, { tripName })} />
+    );
 
-      <FilterChips
-        current={filter}
-        options={[
-          { key: null, label: "הכול" },
-          { key: "done", label: `מכוסה · ${covered}` },
-          { key: "todo", label: `חסר · ${required.length - covered}` },
-          { key: "mine", label: `מה אני מביא · ${me?.claims.length ?? 0}` },
-          { key: "personal", label: `ציוד אישי · ${me?.personal.length ?? 0}` },
-          // Only offered when there is something to find, so the row of chips
-          // does not grow a permanently empty option.
-          ...(tagged > 0
-            ? [{ key: "mentions", label: `תייגו אותך · ${tagged}`, tone: "alert" as const }]
-            : []),
-        ]}
-      />
+  return (
+    <>
+      <GearHero covered={covered} total={required.length} />
+
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <FilterChips
+            current={filter}
+            options={[
+              { key: null, label: "הכל", count: all.length },
+              { key: "todo", label: "חסר", count: missing },
+              { key: "mine", label: "אני מביא", count: me?.claims.length },
+              { key: "personal", label: "הרשימה שלי", count: me?.personal.length },
+              // Only offered when there is something to find, so the row of
+              // chips does not grow a permanently empty option.
+              ...(tagged > 0 ? [{ key: "mentions", label: "תייגו אותך", count: tagged, tone: "alert" as const }] : []),
+            ]}
+          />
+        </div>
+        {copy}
+      </div>
 
       {filter === "mine" && <MyGearList />}
       {filter === "personal" && <PersonalList />}
 
-      <div className={cn("space-y-6", isMyView && "hidden")}>
-        {data?.categories.map((cat) => {
-          const items = cat.items.filter((i) =>
-            filter === "done" ? i.isFull
-            : filter === "todo" ? !i.isFull
-            : filter === "mentions" ? i.unreadMentions > 0
-            : true,
-          );
-          if (items.length === 0) return null;
-          return (
-          <section key={cat.id}>
-            <h2 className="mb-2 px-1 text-sm font-semibold text-white/50">{cat.name}</h2>
-            <div className="space-y-2">
-              {items.map((item) => (
-                <GearRow
-                  key={item.id}
-                  item={item}
-                  myId={myId}
-                  flash={flashId === item.id}
-                  onSetQty={(qty, el) => setQty(item, qty, el)}
-                />
-              ))}
-            </div>
-          </section>
-          );
-        })}
+      {/* Kept mounted under the personal views, so going back is instant. */}
+      <div className={cn("flex flex-col gap-7", isMyView && "hidden", canEdit && hasItems && "pb-16")}>
+        {!hasItems ? (
+          <EmptyState
+            icon={<Package />}
+            tone="rose"
+            title="עוד אין ציוד ברשימה"
+            body={canEdit ? "מה צריך להביא לטיול? אפשר להתחיל מהפריט הראשון." : "כשיוסיפו ציוד, הוא יופיע כאן."}
+            action={
+              canEdit && (
+                <Button size="sm" icon={<Plus className="size-5" />} onClick={() => setAdding(true)}>
+                  פריט חדש
+                </Button>
+              )
+            }
+          />
+        ) : (
+          <GearSections
+            categories={data.categories}
+            shows={shows}
+            filter={filter}
+            myId={myId}
+            canEdit={canEdit}
+            flashId={flashId}
+            onSetQty={setQty}
+          />
+        )}
       </div>
 
-      {!isMyView && (
-      <AddGearItem
-        categories={data?.categories.map((c) => ({ id: c.id, name: c.name })) ?? []}
-        onAdded={() => mutate()}
-      />
+      {canEdit && hasItems && !isMyView && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--bottom-nav-h)+0.75rem)] z-20 mx-auto flex w-full max-w-md justify-end px-4">
+          <Button
+            icon={<Plus className="size-5" strokeWidth={2.4} />}
+            onClick={() => setAdding(true)}
+            className="pointer-events-auto px-5 shadow-[0_8px_24px_var(--c-shadow)]"
+          >
+            פריט חדש
+          </Button>
+        </div>
+      )}
+
+      {canEdit && (
+        <AddGearSheet
+          open={adding}
+          onClose={() => setAdding(false)}
+          categories={data.categories.map((c) => ({ id: c.id, name: c.name }))}
+          onAdded={() => mutate()}
+        />
       )}
     </>
   );
 }
 
-/** Any member can add something the list is missing. */
-function AddGearItem({
+/** The rose card at the top: how much of the required gear is covered. */
+function GearHero({ covered, total }: { covered: number; total: number }) {
+  const pct = total === 0 ? 0 : Math.round((covered / total) * 100);
+  const r = 34;
+  const circumference = 2 * Math.PI * r;
+
+  return (
+    <section className="mb-4 flex items-center gap-4 rounded-[30px] bg-rose px-[18px] py-4">
+      <div className="relative size-[72px] shrink-0">
+        <svg viewBox="0 0 80 80" className="size-full -rotate-90" aria-hidden>
+          <circle cx="40" cy="40" r={r} fill="none" stroke="var(--c-canvas)" strokeWidth="9" />
+          {pct > 0 && (
+            <circle
+              cx="40"
+              cy="40"
+              r={r}
+              fill="none"
+              stroke="var(--c-rose-strong)"
+              strokeWidth="9"
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={circumference * (1 - pct / 100)}
+              className="transition-[stroke-dashoffset] duration-700 ease-out"
+            />
+          )}
+        </svg>
+        <span className="absolute inset-0 grid place-items-center font-display text-lg" dir="ltr">
+          {pct}%
+        </span>
+      </div>
+      <div className="min-w-0 flex-1 leading-tight">
+        <h1 className="font-display text-[28px]">ציוד</h1>
+        <p className="mt-0.5 text-[15px] text-rose-ink">
+          <span dir="ltr">{covered}</span> מתוך <span dir="ltr">{total}</span> פריטים מכוסים
+        </p>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * "מחכים למישהו" first, then "כבר מכוסה", each grouped by category. Under a
+ * filter a section with nothing in it is left out; when that leaves nothing,
+ * an empty state says why.
+ */
+function GearSections({
+  categories,
+  shows,
+  filter,
+  myId,
+  canEdit,
+  flashId,
+  onSetQty,
+}: {
+  categories: Category[];
+  shows: (i: Item) => boolean;
+  filter: string | null;
+  myId?: number;
+  canEdit: boolean;
+  flashId: number | null;
+  onSetQty: (item: Item, qty: number, el: Element | null) => void;
+}) {
+  const path = usePathname();
+  const pick = (full: boolean) =>
+    categories
+      .map((c, index) => ({ ...c, index, items: c.items.filter((i) => i.isFull === full && shows(i)) }))
+      .filter((c) => c.items.length > 0);
+  const waiting = pick(false);
+  const done = pick(true);
+
+  const showAll = () => {
+    markTap(path, "chip");
+    window.history.pushState(null, "", path);
+  };
+
+  if (waiting.length === 0 && done.length === 0) {
+    return filter === "todo" ? (
+      <EmptyState icon={<Check />} tone="sage" title="כל הציוד מכוסה" body="אין פריט שמחכה למישהו." />
+    ) : (
+      <EmptyState
+        icon={filter === "mentions" ? <AtSign /> : <Package />}
+        tone="rose"
+        title={filter === "mentions" ? "אין תיוגים שמחכים לך" : "עוד לא כוסה כלום"}
+        action={
+          <Button variant="secondary" size="sm" onClick={showAll}>
+            לכל הציוד
+          </Button>
+        }
+      />
+    );
+  }
+
+  const row = (item: Item, index: number, name: string) => (
+    <GearRow
+      key={item.id}
+      item={item}
+      tile={categoryTile(name, index)}
+      myId={myId}
+      canEdit={canEdit}
+      flash={flashId === item.id}
+      onSetQty={(qty, el) => onSetQty(item, qty, el)}
+    />
+  );
+
+  return (
+    <>
+      {(waiting.length > 0 || filter === null) && (
+        <GearSection title="מחכים למישהו" groups={waiting} row={row}>
+          {waiting.length === 0 && (
+            <p className="flex items-center justify-center gap-2 rounded-card bg-sage px-4 py-5 text-[15px] font-bold text-sage-ink">
+              <Check className="size-5" aria-hidden />
+              כל הציוד מכוסה
+            </p>
+          )}
+        </GearSection>
+      )}
+      {done.length > 0 && <GearSection title="כבר מכוסה" groups={done} row={row} />}
+    </>
+  );
+}
+
+function GearSection({
+  title,
+  groups,
+  row,
+  children,
+}: {
+  title: string;
+  groups: (Category & { index: number })[];
+  row: (item: Item, index: number, name: string) => React.ReactNode;
+  children?: React.ReactNode;
+}) {
+  const count = groups.reduce((n, g) => n + g.items.length, 0);
+  return (
+    <section className="flex flex-col gap-2.5">
+      <div className="flex items-baseline justify-between px-1">
+        <h2 className="font-display text-lg">{title}</h2>
+        {count > 0 && (
+          <span className="text-sm text-muted">
+            {count === 1 ? (
+              "פריט אחד"
+            ) : (
+              <>
+                <span dir="ltr">{count}</span> פריטים
+              </>
+            )}
+          </span>
+        )}
+      </div>
+      {children}
+      {groups.map((g) => (
+        <div key={g.id} className="flex flex-col gap-2.5">
+          <h3 className="mt-1 px-1.5 text-[13px] font-bold text-muted">{g.name}</h3>
+          {g.items.map((item) => row(item, g.index, g.name))}
+        </div>
+      ))}
+    </section>
+  );
+}
+
+const TONES: Tone[] = ["peach", "amber", "rose", "sage", "coral"];
+const ICONS: [RegExp, React.ReactNode][] = [
+  [/מדור|אש|גריל|פחם/, <Flame key="f" />],
+  [/מטבח|בישול|אוכל|כלים/, <CookingPot key="k" />],
+  [/ישיבה|אווירה|כיסא/, <Armchair key="a" />],
+  [/שינה|לינה|מזרן|שק/, <Moon key="m" />],
+  [/אוהל|מחנה|צל/, <Tent key="t" />],
+  [/תאורה|פנס|חשמל/, <Lightbulb key="l" />],
+  [/מים|שתי/, <Droplet key="d" />],
+];
+
+/** A category's tile: an icon guessed from its name, and a colour by its place in the list. */
+function categoryTile(name: string, index: number): { tone: Tone; icon: React.ReactNode } {
+  const icon = ICONS.find(([re]) => re.test(name))?.[1] ?? <Package />;
+  return { tone: TONES[index % TONES.length], icon };
+}
+
+function GearRow({
+  item,
+  tile,
+  myId,
+  canEdit,
+  flash,
+  onSetQty,
+}: {
+  item: Item;
+  tile: { tone: Tone; icon: React.ReactNode };
+  myId?: number;
+  canEdit: boolean;
+  flash?: boolean;
+  onSetQty: (qty: number, el: Element | null) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const mine = myId ? item.claims.find((c) => c.userId === myId) : undefined;
+  const myQty = mine?.qty ?? 0;
+  const others = item.claims.filter((c) => c.userId !== myId);
+  const capacity = item.qtyNeeded ?? 1;
+  const canAdd = item.isOpenQuantity || item.claimedTotal < capacity;
+  // A stepper only where more than one can be brought.
+  const multi = item.isOpenQuantity || capacity > 1;
+  const isMine = canEdit && myQty > 0;
+
+  const act = (qty: number) => (e: React.MouseEvent) => {
+    setBusy(true);
+    onSetQty(qty, e.currentTarget);
+    setTimeout(() => setBusy(false), 350);
+  };
+
+  const names = others.length > 0 && (
+    <>
+      {isMine ? "גם " : ""}
+      {others[0].name}
+      {others.length > 1 && <span dir="ltr"> +{others.length - 1}</span>}
+    </>
+  );
+
+  const status = item.isOpenQuantity ? (
+    item.claims.length > 0 ? (
+      <>
+        <span dir="ltr">{item.claimedTotal}</span> בדרך, תמיד אפשר עוד
+      </>
+    ) : (
+      "כמה שיותר, כל אחד יכול להביא"
+    )
+  ) : item.isFull ? (
+    <>
+      <span dir="ltr">{item.claimedTotal}</span> מתוך <span dir="ltr">{capacity}</span>
+    </>
+  ) : (
+    <>
+      נשאר <span dir="ltr">{item.remaining}</span> מתוך <span dir="ltr">{capacity}</span>
+    </>
+  );
+
+  let trailing: React.ReactNode = null;
+  let bringers = false;
+  if (isMine) {
+    trailing = (
+      <Badge tone="sage">
+        <Check className="size-3.5" strokeWidth={2.6} aria-hidden />
+        אתה מביא
+      </Badge>
+    );
+  } else if (canEdit && canAdd) {
+    trailing = (
+      <Button size="sm" disabled={busy} onClick={act(1)}>
+        אני מביא
+      </Button>
+    );
+  } else if (item.isFull && others.length > 0) {
+    trailing = <Bringers people={others} />;
+    bringers = true;
+  }
+
+  // Names go under the title when the end of the row is busy with something else.
+  const namesInStatus = names && !bringers;
+
+  return (
+    <motion.div
+      layout="position"
+      className={cn(
+        "rounded-[24px] border-[1.5px] bg-surface py-3 ps-3 pe-3",
+        // A question addressed to you is the most urgent thing about the row.
+        item.unreadMentions > 0 ? "border-cta" : "border-line",
+        flash && "claim-pulse",
+      )}
+    >
+      <div className="flex items-center gap-3">
+        <IconTile tone={tile.tone}>{tile.icon}</IconTile>
+        <div className="min-w-0 flex-1 leading-snug">
+          <p className="text-base font-bold">
+            {item.name}
+            {item.qtyLabel && <span className="font-normal text-muted"> · {item.qtyLabel}</span>}
+          </p>
+          <p className="text-[13px] text-muted">
+            {status}
+            {namesInStatus && <> · {names}</>}
+            {item.notes && <> · {item.notes}</>}
+          </p>
+          {(item.isOptional || item.unreadMentions > 0) && (
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {item.unreadMentions > 0 && (
+                <Badge tone="rose">
+                  <AtSign className="size-3.5" aria-hidden />
+                  תייגו אותך
+                </Badge>
+              )}
+              {item.isOptional && <Badge tone="amber">אופציונלי</Badge>}
+            </div>
+          )}
+        </div>
+        <CommentsButton
+          subject="gear"
+          id={item.id}
+          count={item.commentCount}
+          name={item.name}
+          unread={item.unreadMentions}
+        />
+        {trailing}
+      </div>
+
+      {isMine && (
+        <div className="mt-2 flex items-center gap-2 ps-14">
+          {multi && (
+            <div className="flex items-center rounded-full bg-sage text-sage-ink">
+              <button
+                type="button"
+                aria-label="להוריד אחד"
+                disabled={busy}
+                onClick={act(myQty - 1)}
+                className="grid size-11 place-items-center rounded-full transition active:scale-90 disabled:opacity-45"
+              >
+                <Minus className="size-4" strokeWidth={2.6} />
+              </button>
+              <span dir="ltr" className="min-w-6 text-center font-display text-base">
+                {myQty}
+              </span>
+              <button
+                type="button"
+                aria-label="להוסיף אחד"
+                disabled={busy || !canAdd}
+                onClick={act(myQty + 1)}
+                className="grid size-11 place-items-center rounded-full transition active:scale-90 disabled:opacity-45"
+              >
+                <Plus className="size-4" strokeWidth={2.6} />
+              </button>
+            </div>
+          )}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={act(0)}
+            className="tap inline-flex items-center gap-1.5 rounded-full px-3 text-sm font-bold text-muted transition active:scale-95 disabled:opacity-45"
+          >
+            <Undo2 className="size-[18px]" aria-hidden />
+            לוותר
+          </button>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+/** Who brings a covered item: the first one's avatar and name, "+N" for the rest, and a tick. */
+function Bringers({ people }: { people: Claim[] }) {
+  const first = people[0];
+  return (
+    <div className="flex shrink-0 items-center gap-2">
+      <UserAvatar name={first.name} slug={first.slug} avatarUrl={first.avatarUrl} size={30} />
+      <span className="max-w-20 truncate text-sm text-muted">
+        {first.name}
+        {people.length > 1 && <span dir="ltr"> +{people.length - 1}</span>}
+      </span>
+      <span aria-hidden className="grid size-[30px] place-items-center rounded-full bg-sage text-sage-ink">
+        <Check className="size-4" strokeWidth={2.6} />
+      </span>
+    </div>
+  );
+}
+
+/** Editors add something the list is missing, in the bottom sheet. */
+function AddGearSheet({
+  open,
+  onClose,
   categories,
   onAdded,
 }: {
+  open: boolean;
+  onClose: () => void;
   categories: { id: number; name: string }[];
   onAdded: () => void;
 }) {
   const { api } = useTrip();
-  const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [categoryId, setCategoryId] = useState<number | "">("");
   const [qty, setQty] = useState(1);
   const [busy, setBusy] = useState(false);
+  const chosen = categoryId || (categories.length === 1 ? categories[0].id : "");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !categoryId) return;
+    if (!name.trim() || !chosen) return;
     setBusy(true);
     try {
-      await send(api("/gear"), "POST", { name: name.trim(), categoryId, qtyNeeded: qty });
+      await send(api("/gear"), "POST", { name: name.trim(), categoryId: chosen, qtyNeeded: qty });
       setName("");
       setQty(1);
-      setOpen(false);
+      onClose();
       onAdded();
       toast("נוסף לרשימה", "ok");
     } catch (err) {
@@ -244,221 +670,63 @@ function AddGearItem({
     }
   }
 
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="tap mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-white/15 px-5 text-sm font-semibold text-white/45 transition active:scale-[0.98]"
-      >
-        <Plus className="size-4" />
-        להוסיף פריט חסר
-      </button>
-    );
-  }
-
   return (
-    <motion.form
-      onSubmit={submit}
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="glass mt-6 space-y-3 rounded-2xl p-4"
-    >
-      <input
-        autoFocus
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="מה חסר?"
-        maxLength={80}
-        className="tap w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm outline-none placeholder:text-white/25 focus:border-brand-400/40"
-      />
-      <div className="flex gap-2">
-        <select
-          value={categoryId}
-          onChange={(e) => setCategoryId(Number(e.target.value))}
-          className="tap min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 text-sm outline-none focus:border-brand-400/40"
-        >
-          <option value="">קטגוריה…</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id} className="bg-night-800">
-              {c.name}
-            </option>
-          ))}
-        </select>
-        <input
-          type="number"
-          min={1}
-          max={99}
-          value={qty}
-          onChange={(e) => setQty(Number(e.target.value))}
-          aria-label="כמות"
-          className="tap w-16 rounded-xl border border-white/10 bg-white/5 px-3 text-center text-sm outline-none focus:border-brand-400/40"
+    <Modal open={open} onClose={onClose} title="פריט חדש">
+      <form onSubmit={submit} className="flex flex-col gap-4">
+        <TextField
+          label="מה צריך להביא?"
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="למשל: פנס ראש"
+          maxLength={80}
         />
-      </div>
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={busy || !name.trim() || !categoryId}
-          className="tap flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-500/25 text-sm font-semibold text-brand-100 transition active:scale-95 disabled:opacity-30"
-        >
-          {busy ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-          להוסיף
-        </button>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          className="tap rounded-xl px-4 text-sm text-white/45"
-        >
-          ביטול
-        </button>
-      </div>
-    </motion.form>
-  );
-}
-
-function GearRow({
-  item,
-  myId,
-  flash,
-  onSetQty,
-}: {
-  item: Item;
-  myId?: number;
-  flash?: boolean;
-  onSetQty: (qty: number, el: Element | null) => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const mine = myId ? item.claims.find((c) => c.userId === myId) : undefined;
-  const myQty = mine?.qty ?? 0;
-  const capacity = item.qtyNeeded ?? 1;
-  const canAdd = item.isOpenQuantity || item.claimedTotal < capacity;
-
-  const act = (qty: number) => (e: React.MouseEvent) => {
-    setBusy(true);
-    onSetQty(qty, e.currentTarget);
-    setTimeout(() => setBusy(false), 350);
-  };
-
-  return (
-    <motion.div
-      layout
-      className={cn(
-        "glass rounded-2xl p-3.5 transition-colors",
-        item.isFull && "border-aqua-400/25 bg-aqua-500/5",
-        // Placed after the covered tint so it wins: a question addressed to you
-        // is the more urgent thing about the row. An outline rather than a
-        // ring or a border because `glass` sets both the border shorthand and
-        // box-shadow, which silently swallows either of those utilities.
-        item.unreadMentions > 0 && "bg-brand-500/10 outline-2 outline-brand-400/50",
-        flash && "claim-pulse",
-      )}
-    >
-      <div className="flex items-center gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="font-semibold">{item.name}</span>
-            {item.unreadMentions > 0 && <TaggedBadge />}
-            {item.qtyLabel && (
-              <span className="rounded-md bg-white/8 px-1.5 py-0.5 text-[11px] text-white/60">
-                {item.qtyLabel}
-              </span>
-            )}
-            {item.isOptional && (
-              <span className="rounded-full border border-white/12 px-2 py-0.5 text-[10px] text-white/45">
-                אופציונלי
-              </span>
-            )}
-          </div>
-
-          <div className="mt-1 text-xs text-white/45">
-            {item.isOpenQuantity ? (
-              item.claims.length > 0 ? (
-                <span className="text-aqua-300">{item.claimedTotal} בדרך · תמיד אפשר עוד</span>
-              ) : (
-                "כמה שיותר — כל אחד יכול להביא"
-              )
-            ) : item.isFull ? (
-              <span className="inline-flex items-center gap-1 text-aqua-300">
-                <Check className="size-3.5" /> מכוסה
-              </span>
-            ) : (
-              `נשאר ${item.remaining} מתוך ${capacity}`
-            )}
-            {item.notes && <span className="text-white/30"> · {item.notes}</span>}
-          </div>
-        </div>
-
-        <AvatarStack entries={item.claims} />
-      </div>
-
-      <div className="mt-3 flex items-center gap-2">
-        <AnimatePresence mode="popLayout" initial={false}>
-          {myQty > 0 ? (
-            <motion.div
-              key="stepper"
-              layout
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.96 }}
-              className="flex items-center gap-1 rounded-xl bg-brand-500/15 p-1"
-            >
-              <button
-                aria-label="להוריד אחד"
-                disabled={busy}
-                onClick={act(myQty - 1)}
-                className="tap grid place-items-center rounded-lg text-brand-200 active:bg-white/10"
-              >
-                <Minus className="size-4" />
-              </button>
-              <span className="min-w-6 text-center text-sm font-bold tabular-nums text-brand-100">
-                {myQty}
-              </span>
-              <button
-                aria-label="להוסיף אחד"
-                disabled={busy || !canAdd}
-                onClick={act(myQty + 1)}
-                className="tap grid place-items-center rounded-lg text-brand-200 active:bg-white/10 disabled:opacity-30"
-              >
-                <Plus className="size-4" />
-              </button>
-            </motion.div>
-          ) : (
-            <motion.button
-              key="claim"
-              layout
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.96 }}
-              disabled={busy || !canAdd}
-              onClick={act(1)}
-              className="tap flex items-center gap-1.5 rounded-xl border border-brand-400/30 bg-brand-500/15 px-4 text-sm font-semibold text-brand-200 transition active:scale-95 disabled:opacity-30"
-            >
-              <Sparkles className="size-4" />
-              אני מביא
-            </motion.button>
-          )}
-        </AnimatePresence>
-
-        <span className="ms-auto">
-          <CommentsButton
-            subject="gear"
-            id={item.id}
-            count={item.commentCount}
-            name={item.name}
-            unread={item.unreadMentions}
-          />
-        </span>
-
-        {myQty > 0 && (
-          <button
-            onClick={act(0)}
-            disabled={busy}
-            className="tap flex items-center gap-1 rounded-xl px-3 text-xs text-white/40 active:text-white/70"
+        <div className="flex gap-3">
+          <Field
+            label="קטגוריה"
+            htmlFor="gear-category"
+            className="flex-1"
+            hint={categories.length === 0 ? "אין עדיין קטגוריות. מנהלי הטיול מוסיפים אותן בהגדרות." : undefined}
           >
-            <X className="size-3.5" />
-            לוותר
-          </button>
-        )}
-      </div>
-    </motion.div>
+            <select
+              id="gear-category"
+              value={chosen}
+              onChange={(e) => setCategoryId(Number(e.target.value))}
+              className={cn(inputClass, "h-[52px]")}
+            >
+              <option value="">בחרו קטגוריה</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="כמה" htmlFor="gear-qty" className="w-24">
+            <input
+              id="gear-qty"
+              type="number"
+              inputMode="numeric"
+              dir="ltr"
+              min={1}
+              max={99}
+              value={qty}
+              onChange={(e) => setQty(Number(e.target.value))}
+              className={cn(inputClass, "h-[52px] text-center")}
+            />
+          </Field>
+        </div>
+        <Button
+          type="submit"
+          full
+          busy={busy}
+          busyLabel="מוסיפים..."
+          disabled={!name.trim() || !chosen}
+          icon={<Plus className="size-5" />}
+        >
+          להוסיף לרשימה
+        </Button>
+      </form>
+    </Modal>
   );
 }
