@@ -43,6 +43,16 @@ export function toneFor(slug: string): string {
   return PALETTES[Math.abs(hash) % PALETTES.length];
 }
 
+/**
+ * The same person's colour as text on a surface, like their name over a
+ * message: the ink of their avatar's fill. The two fills whose ink is light
+ * (ink and cta) would vanish on a surface, so they fall back to ink and link.
+ */
+export function inkFor(slug: string): string {
+  const ink = toneFor(slug).split(" ")[1];
+  return ink === "text-canvas" ? "text-ink" : ink === "text-on-cta" ? "text-link" : ink;
+}
+
 /** First character of the Hebrew name, used inside the coloured circle. */
 export function initialFor(name: string): string {
   return name.trim().charAt(0) || "?";
